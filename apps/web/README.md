@@ -28,6 +28,14 @@ src/
 public/         favicon、manifest 等原样复制资源
 ```
 
+## 品牌资产
+
+标志、徽标与 favicon 位于仓库根目录的 `branding/`。M1 创建应用时：
+
+- 将 `branding/icons/*` 复制到 `public/`，在 `index.html` 中声明 favicon 与 Apple Touch Icon。
+- 深色界面使用 `branding/logo-mark.png`；浅色界面使用 `branding/logo-badge.png`。
+- 使用规则见 [品牌规范](../../docs/design/branding.md)。
+
 ## 约定
 
 - 所有颜色来自设计令牌，不在组件中硬编码；见 [主题规范](../../docs/design/theming.md)。

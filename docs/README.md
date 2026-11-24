@@ -24,6 +24,7 @@
 | [architecture/database.md](architecture/database.md) | SQLite 使用约定、迁移流程与表结构草案 | 草案 |
 | [design/theming.md](design/theming.md) | 深色 / 浅色主题、设计令牌与持久化 | 草案 |
 | [design/i18n.md](design/i18n.md) | 语言策略、资源组织与格式化 | 草案 |
+| [design/branding.md](design/branding.md) | 标志构成、背景要求、留白与资产清单 | 已建立 |
 | [agent/overview.md](agent/overview.md) | Agent 定位、运行生命周期、工具与安全 | 草案 |
 | [integrations/xaiop.md](integrations/xaiop.md) | XAIOP SDK 的来源、编译、Vite 集成与验证 | 已集成 |
 | [guides/development.md](guides/development.md) | 本地环境、命令、分支与提交规范 | 草案 |

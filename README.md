@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="branding/logo-mark.png" />
+    <img src="branding/logo-badge.png" width="128" alt="Morfa 标志" />
+  </picture>
+</p>
+
 # Morfa
 
 **AI 驱动的在线 UI 设计平台 · 跨平台 · Agent 驱动**
@@ -41,6 +48,7 @@ Morfa/
 │  └─ server/              # Node.js API 与 SQLite（待搭建）
 ├─ packages/
 │  └─ shared/              # 跨端共享的类型、契约与常量
+├─ branding/               # 标志、徽标与 favicon / app icons
 ├─ vendor/
 │  └─ xaiop/               # XAIOP SDK 源码（Node / 浏览器），dist 不入库
 ├─ docs/                   # 文档中心（中文为主，英文为辅）
@@ -86,6 +94,7 @@ npm run build        # 构建生产产物（M1 后可用）
 | [数据库设计](docs/architecture/database.md) | SQLite 约定、迁移与表结构草案 |
 | [主题规范](docs/design/theming.md) | 深色 / 浅色主题与设计令牌 |
 | [国际化规范](docs/design/i18n.md) | 语言策略、文案组织与格式化 |
+| [品牌规范](docs/design/branding.md) | 标志含义、背景使用、留白与资产清单 |
 | [Agent 设计](docs/agent/overview.md) | Agent 运行机制、工具与安全边界 |
 | [XAIOP 集成](docs/integrations/xaiop.md) | SDK 来源、编译方式与 Vite 按需构建 |
 | [开发指南](docs/guides/development.md) | 环境、命令、分支与提交规范 |

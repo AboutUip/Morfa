@@ -35,6 +35,7 @@ scripts/        Development and operations scripts
 | [Database (zh)](../architecture/database.md) | SQLite conventions and schema draft |
 | [Theming (zh)](../design/theming.md) | Light/dark themes and design tokens |
 | [i18n (zh)](../design/i18n.md) | Locale strategy and message resources |
+| [Branding (zh)](../design/branding.md) | Logo usage, backgrounds, assets |
 | [Agent design (zh)](../agent/overview.md) | Agent runtime, tools, safety |
 | [XAIOP integration (zh)](../integrations/xaiop.md) | Vendored SDK, build, Vite plugin |
 | [Development guide (zh)](../guides/development.md) | Setup, commands, workflow |
