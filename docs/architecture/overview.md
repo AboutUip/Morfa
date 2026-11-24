@@ -46,6 +46,7 @@ flowchart LR
 | API 服务 | REST/SSE 接口、鉴权、校验、限流、日志 | 待搭建 |
 | 设计文档服务 | 读取 / 写入结构化文档、版本与补丁 | 待搭建 |
 | Agent 编排器 | 规划、工具调用、流式事件、运行记录 | 待搭建 |
+| XAIOP SDK | 结构化数据的流式编解码（Node / browser / core） | 已 vendored |
 | SQLite | 用户、项目、设计文档、Agent 运行记录、资源元数据 | 待搭建 |
 | 文件存储 | 上传图片、导出文件；开发期落本地磁盘 | 待搭建 |
 
@@ -64,7 +65,7 @@ flowchart LR
 1. 客户端提交指令、选区与上下文摘要。
 2. API 创建运行记录（run），交由编排器处理。
 3. 编排器调用模型，模型返回工具调用；工具在服务端或客户端受控执行。
-4. 变更先形成「待应用补丁」，流式推送给客户端预览。
+4. 变更先形成「待应用补丁」，通过 XAIOP 流式推送给客户端预览（[集成说明](../integrations/xaiop.md)）。
 5. 用户确认后提交为新版本；运行、工具调用与结果全部留痕，可回放与撤销。
 
 ## 跨平台策略
@@ -88,6 +89,7 @@ flowchart LR
 - [ADR 0001：技术栈](../decisions/0001-tech-stack.md)
 - [ADR 0002：仓库结构](../decisions/0002-monorepo.md)
 - [ADR 0003：主题与 i18n 作为一等能力](../decisions/0003-theming-and-i18n.md)
+- [ADR 0004：以 vendored 源码集成 XAIOP](../decisions/0004-xaiop-integration.md) · [集成文档](../integrations/xaiop.md)
 
 ## 待确认问题
 

@@ -30,6 +30,12 @@ apps/server/data/*
 *.sqlite-shm
 *.db
 
+# XAIOP vendored SDK：保留上游源码，排除编译产物与打包文件
+# dist 由 Vite 插件（scripts/vite-plugin-xaiop.mjs）按需生成
+vendor/xaiop/xaiop-sdk/nodejs/dist/
+vendor/xaiop/xaiop-sdk/nodejs/*.tgz
+vendor/xaiop/**/node_modules/
+
 # 日志
 logs/
 *.log

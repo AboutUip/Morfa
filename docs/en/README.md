@@ -36,6 +36,7 @@ scripts/        Development and operations scripts
 | [Theming (zh)](../design/theming.md) | Light/dark themes and design tokens |
 | [i18n (zh)](../design/i18n.md) | Locale strategy and message resources |
 | [Agent design (zh)](../agent/overview.md) | Agent runtime, tools, safety |
+| [XAIOP integration (zh)](../integrations/xaiop.md) | Vendored SDK, build, Vite plugin |
 | [Development guide (zh)](../guides/development.md) | Setup, commands, workflow |
 | [ADRs (zh)](../decisions/) | Architecture decision records |
 
@@ -46,6 +47,14 @@ scripts/        Development and operations scripts
 - **Cross-platform**: web-first with responsive and touch support; desktop clients are on the roadmap.
 - **First-class theming and i18n**: `system / light / dark` modes and complete `zh-CN` / `en-US` coverage from day one.
 - **Self-host friendly**: SQLite keeps local development and small deployments simple.
+- **Structured streaming**: the XAIOP SDK is vendored as source for Node.js and the browser; compiled artifacts are generated on demand by a Vite plugin.
+
+## Vendored XAIOP
+
+- Repository: <https://github.com/AboutUip/XAIOP>
+- SDK `0.16.0`, protocol `0.7.0` (Draft), upstream commit `83dea5a`, MIT
+- Source lives in `vendor/xaiop/`; `dist/` is ignored and rebuilt by `scripts/vite-plugin-xaiop.mjs`
+- Validate with `npm run xaiop:test` and `npm run xaiop:check`
 
 ## Contributing
 

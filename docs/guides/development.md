@@ -15,13 +15,21 @@
 
 ## 当前状态
 
-仓库处于 M0：仅包含目录骨架与文档，尚无可运行的应用。不要执行不存在的 `npm` 脚本。
+仓库处于 M0 与 M1 之间：目录、文档、根 workspace 配置与 XAIOP SDK 集成已就绪，前端与后端应用尚未搭建。可执行 `npm install` 及 XAIOP 相关命令，其余应用命令待 M1 提供。
 
-M1 完成后，预计提供以下根命令：
+### 已可用命令
 
 | 命令 | 作用 |
 | --- | --- |
-| `npm install` | 安装所有 workspace 依赖 |
+| `npm install` | 安装所有 workspace 依赖（含 vendored XAIOP） |
+| `npm run xaiop:build` | 编译 XAIOP SDK 到 `vendor/xaiop/.../dist` |
+| `npm run xaiop:test` | 编译并运行 XAIOP 上游完整测试 |
+| `npm run xaiop:check` | 校验 Node / browser / core 入口与夹具解析 |
+
+### M1 后预计提供
+
+| 命令 | 作用 |
+| --- | --- |
 | `npm run dev` | 并行启动 web 与 server |
 | `npm run dev:web` | 仅启动前端 |
 | `npm run dev:server` | 仅启动后端 |
@@ -34,18 +42,34 @@ M1 完成后，预计提供以下根命令：
 
 命令落地后，本表与根 `package.json` 必须保持一致。
 
-## 首次设置（规划）
+## 首次设置
 
 ```bash
-git clone <repository-url> Morfa
+git clone https://github.com/AboutUip/Morfa.git Morfa
 cd Morfa
 npm install
+npm run xaiop:check
+```
+
+M1 完成后还需复制 `.env.example`、执行数据库迁移并启动开发服务器：
+
+```bash
 cp .env.example .env        # 待 M1 提供
 npm run db:migrate
 npm run dev
 ```
 
 Windows PowerShell 中复制环境变量文件使用 `Copy-Item .env.example .env`。
+
+## XAIOP SDK
+
+XAIOP 以源码形式放在 `vendor/xaiop/`，通过 npm workspaces 注册为 `@bylan280/xaiop`，编译产物 `dist/` 不提交。
+
+- 修改或同步 SDK 源码后执行 `npm run xaiop:test` 与 `npm run xaiop:check`。
+- 不要在 `vendor/xaiop` 内提交 `dist/`、`*.tgz` 或 `node_modules/`。
+- 前端 Vite 配置需要挂载 `xaiopSourcePlugin()`；插件会自动检查并编译。
+- 需要临时跳过自动构建时设置 `XAIOP_SKIP_BUILD=1`，仅限已确认 `dist` 存在的场景。
+- 上游信息、同步步骤与安全边界见 [XAIOP 集成](../integrations/xaiop.md)。
 
 ## 环境变量
 

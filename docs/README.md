@@ -25,6 +25,7 @@
 | [design/theming.md](design/theming.md) | 深色 / 浅色主题、设计令牌与持久化 | 草案 |
 | [design/i18n.md](design/i18n.md) | 语言策略、资源组织与格式化 | 草案 |
 | [agent/overview.md](agent/overview.md) | Agent 定位、运行生命周期、工具与安全 | 草案 |
+| [integrations/xaiop.md](integrations/xaiop.md) | XAIOP SDK 的来源、编译、Vite 集成与验证 | 已集成 |
 | [guides/development.md](guides/development.md) | 本地环境、命令、分支与提交规范 | 草案 |
 | [decisions/](decisions/) | 架构决策记录（ADR） | 持续更新 |
 | [en/README.md](en/README.md) | 英文概览与文档索引 | 草案 |
@@ -33,7 +34,8 @@
 
 - **新加入的开发者**：README → 产品愿景 → 架构总览 → 开发指南 → 对应模块文档。
 - **产品与设计**：产品愿景 → 路线图 → 主题规范 → i18n 规范。
-- **Agent 方向**：架构总览 → Agent 设计 → 数据库设计（运行记录部分）。
+- **Agent 方向**：架构总览 → Agent 设计 → XAIOP 集成 → 数据库设计（运行记录部分）。
+- **第三方依赖维护**：XAIOP 集成 → vendor README → ADR 0004。
 - **架构评审**：架构总览 → 各模块文档 → ADR 列表。
 
 ## 文档维护

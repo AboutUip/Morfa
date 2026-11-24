@@ -16,6 +16,7 @@ Node.js 服务负责鉴权、项目与设计文档的持久化、资源管理、
 | 校验 | Zod（与共享 schema 复用） | 建议 |
 | 数据库 | SQLite（WAL） | 已选定 |
 | 数据访问 | Drizzle ORM + better-sqlite3 | 建议 |
+| Agent 流式协议 | XAIOP Node SDK | 已 vendored，详见 [XAIOP 集成](../integrations/xaiop.md) |
 | 日志 | Pino（结构化 JSON） | 建议 |
 | 测试 | Vitest + Supertest / Fastify inject | 建议 |
 
@@ -63,7 +64,7 @@ apps/server/
 
 - 每个响应携带 `requestId`，日志与错误追踪使用同一 ID。
 - 列表接口使用游标分页；时间统一为 UTC 毫秒时间戳。
-- Agent 流式输出使用 SSE（单向事件流），事件类型包含 `run.started`、`message.delta`、`tool.started`、`tool.finished`、`patch.proposed`、`run.finished`、`run.failed`。
+- Agent 流式输出使用 SSE（单向事件流），事件类型包含 `run.started`、`message.delta`、`tool.started`、`tool.finished`、`patch.proposed`、`run.finished`、`run.failed`。增量载荷规划使用 XAIOP 编码，前端通过 browser SDK 解析。
 
 ## 模块划分（规划）
 

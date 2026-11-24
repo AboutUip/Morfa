@@ -1,0 +1,24 @@
+{
+  "name": "morfa",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI 驱动的在线 UI 设计平台（Morfa）",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AboutUip/Morfa.git"
+  },
+  "license": "MIT",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "vendor/xaiop/xaiop-sdk/nodejs"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "xaiop:build": "npm run build:ts --workspace @bylan280/xaiop",
+    "xaiop:test": "npm test --workspace @bylan280/xaiop",
+    "xaiop:check": "node scripts/xaiop-smoke.mjs"
+  }
+}

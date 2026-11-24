@@ -14,6 +14,7 @@
 | 样式 | CSS Modules + CSS Variables（设计令牌） | 建议 |
 | 测试 | Vitest + Testing Library；Playwright 负责 E2E | 建议 |
 | i18n | i18next + react-i18next | 建议，详见 [i18n 规范](../design/i18n.md) |
+| Agent 流式协议 | XAIOP browser SDK | 已 vendored，详见 [XAIOP 集成](../integrations/xaiop.md) |
 
 依赖在 M1 搭建时锁定版本，并在 `apps/web/package.json` 中固定。
 

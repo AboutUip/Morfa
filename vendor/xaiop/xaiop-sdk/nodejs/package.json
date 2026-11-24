@@ -1,0 +1,71 @@
+{
+  "name": "@bylan280/xaiop",
+  "version": "0.16.0",
+  "description": "XAIOP protocol SDK — Node.js primary; browser client via @bylan280/xaiop/browser (protocol v0.7.0 Draft)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./browser": {
+      "types": "./dist/browser/index.d.ts",
+      "import": "./dist/browser/index.js",
+      "default": "./dist/browser/index.js"
+    },
+    "./core": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js",
+      "default": "./dist/core/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build:ts": "tsc -p tsconfig.json",
+    "test": "npm run build:ts && node test/run-all.mjs",
+    "bench": "node ../timing/node/bench.mjs",
+    "compare": "node ../timing/node/compare.mjs",
+    "build": "npm test && node scripts/build.js",
+    "pack": "npm run build",
+    "prepublishOnly": "npm run build:ts"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "xaiop",
+    "llm",
+    "structured-output",
+    "protocol"
+  ],
+  "license": "MIT",
+  "author": "小萱baibai",
+  "homepage": "https://github.com/AboutUip/XAIOP/tree/main/xaiop-sdk/nodejs",
+  "bugs": {
+    "url": "https://github.com/AboutUip/XAIOP/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AboutUip/XAIOP.git",
+    "directory": "xaiop-sdk/nodejs"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "dependencies": {
+    "ws": "^8.21.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@types/ws": "^8.18.1",
+    "typescript": "^5.8.2"
+  }
+}

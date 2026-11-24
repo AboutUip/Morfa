@@ -4,7 +4,9 @@
 
 Morfa 是一个 AI 原生的在线 UI 设计工具。它把自然语言意图与结构化、可编辑的设计文档连接起来：Agent 负责理解与执行，用户始终拥有预览、应用与撤销的控制权。
 
-> 当前阶段：**项目初始化（M0）**。本仓库已完成目录规划、技术选型记录与文档骨架，应用代码将在后续里程碑中搭建。
+> 仓库：<https://github.com/AboutUip/Morfa> · XAIOP 上游：<https://github.com/AboutUip/XAIOP>
+>
+> 当前阶段：**项目初始化（M0）**。本仓库已完成目录规划、技术选型记录、XAIOP SDK 集成与文档骨架，应用代码将在后续里程碑中搭建。
 
 ## 核心方向
 
@@ -14,6 +16,7 @@ Morfa 是一个 AI 原生的在线 UI 设计工具。它把自然语言意图与
 - **原生 i18n**：默认简体中文，内置英文；界面文案、日期与数字格式化统一走国际化层。
 - **结构化设计文档**：设计即数据，便于版本化、协作、导出，也便于 Agent 精确操作。
 - **自托管友好**：以 SQLite 作为嵌入式数据库，降低本地开发与小型部署的门槛。
+- **Agent 流式协议**：集成 [XAIOP](https://github.com/AboutUip/XAIOP) SDK（Node / 浏览器），为结构化增量输出与断线恢复提供基础。
 
 ## 技术栈
 
@@ -23,6 +26,7 @@ Morfa 是一个 AI 原生的在线 UI 设计工具。它把自然语言意图与
 | 前端构建 | Vite | 建议方案，实现阶段确认 |
 | 后端 | Node.js + TypeScript | 已选定 |
 | 数据库 | SQLite（WAL 模式） | 已选定 |
+| Agent 流式协议 | XAIOP SDK `0.16.0`（vendored 源码） | 已集成 |
 | 仓库组织 | npm workspaces（monorepo） | 已采用 |
 | 测试 | Vitest + Playwright | 建议方案 |
 
@@ -37,15 +41,18 @@ Morfa/
 │  └─ server/              # Node.js API 与 SQLite（待搭建）
 ├─ packages/
 │  └─ shared/              # 跨端共享的类型、契约与常量
+├─ vendor/
+│  └─ xaiop/               # XAIOP SDK 源码（Node / 浏览器），dist 不入库
 ├─ docs/                   # 文档中心（中文为主，英文为辅）
 │  ├─ product/             # 产品愿景与路线图
 │  ├─ architecture/        # 架构、前端、后端、数据库
 │  ├─ design/              # 主题与国际化规范
 │  ├─ agent/               # Agent 能力与运行机制
+│  ├─ integrations/        # 第三方依赖集成（XAIOP）
 │  ├─ guides/              # 开发指南
 │  ├─ decisions/           # 架构决策记录（ADR）
 │  └─ en/                  # 英文文档
-├─ scripts/                # 开发与运维脚本（预留）
+├─ scripts/                # 开发脚本与 Vite 集成插件
 ├─ README.md
 └─ LICENSE
 ```
@@ -57,13 +64,14 @@ Morfa/
 应用代码尚未落地，当前仓库只包含目录骨架与文档。后续会提供统一的 workspace 命令，例如：
 
 ```bash
-npm install        # 安装所有 workspace 依赖
-npm run dev        # 同时启动 web 与 server
-npm run build      # 构建生产产物
-npm run test       # 运行测试
+npm install          # 安装所有 workspace 依赖（含 vendored XAIOP）
+npm run xaiop:build  # 编译 XAIOP SDK 到 vendor/.../dist
+npm run xaiop:check  # 校验 Node / browser / core 入口
+npm run dev          # 同时启动 web 与 server（M1 后可用）
+npm run build        # 构建生产产物（M1 后可用）
 ```
 
-环境要求（规划）：Node.js >= 22、npm >= 10、Git。更多说明见 [开发指南](docs/guides/development.md)。
+环境要求：Node.js >= 22、npm >= 10、Git。更多说明见 [开发指南](docs/guides/development.md) 与 [XAIOP 集成文档](docs/integrations/xaiop.md)。
 
 ## 文档
 
@@ -79,6 +87,7 @@ npm run test       # 运行测试
 | [主题规范](docs/design/theming.md) | 深色 / 浅色主题与设计令牌 |
 | [国际化规范](docs/design/i18n.md) | 语言策略、文案组织与格式化 |
 | [Agent 设计](docs/agent/overview.md) | Agent 运行机制、工具与安全边界 |
+| [XAIOP 集成](docs/integrations/xaiop.md) | SDK 来源、编译方式与 Vite 按需构建 |
 | [开发指南](docs/guides/development.md) | 环境、命令、分支与提交规范 |
 | [架构决策](docs/decisions/) | ADR 记录与背景 |
 
@@ -98,6 +107,14 @@ npm run test       # 运行测试
 - 架构或技术选型变更需新增 ADR，而不是只改代码。
 - 行为变化必须同步更新对应文档与 i18n 资源。
 
+## 第三方组件
+
+| 组件 | 用途 | 来源 | 集成方式 |
+| --- | --- | --- | --- |
+| XAIOP SDK `0.16.0` | Agent 结构化流式协议（Node / 浏览器） | <https://github.com/AboutUip/XAIOP>（提交 `83dea5a`，MIT） | 源码位于 `vendor/xaiop/`，`dist` 由 Vite 插件按需编译 |
+
+XAIOP 的源码与许可证保留在 `vendor/xaiop/`，编译产物不提交。详见 [XAIOP 集成](docs/integrations/xaiop.md) 与 [ADR 0004](docs/decisions/0004-xaiop-integration.md)。
+
 ## 许可证
 
 [MIT](LICENSE) © 2026 小萱baibai
@@ -111,5 +128,7 @@ Morfa is an AI-powered, cross-platform online UI design platform. Agents operate
 **Status:** project initialization. This repository currently contains the directory layout, architecture decisions, and documentation skeleton; application code will follow.
 
 **Stack:** React + TypeScript (web), Node.js + TypeScript (server), SQLite (database), npm workspaces (monorepo).
+
+**XAIOP:** the [XAIOP](https://github.com/AboutUip/XAIOP) SDK (upstream commit `83dea5a`, MIT) is vendored under `vendor/xaiop/` for structured streaming between the Agent and the editor. Only source is committed; `dist` is compiled on demand by a Vite plugin. See [`docs/integrations/xaiop.md`](docs/integrations/xaiop.md).
 
 Chinese is the primary language of this project. English documentation is available in [`docs/en/`](docs/en/README.md); when the two differ, the Chinese version is authoritative.
