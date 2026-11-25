@@ -6,7 +6,7 @@ Morfa 的 React 前端：在线设计编辑器、Agent 对话面板与设置界�
 
 ## 已实现
 
-- **启动加载**：固定 3 秒占位，进度由可组合的 bootstrap 任务驱动；后续替换为网络初始化任务即可展示真实进度。
+- **启动加载**：`components/LoadingScreen` 负责展示，`components/LoadingOverlay` 订阅 `LoadingProgressController`；进度、任务文案与底部文案都支持实时订阅和更新。当前 bootstrap 仍使用 3 秒占位任务，后续替换为网络初始化任务即可复用同一套加载界面。
 - **项目主页**：桌面上顶栏保留「项目 | 组件 | 设置」水平 Tab；移动端将其收纳到左上角 `logo | Morfa` 按钮，点击展开带图标与选中标记的页面菜单，箭头随展开旋转；项目区域默认空状态，右上角提供登录入口。
 - **组件 / 设置**：当前为占位页，后续接入组件库与完整设置。
 - **登录 / 注册弹窗**：支持登录与注册切换；点击蒙版不关闭，只通过右上角关闭按钮退出。
@@ -63,10 +63,12 @@ npm run typecheck  # 类型检查
 ## 启动流程与扩展
 
 - `src/features/bootstrap/bootstrap.ts`：任务类型、加权进度汇总与当前 3 秒占位任务。
-- `src/features/bootstrap/useBootstrap.ts`：React 生命周期、取消与重试。
-- `src/features/bootstrap/LoadingScreen.tsx`：进度条、任务文案、错误与重试界面。
+- `src/features/bootstrap/useBootstrap.ts`：连接 bootstrap 任务与加载进度源，处理取消与重试。
+- `src/lib/loading/`：`LoadingProgressController`、`createLoadingProgressController` 与 `useLoadingProgress` 订阅 hook。
+- `src/components/LoadingScreen.tsx`：纯展示加载界面，可独立传入进度、任务文案、底部文案与错误重试。
+- `src/components/LoadingOverlay.tsx`：订阅任意进度源的可复用加载层。
 
-接入真实初始化时，将 `workspaceBootstrapTasks` 替换为会话、项目、设计文档等异步任务，并在任务内部调用 `report(0..1)`。加载界面与状态机无需改动。
+接入真实初始化时，将 `workspaceBootstrapTasks` 替换为会话、项目、设计文档等异步任务，并在任务内部调用 `report(0..1)`。其他业务流程也可以创建独立的 `LoadingProgressController`，在异步任务中 `start / report / finish`，再挂载 `LoadingOverlay` 复用同一套加载体验。
 
 ## 品牌资产
 

@@ -20,7 +20,8 @@
     },
     "errorTitle": "初始化失败",
     "errorHint": "请检查网络或控制台后重试。",
-    "retry": "重试"
+    "retry": "重试",
+    "footer": "Morfa · 本地工作区"
   },
   "projects": {
     "emptyTitle": "还没有项目",

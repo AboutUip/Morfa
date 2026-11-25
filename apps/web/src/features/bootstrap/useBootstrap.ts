@@ -1,77 +1,101 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
+import { i18n } from "../../lib/i18n";
+import {
+  createLoadingProgressController,
+  useLoadingProgress,
+  type LoadingProgressController,
+} from "../../lib/loading";
 import {
   runBootstrap,
   workspaceBootstrapTasks,
   type BootstrapTask,
 } from "./bootstrap";
 
-export type BootstrapStatus = "loading" | "ready" | "error";
+export type BootstrapStatus = "idle" | "loading" | "error" | "success";
 
-interface BootstrapState {
-  status: BootstrapStatus;
-  progress: number;
-  taskLabelKey: string;
-  error: string | null;
+function createBootstrapController(): LoadingProgressController {
+  return createLoadingProgressController({
+    status: "loading",
+    progress: 0,
+    label: i18n.t("loading.tasks.workspace"),
+    footer: i18n.t("loading.footer"),
+  });
 }
-
-const initialState: BootstrapState = {
-  status: "loading",
-  progress: 0,
-  taskLabelKey: "loading.tasks.workspace",
-  error: null,
-};
 
 export function useBootstrap(
   tasks: readonly BootstrapTask[] = workspaceBootstrapTasks,
 ) {
   const [attempt, setAttempt] = useState(0);
-  const [state, setState] = useState<BootstrapState>(initialState);
+  const controllerRef = useRef<LoadingProgressController | null>(null);
+  const taskLabelKeyRef = useRef("loading.tasks.workspace");
+
+  if (!controllerRef.current) {
+    controllerRef.current = createBootstrapController();
+  }
+
+  const controller = controllerRef.current;
+  const snapshot = useLoadingProgress(controller);
 
   useEffect(() => {
-    const controller = new AbortController();
-    setState(initialState);
+    const syncCopy = () => {
+      controller.setCopy({
+        label: i18n.t(taskLabelKeyRef.current),
+        footer: i18n.t("loading.footer"),
+      });
+    };
+
+    i18n.on("languageChanged", syncCopy);
+    return () => {
+      i18n.off("languageChanged", syncCopy);
+    };
+  }, [controller]);
+
+  useEffect(() => {
+    const abort = new AbortController();
+
+    controller.start({
+      progress: 0,
+      label: i18n.t("loading.tasks.workspace"),
+      footer: i18n.t("loading.footer"),
+    });
 
     runBootstrap(
       tasks,
       (update) => {
-        if (controller.signal.aborted) return;
-        setState({
-          status: "loading",
-          progress: update.progress,
-          taskLabelKey: update.taskLabelKey,
-          error: null,
+        if (abort.signal.aborted) return;
+        taskLabelKeyRef.current = update.taskLabelKey;
+        controller.report(update.progress, {
+          label: i18n.t(update.taskLabelKey),
         });
       },
-      controller.signal,
+      abort.signal,
     )
       .then(() => {
-        if (controller.signal.aborted) return;
-        setState((current) => ({
-          ...current,
-          status: "ready",
-          progress: 1,
-          error: null,
-        }));
+        if (!abort.signal.aborted) controller.finish();
       })
       .catch((error: unknown) => {
-        if (controller.signal.aborted) return;
-        if (error instanceof DOMException && error.name === "AbortError") return;
+        if (abort.signal.aborted) return;
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
 
         console.error("[morfa] bootstrap failed", error);
-        setState((current) => ({
-          ...current,
-          status: "error",
-          error: error instanceof Error ? error.message : String(error),
-        }));
+        controller.fail(
+          error instanceof Error ? error.message : String(error),
+        );
       });
 
-    return () => controller.abort();
-  }, [attempt, tasks]);
+    return () => abort.abort();
+  }, [attempt, tasks, controller]);
 
   const retry = useCallback(() => {
     setAttempt((value) => value + 1);
   }, []);
 
-  return { ...state, retry };
+  return {
+    controller,
+    status: snapshot.status,
+    retry,
+  };
 }

@@ -20,7 +20,8 @@
     },
     "errorTitle": "Initialization failed",
     "errorHint": "Check your connection or the console, then try again.",
-    "retry": "Try again"
+    "retry": "Try again",
+    "footer": "Morfa · Local workspace"
   },
   "projects": {
     "emptyTitle": "No projects yet",
