@@ -15,10 +15,7 @@
     "retry": "重试"
   },
   "projects": {
-    "eyebrow": "WORKSPACE",
     "title": "项目",
-    "subtitle": "你的设计项目会集中显示在这里。",
-    "count": "0 个项目",
     "emptyTitle": "还没有项目",
     "emptyHint": "登录后，你的设计项目会显示在这里。",
     "emptyHintLoggedIn": "你的设计项目会显示在这里。项目创建功能即将开放。",

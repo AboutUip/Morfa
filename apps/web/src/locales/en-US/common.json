@@ -15,10 +15,7 @@
     "retry": "Try again"
   },
   "projects": {
-    "eyebrow": "WORKSPACE",
     "title": "Projects",
-    "subtitle": "Your design projects will live here.",
-    "count": "0 projects",
     "emptyTitle": "No projects yet",
     "emptyHint": "Sign in and your design projects will appear here.",
     "emptyHintLoggedIn": "Your design projects will appear here. Project creation is coming soon.",

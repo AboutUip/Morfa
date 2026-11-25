@@ -18,14 +18,7 @@ export function ProjectsPage() {
 
       <main className={styles.page}>
         <div className={styles.container}>
-          <header className={styles.header}>
-            <div>
-              <p className={styles.eyebrow}>{t("projects.eyebrow")}</p>
-              <h1>{t("projects.title")}</h1>
-              <p className={styles.subtitle}>{t("projects.subtitle")}</p>
-            </div>
-            <span className={styles.count}>{t("projects.count")}</span>
-          </header>
+          <h1 className={styles.title}>{t("projects.title")}</h1>
 
           <section className={styles.empty}>
             <div className={styles.emptyIdentity}>
