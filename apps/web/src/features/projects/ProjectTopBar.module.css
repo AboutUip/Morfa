@@ -6,8 +6,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  height: var(--mf-topbar-height);
-  padding: 0 16px;
+  height: calc(var(--mf-topbar-height) + var(--mf-safe-top));
+  padding: var(--mf-safe-top) max(16px, var(--mf-safe-right)) 0
+    max(16px, var(--mf-safe-left));
   border-bottom: 1px solid var(--mf-border);
   background: var(--mf-bg-surface);
 }
@@ -168,11 +169,72 @@
 }
 
 @media (max-width: 640px) {
-  .nickname {
-    display: none;
+  .topBar {
+    gap: 8px;
+    padding-right: max(12px, var(--mf-safe-right));
+    padding-left: max(12px, var(--mf-safe-left));
+  }
+
+  .brandGroup {
+    gap: 9px;
+  }
+
+  .pipe {
+    font-size: 16px;
+  }
+
+  .iconButton {
+    width: 40px;
+    height: 40px;
+  }
+
+  .loginButton {
+    height: 40px;
+    padding: 0 12px;
   }
 
   .divider {
-    margin: 0 7px;
+    margin: 0 6px;
+  }
+
+  .avatar {
+    width: 28px;
+    height: 28px;
+  }
+
+  .logoutButton {
+    width: 34px;
+    height: 34px;
+  }
+
+  .nickname {
+    display: none;
+  }
+}
+
+@media (max-width: 380px) {
+  .loginButton {
+    padding: 0 10px;
+    font-size: 10px;
+  }
+
+  .brandGroup {
+    gap: 7px;
+  }
+}
+
+@media (pointer: coarse) and (min-width: 641px) {
+  .iconButton {
+    width: 40px;
+    height: 40px;
+  }
+
+  .loginButton {
+    height: 40px;
+  }
+
+  .logoutButton {
+    width: 34px;
+    height: 34px;
   }
 }

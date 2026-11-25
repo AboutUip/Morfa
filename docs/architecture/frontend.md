@@ -103,6 +103,16 @@ features/
 - 语言切换即时生效，并更新 `<html lang>`、文档标题与 `localStorage`。
 - 详见 [i18n 规范](../design/i18n.md)。
 
+## 移动端与桌面端
+
+- **布局**：项目页占满视口宽度，桌面与移动端共用同一套 React 组件；仅通过 CSS 断点调整间距、字号与弹窗形态。
+- **视口**：`index.html` 使用 `viewport-fit=cover`，样式通过 `env(safe-area-inset-*)` 适配刘海与底部手势区；根容器使用 `100dvh`，避免移动浏览器地址栏导致的高度跳动。
+- **登录 / 注册**：桌面端为居中弹窗；`max-width: 640px` 时变为底部抽屉（bottom sheet），增加拖拽提示条并保留安全区底部间距。
+- **触控**：移动端主要按钮高度不小于 44px，图标按钮扩大命中区域；表单输入使用 `font-size: 16px`，避免 iOS 聚焦时自动缩放。
+- **滚动**：页面与弹窗分别使用 `overscroll-behavior` 与 `-webkit-overflow-scrolling: touch`，防止滚动穿透。
+- **PWA 基础**：`site.webmanifest` 声明 standalone、启动路径、任意方向和 192/512 图标；后续再决定是否引入 Service Worker 与离线缓存。
+- **断点**：`640px`（弹窗底部抽屉、顶栏触控优化）、`700px`（项目页间距与标题）、`380px`（极窄屏顶栏压缩）。
+
 ## 可访问性
 
 - 交互元素优先使用原生语义标签，自定义控件补齐 `role`、键盘与焦点管理。

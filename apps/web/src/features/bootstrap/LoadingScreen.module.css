@@ -4,7 +4,8 @@
   display: grid;
   place-items: center;
   overflow: hidden;
-  padding: 32px;
+  padding: max(24px, var(--mf-safe-top)) max(20px, var(--mf-safe-right))
+    max(24px, var(--mf-safe-bottom)) max(20px, var(--mf-safe-left));
   background: var(--mf-bg-app);
 }
 
@@ -159,11 +160,50 @@
 
 .footer {
   position: absolute;
-  bottom: 24px;
+  bottom: calc(24px + var(--mf-safe-bottom));
   color: var(--mf-text-tertiary);
   font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+@media (max-width: 480px) {
+  .card {
+    width: min(330px, 100%);
+  }
+
+  .brandRow {
+    gap: 12px;
+  }
+
+  .wordmark {
+    font-size: 23px;
+  }
+
+  .pipe {
+    font-size: 20px;
+  }
+
+  .statusBlock {
+    margin-top: 24px;
+  }
+
+  .statusBlock h1 {
+    font-size: 13px;
+  }
+
+  .statusBlock p {
+    font-size: 11px;
+  }
+
+  .progressBlock {
+    margin-top: 24px;
+  }
+
+  .footer {
+    bottom: calc(14px + var(--mf-safe-bottom));
+    font-size: 9px;
+  }
 }
 
 @keyframes rise {

@@ -1,11 +1,19 @@
 {
+  "id": "/",
   "name": "Morfa",
   "short_name": "Morfa",
   "description": "AI 驱动的在线 UI 设计平台",
+  "lang": "zh-CN",
+  "dir": "ltr",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
   "background_color": "#0b0f14",
   "theme_color": "#0b0f14",
+  "categories": ["design", "productivity", "graphics"],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/icons/icon-192.png",
@@ -17,7 +25,7 @@
       "src": "/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any"
+      "purpose": "any maskable"
     }
   ]
 }

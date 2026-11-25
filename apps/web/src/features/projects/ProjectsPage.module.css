@@ -1,7 +1,8 @@
 .shell {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   background: var(--mf-bg-app);
   animation: page-in 420ms var(--mf-ease-out) both;
@@ -10,18 +11,23 @@
 .page {
   flex: 1;
   overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .container {
   width: 100%;
-  padding: 56px 40px 72px;
+  padding: clamp(28px, 5vw, 56px) max(16px, var(--mf-safe-right))
+    calc(clamp(40px, 6vw, 72px) + var(--mf-safe-bottom))
+    max(16px, var(--mf-safe-left));
 }
 
 .header {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 24px;
+  gap: 16px 24px;
+  flex-wrap: wrap;
 }
 
 .eyebrow {
@@ -34,7 +40,7 @@
 .header h1 {
   margin-top: 8px;
   color: var(--mf-text-primary);
-  font-size: 27px;
+  font-size: clamp(22px, 3.2vw, 27px);
   font-weight: 650;
   letter-spacing: -0.035em;
   line-height: 1.15;
@@ -59,14 +65,14 @@
 
 .empty {
   display: flex;
-  min-height: 430px;
-  margin-top: 36px;
+  min-height: clamp(340px, 52dvh, 430px);
+  margin-top: clamp(24px, 4vw, 36px);
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 48px 24px;
+  padding: clamp(28px, 5vw, 48px) clamp(16px, 4vw, 24px);
   border: 1px solid var(--mf-border);
-  border-radius: 20px;
+  border-radius: clamp(16px, 2vw, 20px);
   background:
     radial-gradient(
       circle at 50% 0%,
@@ -121,6 +127,12 @@
   opacity: 0.84;
 }
 
+@media (pointer: coarse) {
+  .loginCta {
+    min-height: 44px;
+  }
+}
+
 @keyframes page-in {
   from {
     opacity: 0;
@@ -131,21 +143,49 @@
 }
 
 @media (max-width: 700px) {
-  .container {
-    padding: 36px 20px 48px;
-  }
-
   .header {
     align-items: flex-start;
   }
 
   .header h1 {
+    margin-top: 6px;
     font-size: 23px;
   }
 
+  .subtitle {
+    max-width: 260px;
+  }
+
+  .count {
+    margin-top: 2px;
+  }
+
   .empty {
-    min-height: 360px;
-    margin-top: 28px;
-    padding: 36px 18px;
+    min-height: clamp(320px, 48dvh, 390px);
+    margin-top: 24px;
+    padding: 32px 18px;
+  }
+
+  .emptyBrand {
+    width: 74px;
+    height: 74px;
+    margin-bottom: 16px;
+    border-radius: 20px;
+  }
+
+  .empty h2 {
+    font-size: 14px;
+  }
+
+  .empty p {
+    max-width: 300px;
+    font-size: 11px;
+  }
+
+  .loginCta {
+    min-height: 44px;
+    margin-top: 18px;
+    padding: 0 18px;
+    font-size: 12px;
   }
 }

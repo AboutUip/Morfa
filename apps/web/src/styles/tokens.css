@@ -17,4 +17,9 @@
   --mf-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --mf-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --mf-transition: 160ms var(--mf-ease);
+
+  --mf-safe-top: env(safe-area-inset-top, 0px);
+  --mf-safe-right: env(safe-area-inset-right, 0px);
+  --mf-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --mf-safe-left: env(safe-area-inset-left, 0px);
 }
