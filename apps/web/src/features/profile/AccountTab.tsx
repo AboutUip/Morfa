@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { DownloadIcon } from "../../components/icons";
@@ -6,10 +6,15 @@ import { ApiError, profileApi, type ExportSummary } from "../../lib/api";
 import { apiErrorMessage } from "../../lib/apiErrors";
 import { useAuth } from "../auth/AuthProvider";
 import styles from "./ProfilePanel.module.css";
-import type { RequestVCode } from "./types";
+import type {
+  RequestPassword,
+  RequestVCode,
+  VCodeStep,
+} from "./types";
 
 interface AccountTabProps {
   requestVCode: RequestVCode;
+  requestPassword: RequestPassword;
   onClose: () => void;
 }
 
@@ -25,7 +30,11 @@ function formatBytes(bytes: number, locale: string): string {
   return `${formatter.format(bytes / (1024 * 1024))} MB`;
 }
 
-export function AccountTab({ requestVCode, onClose }: AccountTabProps) {
+export function AccountTab({
+  requestVCode,
+  requestPassword,
+  onClose,
+}: AccountTabProps) {
   const { t, i18n } = useTranslation();
   const { user, clearUser } = useAuth();
   const locale = i18n.resolvedLanguage === "en-US" ? "en-US" : "zh-CN";
@@ -38,7 +47,6 @@ export function AccountTab({ requestVCode, onClose }: AccountTabProps) {
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
 
-  const [cancelPassword, setCancelPassword] = useState("");
   const [cancelBusy, setCancelBusy] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
 
@@ -99,37 +107,41 @@ export function AccountTab({ requestVCode, onClose }: AccountTabProps) {
     });
   };
 
-  const handleCancelSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const handleCancel = () => {
     if (cancelBusy) return;
 
     setCancelError(null);
 
-    if (!cancelPassword) {
-      setCancelError(t("profile.errors.currentPasswordRequired"));
-      return;
-    }
+    requestPassword("profile.cancel.passwordPrompt", async (password) => {
+      await profileApi.verifyPassword(password);
 
-    requestVCode("cancel", async (ticket) => {
-      setCancelBusy(true);
+      const next: VCodeStep = {
+        kind: "vcode",
+        purpose: "cancel",
+        onVerified: async (ticket) => {
+          setCancelBusy(true);
 
-      try {
-        await profileApi.cancelAccount({
-          ticket,
-          password: cancelPassword,
-        });
-        clearUser();
-        onClose();
-      } catch (error) {
-        setCancelError(
-          apiErrorMessage(t, error, "profile.errors.cancelFailed"),
-        );
-        if (error instanceof ApiError && error.code === "TICKET_INVALID") {
-          setCancelError(t("vcode.errors.expired"));
-        }
-      } finally {
-        setCancelBusy(false);
-      }
+          try {
+            await profileApi.cancelAccount({ ticket, password });
+            clearUser();
+            onClose();
+          } catch (error) {
+            setCancelError(
+              apiErrorMessage(t, error, "profile.errors.cancelFailed"),
+            );
+            if (
+              error instanceof ApiError &&
+              error.code === "TICKET_INVALID"
+            ) {
+              setCancelError(t("vcode.errors.expired"));
+            }
+          } finally {
+            setCancelBusy(false);
+          }
+        },
+      };
+
+      return next;
     });
   };
 
@@ -234,30 +246,13 @@ export function AccountTab({ requestVCode, onClose }: AccountTabProps) {
         <p className={styles.infoText}>{t("profile.cancel.description")}</p>
         <p className={styles.warningText}>{t("profile.cancel.warning")}</p>
 
-        <form className={styles.form} onSubmit={handleCancelSubmit}>
-          <label className={styles.field}>
-            <span className={styles.label}>
-              {t("profile.cancel.password")}
-            </span>
-            <input
-              className={styles.input}
-              type="password"
-              value={cancelPassword}
-              onChange={(event) => {
-                setCancelPassword(event.target.value);
-                setCancelError(null);
-              }}
-              autoComplete="current-password"
-              maxLength={128}
-              disabled={cancelBusy}
-              aria-invalid={Boolean(cancelError)}
-            />
-          </label>
+        <div className={styles.form}>
           <div className={styles.formActions}>
             <button
               className={styles.dangerButton}
-              type="submit"
-              disabled={cancelBusy || !cancelPassword}
+              type="button"
+              onClick={handleCancel}
+              disabled={cancelBusy}
             >
               {cancelBusy
                 ? t("profile.cancel.cancelling")
@@ -269,7 +264,7 @@ export function AccountTab({ requestVCode, onClose }: AccountTabProps) {
               {cancelError}
             </p>
           ) : null}
-        </form>
+        </div>
       </section>
     </>
   );

@@ -84,11 +84,8 @@
     },
     "password": {
       "title": "Change password",
-      "current": "Current password",
       "new": "New password",
-      "confirm": "Confirm new password",
-      "change": "Update password",
-      "changing": "Updating…",
+      "change": "Update",
       "updated": "Password updated",
       "forgot": "Forgot password?",
       "resetHint": "VCode verified. Set a new password within 5 minutes.",
@@ -96,7 +93,8 @@
       "resetting": "Saving…",
       "resetDone": "Password reset",
       "cancelReset": "Cancel",
-      "ticketExpired": "Verification expired. Verify your VCode again."
+      "ticketExpired": "Verification expired. Verify your VCode again.",
+      "verifyPrompt": "Enter your current password to confirm the password change."
     },
     "export": {
       "title": "Data export",
@@ -115,15 +113,15 @@
     "cancel": {
       "title": "Cancel account",
       "description": "The original login account will no longer be able to sign in, and this cannot be undone. Export your data first.",
-      "password": "Current password",
       "confirm": "Cancel account",
       "cancelling": "Cancelling…",
-      "warning": "This action cannot be undone. Your current password and VCode are required."
+      "warning": "This action cannot be undone. You will verify your current password, then your VCode.",
+      "passwordPrompt": "Enter your current password. VCode verification follows."
     },
     "vcode": {
       "password_reset": "After verifying your VCode you can set a new password without the old one.",
       "export": "Creating an export archive requires VCode verification.",
-      "cancel": "Cancelling the account requires your current password and VCode."
+      "cancel": "Current password verified. Enter your VCode to finish cancelling."
     },
     "errors": {
       "unauthorized": "Your session expired. Sign in again.",
@@ -133,7 +131,9 @@
       "avatarFailed": "Could not upload the avatar. Try again.",
       "exportFailed": "Could not export data. Try again.",
       "exportFileMissing": "The export file no longer exists. Create a new export.",
-      "cancelFailed": "Could not cancel the account. Try again."
+      "cancelFailed": "Could not cancel the account. Try again.",
+      "newPasswordRequired": "Enter a new password",
+      "passwordTooLong": "Password must be 128 characters or fewer"
     }
   },
   "auth": {
@@ -203,5 +203,15 @@
       "network": "Cannot reach the server. Try again shortly.",
       "unknown": "Something went wrong. Try again."
     }
+  },
+  "passwordModal": {
+    "title": "Verify current password",
+    "label": "Current password",
+    "placeholder": "Enter your current password",
+    "submit": "Verify",
+    "submitting": "Verifying…",
+    "close": "Close",
+    "required": "Enter your current password",
+    "failed": "Password verification failed. Try again."
   }
 }

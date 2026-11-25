@@ -222,7 +222,7 @@ export function VCodeModal({
       className={styles.overlay}
       data-vcode-modal="true"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) requestClose();
+        if (event.target === event.currentTarget) event.preventDefault();
       }}
     >
       <div

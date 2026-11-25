@@ -18,6 +18,7 @@ import {
   resetPassword,
   updateAvatar,
   updateNickname,
+  verifyCurrentPassword,
 } from "../services/profile.js";
 import {
   verifyVCodeForUser,
@@ -94,6 +95,18 @@ export function registerAccountRoutes(app: FastifyInstance) {
     return { user: toPublicUser(updated) };
   });
 
+  app.post("/api/me/password/verify", async (request, reply) => {
+    const session = requireActiveUser(readSessionToken(request));
+    const body = readBody(request);
+
+    await verifyCurrentPassword(
+      session.row,
+      readString(body.currentPassword),
+    );
+
+    return reply.code(204).send();
+  });
+
   app.post("/api/me/password", async (request, reply) => {
     const session = requireActiveUser(readSessionToken(request));
     const body = readBody(request);
@@ -101,7 +114,6 @@ export function registerAccountRoutes(app: FastifyInstance) {
     await changePassword(session.row, session.tokenHash, {
       currentPassword: readString(body.currentPassword),
       newPassword: readString(body.newPassword),
-      confirmPassword: readString(body.confirmPassword),
     });
 
     return reply.code(204).send();
@@ -126,7 +138,6 @@ export function registerAccountRoutes(app: FastifyInstance) {
     await resetPassword(session.row, session.tokenHash, {
       ticket: readString(body.ticket),
       newPassword: readString(body.newPassword),
-      confirmPassword: readString(body.confirmPassword),
     });
 
     return reply.code(204).send();

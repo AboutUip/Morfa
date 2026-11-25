@@ -112,6 +112,7 @@ export function ProjectTopBar({
       if (
         target instanceof Element &&
         (target.closest('[data-vcode-modal="true"]') ||
+          target.closest('[data-password-modal="true"]') ||
           target.closest("#profile-panel") ||
           target.closest("[data-profile-backdrop]"))
       ) {
@@ -125,7 +126,13 @@ export function ProjectTopBar({
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        if (document.querySelector('[data-vcode-modal="true"]')) return;
+        if (
+          document.querySelector(
+            '[data-vcode-modal="true"], [data-password-modal="true"]',
+          )
+        ) {
+          return;
+        }
         event.preventDefault();
         setProfileOpen(false);
         profileButtonRef.current?.focus();

@@ -24,16 +24,30 @@ function validateNickname(nicknameInput: string): string {
   return nickname;
 }
 
-function validateNewPassword(
-  password: string,
-  confirmPassword: string,
-) {
+function validateNewPassword(password: string) {
   if (password.length < 8 || password.length > 128) {
     throw new ApiError(400, "PASSWORD_INVALID", "密码长度需为 8–128 位");
   }
+}
 
-  if (password !== confirmPassword) {
-    throw new ApiError(400, "PASSWORD_MISMATCH", "两次输入的密码不一致");
+export async function verifyCurrentPassword(
+  user: UserRow,
+  password: string,
+) {
+  if (!password) {
+    throw new ApiError(400, "CURRENT_PASSWORD_REQUIRED", "请输入当前密码");
+  }
+
+  const valid =
+    user.password_hash.length > 0 &&
+    (await verifySecret(password, user.password_hash));
+
+  if (!valid) {
+    throw new ApiError(
+      400,
+      "CURRENT_PASSWORD_INVALID",
+      "当前密码不正确",
+    );
   }
 }
 
@@ -77,26 +91,10 @@ export async function changePassword(
   input: {
     currentPassword: string;
     newPassword: string;
-    confirmPassword: string;
   },
 ) {
-  if (!input.currentPassword) {
-    throw new ApiError(400, "CURRENT_PASSWORD_REQUIRED", "请输入当前密码");
-  }
-
-  const valid =
-    user.password_hash.length > 0 &&
-    (await verifySecret(input.currentPassword, user.password_hash));
-
-  if (!valid) {
-    throw new ApiError(
-      400,
-      "CURRENT_PASSWORD_INVALID",
-      "当前密码不正确",
-    );
-  }
-
-  validateNewPassword(input.newPassword, input.confirmPassword);
+  await verifyCurrentPassword(user, input.currentPassword);
+  validateNewPassword(input.newPassword);
   const passwordHash = await hashSecret(input.newPassword);
   const now = Date.now();
 
@@ -112,10 +110,9 @@ export async function resetPassword(
   input: {
     ticket: string;
     newPassword: string;
-    confirmPassword: string;
   },
 ) {
-  validateNewPassword(input.newPassword, input.confirmPassword);
+  validateNewPassword(input.newPassword);
   const passwordHash = await hashSecret(input.newPassword);
   const now = Date.now();
 
@@ -133,21 +130,7 @@ export async function cancelAccount(
     password: string;
   },
 ) {
-  if (!input.password) {
-    throw new ApiError(400, "CURRENT_PASSWORD_REQUIRED", "请输入当前密码");
-  }
-
-  const valid =
-    user.password_hash.length > 0 &&
-    (await verifySecret(input.password, user.password_hash));
-
-  if (!valid) {
-    throw new ApiError(
-      400,
-      "CURRENT_PASSWORD_INVALID",
-      "当前密码不正确",
-    );
-  }
+  await verifyCurrentPassword(user, input.password);
 
   const now = Date.now();
 

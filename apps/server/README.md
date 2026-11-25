@@ -39,9 +39,10 @@ data/           本地 SQLite、头像、导出文件与主密钥（不提交）
 | `POST` | `/api/auth/logout` | 删除当前会话并清除 Cookie |
 | `PATCH` | `/api/me/profile` | 修改昵称 |
 | `POST` | `/api/me/avatar` | 更换头像 |
-| `POST` | `/api/me/password` | 校验当前密码后修改密码 |
+| `POST` | `/api/me/password/verify` | 只校验当前密码，不修改 |
+| `POST` | `/api/me/password` | 校验当前密码后修改密码，新密码只提交一次 |
 | `POST` | `/api/me/vcode/verify` | 校验 VCode，返回 5 分钟敏感操作 ticket |
-| `POST` | `/api/me/password/forgot` | 消费 ticket 后直接重置密码 |
+| `POST` | `/api/me/password/forgot` | 消费 ticket 后直接重置密码，新密码只提交一次 |
 | `GET` | `/api/me/export` | 当前有效导出包状态 |
 | `POST` | `/api/me/export` | 消费 ticket，生成加密导出包 |
 | `GET` | `/api/me/export/download` | 下载当前有效导出包 |

@@ -54,9 +54,10 @@ apps/server/
 - `POST /api/auth/logout`：删除会话并清除 Cookie。
 - `PATCH /api/me/profile`：修改昵称。
 - `POST /api/me/avatar`：上传新头像，成功写入后删除旧头像文件。
-- `POST /api/me/password`：校验当前密码后修改密码，保留当前会话并吊销其他会话。
+- `POST /api/me/password/verify`：只校验当前密码，供密码验证弹窗与串行注销流程使用。
+- `POST /api/me/password`：校验当前密码后修改密码，新密码只提交一次；保留当前会话并吊销其他会话。
 - `POST /api/me/vcode/verify`：校验 VCode，返回 5 分钟有效的敏感操作 ticket。
-- `POST /api/me/password/forgot`：消费 `password_reset` ticket 后直接设置新密码，无需旧密码。
+- `POST /api/me/password/forgot`：消费 `password_reset` ticket 后直接设置新密码，无需旧密码，新密码只提交一次。
 - `GET /api/me/export`：读取当前有效导出包状态。
 - `POST /api/me/export`：消费 `export` ticket，生成新的加密导出包并使旧包立即失效。
 - `GET /api/me/export/download`：下载当前有效导出包。

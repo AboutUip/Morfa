@@ -48,7 +48,7 @@ features/
 └─ settings/               # 主题、语言、账户设置（规划）
 ```
 
-当前 `App` 在启动加载结束后渲染 `projects/ProjectsPage`；账号状态由 `auth/AuthProvider` 在应用启动时通过 `/api/auth/me` 恢复。跨功能复用的 `components/VCodeModal` 提供 3×4 数字键盘、6 位自动确认、物理键盘输入、焦点陷阱与焦点恢复；个人面板通过 `features/profile` 组织资料、导出与注销流程。
+当前 `App` 在启动加载结束后渲染 `projects/ProjectsPage`；账号状态由 `auth/AuthProvider` 在应用启动时通过 `/api/auth/me` 恢复。跨功能复用的 `components/VCodeModal` 提供 3×4 数字键盘、6 位自动确认、物理键盘输入、焦点陷阱与焦点恢复；`components/PasswordModal` 提供当前密码验证、串行操作与同样的焦点管理。个人面板通过 `features/profile` 组织资料、导出与注销流程。
 
 规则：
 

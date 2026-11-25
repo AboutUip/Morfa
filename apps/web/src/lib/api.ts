@@ -138,12 +138,18 @@ export const profileApi = {
   changePassword: (input: {
     currentPassword: string;
     newPassword: string;
-    confirmPassword: string;
   }) =>
     request<void>("/api/me/password", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(input),
+    }),
+
+  verifyPassword: (currentPassword: string) =>
+    request<void>("/api/me/password/verify", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ currentPassword }),
     }),
 
   verifyVCode: (code: string, purpose: VCodePurpose) =>
@@ -156,7 +162,6 @@ export const profileApi = {
   resetPassword: (input: {
     ticket: string;
     newPassword: string;
-    confirmPassword: string;
   }) =>
     request<void>("/api/me/password/forgot", {
       method: "POST",

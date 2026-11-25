@@ -9,6 +9,7 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import { VCodeModal } from "../../components/VCodeModal";
+import { PasswordModal } from "../../components/PasswordModal";
 import {
   CloseIcon,
   KeyIcon,
@@ -20,13 +21,24 @@ import { useAuth } from "../auth/AuthProvider";
 import { AccountTab } from "./AccountTab";
 import { ProfileTab } from "./ProfileTab";
 import styles from "./ProfilePanel.module.css";
-import type { RequestVCode } from "./types";
+import type {
+  RequestPassword,
+  RequestVCode,
+  VCodeStep,
+} from "./types";
 
 type ProfileTabId = "profile" | "account";
 
 interface VCodeRequest {
   purpose: VCodePurpose;
   onVerified: (ticket: string) => Promise<void> | void;
+}
+
+interface PasswordRequest {
+  descriptionKey: string;
+  onVerified: (
+    password: string,
+  ) => Promise<VCodeStep | void> | VCodeStep | void;
 }
 
 const TABS: Array<{
@@ -59,6 +71,8 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
   const [vcodeRequest, setVcodeRequest] = useState<VCodeRequest | null>(
     null,
   );
+  const [passwordRequest, setPasswordRequest] =
+    useState<PasswordRequest | null>(null);
 
   const panelRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Record<ProfileTabId, HTMLButtonElement | null>>({
@@ -89,7 +103,7 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
   }, []);
 
   useEffect(() => {
-    if (vcodeRequest) return;
+    if (vcodeRequest || passwordRequest) return;
 
     const panel = panelRef.current;
     if (!panel) return;
@@ -129,7 +143,7 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
 
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [vcodeRequest]);
+  }, [vcodeRequest, passwordRequest]);
 
   if (!user) return null;
 
@@ -166,6 +180,27 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
 
   const requestVCode: RequestVCode = (purpose, onVerified) => {
     setVcodeRequest({ purpose, onVerified });
+  };
+
+  const requestPassword: RequestPassword = (
+    descriptionKey,
+    onVerified,
+  ) => {
+    setPasswordRequest({ descriptionKey, onVerified });
+  };
+
+  const handlePasswordComplete = async (password: string) => {
+    if (!passwordRequest) return;
+
+    const next = await passwordRequest.onVerified(password);
+    setPasswordRequest(null);
+
+    if (next?.kind === "vcode") {
+      setVcodeRequest({
+        purpose: next.purpose,
+        onVerified: next.onVerified,
+      });
+    }
   };
 
   const handleVCodeComplete = async (code: string) => {
@@ -211,7 +246,7 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
         aria-modal="true"
         aria-label={t("profile.panelTitle")}
         tabIndex={-1}
-        inert={Boolean(vcodeRequest)}
+        inert={Boolean(vcodeRequest || passwordRequest)}
       >
         <button
           className={styles.closeButton}
@@ -277,14 +312,28 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
           </div>
 
           {activeTab === "profile" ? (
-            <ProfileTab requestVCode={requestVCode} />
+            <ProfileTab
+              requestVCode={requestVCode}
+              requestPassword={requestPassword}
+            />
           ) : (
-            <AccountTab requestVCode={requestVCode} onClose={onClose} />
+            <AccountTab
+              requestVCode={requestVCode}
+              requestPassword={requestPassword}
+              onClose={onClose}
+            />
           )}
         </section>
       </div>
 
-      {vcodeRequest ? (
+      {passwordRequest ? (
+        <PasswordModal
+          title={t("passwordModal.title")}
+          description={t(passwordRequest.descriptionKey)}
+          onVerify={handlePasswordComplete}
+          onClose={() => setPasswordRequest(null)}
+        />
+      ) : vcodeRequest ? (
         <VCodeModal
           mode="verify"
           title={t("vcode.verifyTitle")}

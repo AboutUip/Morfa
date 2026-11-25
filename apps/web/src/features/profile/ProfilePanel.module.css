@@ -265,6 +265,18 @@
   margin-top: 12px;
 }
 
+.inlineForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.grow {
+  flex: 1 1 150px;
+  min-width: 0;
+}
+
 .field {
   display: flex;
   flex-direction: column;

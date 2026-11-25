@@ -12,16 +12,20 @@ import { ApiError, profileApi } from "../../lib/api";
 import { apiErrorMessage } from "../../lib/apiErrors";
 import { useAuth } from "../auth/AuthProvider";
 import styles from "./ProfilePanel.module.css";
-import type { RequestVCode } from "./types";
+import type { RequestPassword, RequestVCode } from "./types";
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 const AVATAR_TYPES = ["image/png", "image/jpeg", "image/webp"];
 
 interface ProfileTabProps {
   requestVCode: RequestVCode;
+  requestPassword: RequestPassword;
 }
 
-export function ProfileTab({ requestVCode }: ProfileTabProps) {
+export function ProfileTab({
+  requestVCode,
+  requestPassword,
+}: ProfileTabProps) {
   const { t } = useTranslation();
   const { user, applyUser } = useAuth();
 
@@ -36,16 +40,12 @@ export function ProfileTab({ requestVCode }: ProfileTabProps) {
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
-  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [passwordBusy, setPasswordBusy] = useState(false);
   const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
   const [resetTicket, setResetTicket] = useState<string | null>(null);
   const [resetPassword, setResetPassword] = useState("");
-  const [resetConfirm, setResetConfirm] = useState("");
   const [resetBusy, setResetBusy] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
 
@@ -130,16 +130,13 @@ export function ProfileTab({ requestVCode }: ProfileTabProps) {
     }
   };
 
-  const handlePasswordSubmit = async (
-    event: FormEvent<HTMLFormElement>,
-  ) => {
+  const handlePasswordSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (passwordBusy) return;
 
     setPasswordMessage(null);
 
-    if (!currentPassword) {
-      setPasswordError(t("profile.errors.currentPasswordRequired"));
+    if (!newPassword) {
+      setPasswordError(t("profile.errors.newPasswordRequired"));
       return;
     }
 
@@ -148,31 +145,22 @@ export function ProfileTab({ requestVCode }: ProfileTabProps) {
       return;
     }
 
-    if (newPassword !== confirmPassword) {
-      setPasswordError(t("auth.errors.passwordMismatch"));
+    if (newPassword.length > 128) {
+      setPasswordError(t("profile.errors.passwordTooLong"));
       return;
     }
 
     setPasswordError(null);
-    setPasswordBusy(true);
 
-    try {
+    const nextPassword = newPassword;
+    requestPassword("profile.password.verifyPrompt", async (currentPassword) => {
       await profileApi.changePassword({
         currentPassword,
-        newPassword,
-        confirmPassword,
+        newPassword: nextPassword,
       });
-      setCurrentPassword("");
       setNewPassword("");
-      setConfirmPassword("");
       setPasswordMessage(t("profile.password.updated"));
-    } catch (error) {
-      setPasswordError(
-        apiErrorMessage(t, error, "profile.errors.saveFailed"),
-      );
-    } finally {
-      setPasswordBusy(false);
-    }
+    });
   };
 
   const handleForgotPassword = () => {
@@ -192,13 +180,18 @@ export function ProfileTab({ requestVCode }: ProfileTabProps) {
 
     setResetError(null);
 
+    if (!resetPassword) {
+      setResetError(t("profile.errors.newPasswordRequired"));
+      return;
+    }
+
     if (resetPassword.length < 8) {
       setResetError(t("auth.errors.passwordTooShort"));
       return;
     }
 
-    if (resetPassword !== resetConfirm) {
-      setResetError(t("auth.errors.passwordMismatch"));
+    if (resetPassword.length > 128) {
+      setResetError(t("profile.errors.passwordTooLong"));
       return;
     }
 
@@ -209,14 +202,10 @@ export function ProfileTab({ requestVCode }: ProfileTabProps) {
       await profileApi.resetPassword({
         ticket: resetTicket,
         newPassword: resetPassword,
-        confirmPassword: resetConfirm,
       });
       setResetTicket(null);
       setResetPassword("");
-      setResetConfirm("");
-      setCurrentPassword("");
       setNewPassword("");
-      setConfirmPassword("");
       setPasswordMessage(t("profile.password.resetDone"));
     } catch (error) {
       if (error instanceof ApiError && error.code === "TICKET_INVALID") {
@@ -342,7 +331,7 @@ export function ProfileTab({ requestVCode }: ProfileTabProps) {
             className={styles.textButton}
             type="button"
             onClick={handleForgotPassword}
-            disabled={passwordBusy || resetBusy}
+            disabled={resetBusy}
           >
             {t("profile.password.forgot")}
           </button>
@@ -353,59 +342,42 @@ export function ProfileTab({ requestVCode }: ProfileTabProps) {
             <p className={styles.infoText}>
               {t("profile.password.resetHint")}
             </p>
-            <label className={styles.field}>
-              <span className={styles.label}>
-                {t("profile.password.new")}
-              </span>
-              <input
-                className={styles.input}
-                type="password"
-                value={resetPassword}
-                onChange={(event) => {
-                  setResetPassword(event.target.value);
-                  setResetError(null);
-                }}
-                autoComplete="new-password"
-                maxLength={128}
-                disabled={resetBusy}
-                aria-invalid={Boolean(resetError)}
-              />
-            </label>
-            <label className={styles.field}>
-              <span className={styles.label}>
-                {t("profile.password.confirm")}
-              </span>
-              <input
-                className={styles.input}
-                type="password"
-                value={resetConfirm}
-                onChange={(event) => {
-                  setResetConfirm(event.target.value);
-                  setResetError(null);
-                }}
-                autoComplete="new-password"
-                maxLength={128}
-                disabled={resetBusy}
-                aria-invalid={Boolean(resetError)}
-              />
-            </label>
-            <div className={styles.formActions}>
+            <div className={styles.inlineForm}>
+              <label className={`${styles.field} ${styles.grow}`}>
+                <span className={styles.label}>
+                  {t("profile.password.new")}
+                </span>
+                <input
+                  className={styles.input}
+                  type="password"
+                  value={resetPassword}
+                  onChange={(event) => {
+                    setResetPassword(event.target.value);
+                    setResetError(null);
+                  }}
+                  autoComplete="new-password"
+                  maxLength={128}
+                  disabled={resetBusy}
+                  aria-invalid={Boolean(resetError)}
+                />
+              </label>
               <button
                 className={styles.button}
                 type="submit"
-                disabled={resetBusy || !resetPassword || !resetConfirm}
+                disabled={resetBusy || !resetPassword}
               >
                 {resetBusy
                   ? t("profile.password.resetting")
                   : t("profile.password.resetSubmit")}
               </button>
+            </div>
+            <div className={styles.formActions}>
               <button
                 className={styles.buttonSecondary}
                 type="button"
                 onClick={() => {
                   setResetTicket(null);
                   setResetPassword("");
-                  setResetConfirm("");
                   setResetError(null);
                 }}
                 disabled={resetBusy}
@@ -421,77 +393,27 @@ export function ProfileTab({ requestVCode }: ProfileTabProps) {
           </form>
         ) : (
           <form className={styles.form} onSubmit={handlePasswordSubmit}>
-            <label className={styles.field}>
-              <span className={styles.label}>
-                {t("profile.password.current")}
-              </span>
-              <input
-                className={styles.input}
-                type="password"
-                value={currentPassword}
-                onChange={(event) => {
-                  setCurrentPassword(event.target.value);
-                  setPasswordError(null);
-                  setPasswordMessage(null);
-                }}
-                autoComplete="current-password"
-                maxLength={128}
-                disabled={passwordBusy}
-                aria-invalid={Boolean(passwordError)}
-              />
-            </label>
-            <label className={styles.field}>
-              <span className={styles.label}>
-                {t("profile.password.new")}
-              </span>
-              <input
-                className={styles.input}
-                type="password"
-                value={newPassword}
-                onChange={(event) => {
-                  setNewPassword(event.target.value);
-                  setPasswordError(null);
-                  setPasswordMessage(null);
-                }}
-                autoComplete="new-password"
-                maxLength={128}
-                disabled={passwordBusy}
-                aria-invalid={Boolean(passwordError)}
-              />
-            </label>
-            <label className={styles.field}>
-              <span className={styles.label}>
-                {t("profile.password.confirm")}
-              </span>
-              <input
-                className={styles.input}
-                type="password"
-                value={confirmPassword}
-                onChange={(event) => {
-                  setConfirmPassword(event.target.value);
-                  setPasswordError(null);
-                  setPasswordMessage(null);
-                }}
-                autoComplete="new-password"
-                maxLength={128}
-                disabled={passwordBusy}
-                aria-invalid={Boolean(passwordError)}
-              />
-            </label>
-            <div className={styles.formActions}>
-              <button
-                className={styles.button}
-                type="submit"
-                disabled={
-                  passwordBusy ||
-                  !currentPassword ||
-                  !newPassword ||
-                  !confirmPassword
-                }
-              >
-                {passwordBusy
-                  ? t("profile.password.changing")
-                  : t("profile.password.change")}
+            <div className={styles.inlineForm}>
+              <label className={`${styles.field} ${styles.grow}`}>
+                <span className={styles.label}>
+                  {t("profile.password.new")}
+                </span>
+                <input
+                  className={styles.input}
+                  type="password"
+                  value={newPassword}
+                  onChange={(event) => {
+                    setNewPassword(event.target.value);
+                    setPasswordError(null);
+                    setPasswordMessage(null);
+                  }}
+                  autoComplete="new-password"
+                  maxLength={128}
+                  aria-invalid={Boolean(passwordError)}
+                />
+              </label>
+              <button className={styles.button} type="submit">
+                {t("profile.password.change")}
               </button>
             </div>
             {passwordMessage ? (
