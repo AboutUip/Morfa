@@ -150,15 +150,23 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
   };
 
   return (
-    <div
-      ref={panelRef}
-      id="profile-panel"
-      className={styles.panel}
-      role="dialog"
-      aria-label={t("profile.title")}
-      tabIndex={-1}
-    >
-      <button
+    <>
+      <div
+        className={styles.backdrop}
+        onClick={onClose}
+        aria-hidden="true"
+      />
+
+      <div
+        ref={panelRef}
+        id="profile-panel"
+        className={styles.panel}
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("profile.title")}
+        tabIndex={-1}
+      >
+        <button
         className={styles.closeButton}
         type="button"
         title={t("profile.close")}
@@ -277,6 +285,7 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
           </>
         )}
       </section>
-    </div>
+      </div>
+    </>
   );
 }

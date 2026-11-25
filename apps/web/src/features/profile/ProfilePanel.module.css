@@ -1,11 +1,20 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 39;
+  background: rgba(4, 7, 11, 0.38);
+  backdrop-filter: blur(4px);
+  animation: backdrop-in 160ms var(--mf-ease) both;
+}
+
 .panel {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: max(16px, var(--mf-safe-right));
+  position: fixed;
+  top: 50%;
+  left: 50%;
   z-index: 40;
   display: flex;
   width: min(620px, calc(100vw - 32px));
-  height: min(430px, calc(100dvh - 120px));
+  height: min(430px, calc(100dvh - 48px));
   overflow: hidden;
   border: 1px solid var(--mf-border);
   border-radius: var(--mf-radius-lg);
@@ -13,7 +22,8 @@
   box-shadow:
     0 1px 2px rgba(15, 15, 20, 0.1),
     0 24px 70px rgba(15, 15, 20, 0.22);
-  animation: profile-in 180ms var(--mf-ease-out) both;
+  transform: translate(-50%, -50%);
+  animation: profile-in 200ms var(--mf-ease-out) both;
 }
 
 .closeButton {
@@ -234,22 +244,30 @@
   line-height: 1.6;
 }
 
-@keyframes profile-in {
+@keyframes backdrop-in {
   from {
     opacity: 0;
-    transform: translateY(-4px) scale(0.99);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes profile-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% - 8px)) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
   }
 }
 
 @media (max-width: 640px) {
   .panel {
-    right: max(12px, var(--mf-safe-right));
     width: calc(100vw - 24px);
-    height: min(460px, calc(100dvh - 120px));
+    height: min(460px, calc(100dvh - 48px));
     border-radius: 14px;
   }
 
