@@ -88,7 +88,7 @@ apps/server/
 - 模型测试使用固定提示词验证模型确实返回内容；OpenAI 协议发送 `reasoning_effort`，Anthropic 协议发送 `thinking` 与对应 token 预算。流式请求按 SSE 增量解析，客户端断开时中止上游请求，单次测试最长 60 秒。空响应、鉴权失败、超时、流格式错误与上游错误分别返回稳定错误码。
 - MCP 能力统一由 `src/mcp/McpController` 注册和执行：能力定义包含双语标题 / 描述、JSON schema、权限要求、示例与只读 / 破坏性注解。控制器负责参数校验、API Key 权限、`tools/list` 过滤、`tools/call` 结果封装和 `llms.txt` 生成；新模块只需 `register()` 一个能力定义。
 - API Key 有两个独立权限位：VCode 与密码。能力声明自己需要的权限，控制器在每次调用时校验 Key 权限并检查调用参数中的 `vcode` / `password`；同时需要两项的能力要求 Key 同时开启两个权限位。详见 [MCP 集成](../integrations/mcp.md)。
-- 语言与主题偏好写入 `user_preferences`；MCP 修改后，前端通过窗口聚焦与 20 秒轮询同步，避免另建长连接。
+- 语言与主题偏好写入 `user_preferences`；MCP 修改后，前端通过窗口聚焦（15 秒节流）与 60 秒轮询同步，避免另建长连接。
 - 头像文件写入 `apps/server/data/uploads/avatars/`，数据库仅保存 `uploads/avatars/<uuid>.<ext>` 相对路径，限制 PNG / JPG / WebP 2 MB。
 - 详细取舍见 [ADR 0005](../decisions/0005-auth-and-avatar.md)。
 

@@ -21,6 +21,11 @@ import { useTheme } from "../../lib/theme";
 
 type AuthStatus = "loading" | "ready";
 
+// 嵌入式预览与多窗口切换可能连续触发 window focus，偏好同步必须节流，
+// 否则每次焦点变化都会产生一次 /api/me/preferences 请求。
+const PREFERENCE_SYNC_MIN_INTERVAL_MS = 15_000;
+const PREFERENCE_SYNC_POLL_MS = 60_000;
+
 export interface PendingVCodeSetup {
   setupToken: string;
   preview: AuthUser;
@@ -53,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     useState<PendingVCodeSetup | null>(null);
   const setModeRef = useRef(setMode);
   const modeRef = useRef(mode);
+  const lastPreferenceSyncRef = useRef(0);
 
   useEffect(() => {
     setModeRef.current = setMode;
@@ -66,8 +72,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let active = true;
 
-    const applyPreferences = async () => {
-      if (document.visibilityState === "hidden") return;
+    const applyPreferences = async (force = false) => {
+      if (!active || document.visibilityState === "hidden") return;
+
+      const now = Date.now();
+      if (
+        !force &&
+        now - lastPreferenceSyncRef.current <
+          PREFERENCE_SYNC_MIN_INTERVAL_MS
+      ) {
+        return;
+      }
+      lastPreferenceSyncRef.current = now;
 
       try {
         const { preferences } = await preferencesApi.get();
@@ -87,18 +103,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    void applyPreferences();
+    void applyPreferences(true);
     const interval = window.setInterval(() => {
       void applyPreferences();
-    }, 20_000);
+    }, PREFERENCE_SYNC_POLL_MS);
     const onFocus = () => void applyPreferences();
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void applyPreferences();
+      }
+    };
 
     window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
       active = false;
       window.clearInterval(interval);
       window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [userId]);
 
