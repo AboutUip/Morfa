@@ -6,7 +6,7 @@ Morfa 的 React 前端：在线设计编辑器、Agent 对话面板与设置界�
 
 ## 已实现
 
-- **开屏动画**：`components/SplashScreen` 在进入页面时让 Logo 居中快速出现，播放本地金属打击音效，随后 Logo 左移并展开 `| Morfa` 字标，完成后面板淡出，露出已经渲染好的项目主页。若浏览器阻止有声自动播放，会在 Logo 下方提示点击任意处开始，首次交互后再播放并进入动画。可复用的 `LoadingScreen` / `LoadingOverlay` 与 `LoadingProgressController` 保留给其他异步流程。
+- **开屏动画**：`components/SplashScreen` 在进入页面时让 Logo 居中快速出现，播放本地金属打击音效，随后 Logo 左移并展开 `| Morfa` 字标，完成后面板淡出，露出已经渲染好的项目主页。开屏会自动开始，不依赖点击；若浏览器阻止有声自动播放，动画仍按自己的节奏完成。可复用的 `LoadingScreen` / `LoadingOverlay` 与 `LoadingProgressController` 保留给其他异步流程。
 - **项目主页**：桌面上顶栏保留「项目 | 组件 | 设置」水平 Tab；移动端将其收纳到左上角 `logo | Morfa` 按钮，点击展开带图标与选中标记的页面菜单，箭头随展开旋转；项目区域默认空状态，右上角提供登录入口。
 - **组件 / 设置**：当前为占位页，后续接入组件库与完整设置。
 - **登录 / 注册弹窗**：支持登录与注册切换；点击蒙版不关闭，只通过右上角关闭按钮退出。
