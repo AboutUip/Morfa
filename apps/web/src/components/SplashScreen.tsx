@@ -5,6 +5,7 @@ import {
   useState,
   type CSSProperties,
 } from "react";
+import { useTranslation } from "react-i18next";
 
 import { BrandMark } from "./BrandMark";
 import styles from "./SplashScreen.module.css";
@@ -20,15 +21,19 @@ interface SplashScreenProps {
 }
 
 export function SplashScreen({ onComplete }: SplashScreenProps) {
+  const { t } = useTranslation();
   const [measured, setMeasured] = useState(false);
   const [startOffset, setStartOffset] = useState(0);
   const [moving, setMoving] = useState(false);
   const [finishing, setFinishing] = useState(false);
+  const [waitingForGesture, setWaitingForGesture] = useState(false);
 
   const lockupRef = useRef<HTMLDivElement>(null);
   const logoRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const hintRef = useRef<HTMLButtonElement>(null);
   const onCompleteRef = useRef(onComplete);
+  const gestureHandlerRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     onCompleteRef.current = onComplete;
@@ -48,12 +53,19 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
   }, []);
 
   useEffect(() => {
+    if (waitingForGesture) hintRef.current?.focus();
+  }, [waitingForGesture]);
+
+  useEffect(() => {
     if (!measured) return;
 
     let cancelled = false;
     const timers: number[] = [];
     const audio = audioRef.current;
     let motionStarted = false;
+    let gestureHandling = false;
+    let gestureAttached = false;
+    let initialPlaySettled = false;
 
     const schedule = (callback: () => void, delay: number) => {
       timers.push(window.setTimeout(callback, delay));
@@ -62,6 +74,7 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
     const startMotion = () => {
       if (cancelled || motionStarted) return;
       motionStarted = true;
+      setWaitingForGesture(false);
       setMoving(true);
       schedule(() => setFinishing(true), MOTION_MS + HOLD_MS);
       schedule(
@@ -70,49 +83,78 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
       );
     };
 
-    const tryPlay = () => {
-      if (cancelled || !audio) {
-        if (!cancelled) schedule(startMotion, 120);
-        return;
-      }
-
+    const playAudio = async (): Promise<boolean> => {
+      if (!audio) return false;
       audio.volume = 0.58;
-      let playback: Promise<void>;
       try {
-        playback = audio.play();
+        await audio.play();
+        return true;
       } catch {
-        schedule(startMotion, 140);
-        return;
+        return false;
       }
+    };
 
-      if (!playback) {
+    const handleGesture = async () => {
+      if (cancelled || motionStarted || gestureHandling) return;
+      gestureHandling = true;
+      detachGesture();
+
+      const played = await playAudio();
+      if (cancelled) return;
+      if (!played) {
+        // 用户已经交互仍无法播放时，不再阻塞开屏
+      }
+      startMotion();
+    };
+
+    const attachGesture = () => {
+      if (gestureAttached) return;
+      gestureAttached = true;
+      window.addEventListener("pointerdown", handleGesture, { once: true });
+      window.addEventListener("keydown", handleGesture, { once: true });
+    };
+
+    const detachGesture = () => {
+      if (!gestureAttached) return;
+      gestureAttached = false;
+      window.removeEventListener("pointerdown", handleGesture);
+      window.removeEventListener("keydown", handleGesture);
+    };
+
+    const tryInitialPlay = async () => {
+      if (cancelled || motionStarted) return;
+      const played = await playAudio();
+      initialPlaySettled = true;
+      if (cancelled) return;
+
+      if (played) {
         startMotion();
         return;
       }
 
-      playback.then(startMotion).catch(() => {
-        if (!cancelled) schedule(startMotion, 140);
-      });
+      setWaitingForGesture(true);
+      attachGesture();
     };
 
-    const playOnGesture = () => {
-      if (cancelled || !audio) return;
-      audio.volume = 0.58;
-      void audio.play().catch(() => {
-        // 自动播放被拒绝时，首次交互仍会尝试播放
-      });
+    gestureHandlerRef.current = () => {
+      void handleGesture();
     };
 
-    window.addEventListener("pointerdown", playOnGesture, { once: true });
-    window.addEventListener("keydown", playOnGesture, { once: true });
-    schedule(tryPlay, LOGO_APPEAR_MS);
-    schedule(startMotion, 1_200);
+    schedule(() => {
+      void tryInitialPlay();
+    }, LOGO_APPEAR_MS);
+
+    schedule(() => {
+      if (cancelled || motionStarted || initialPlaySettled) return;
+      setWaitingForGesture(true);
+      attachGesture();
+    }, 1_500);
 
     return () => {
       cancelled = true;
+      gestureHandlerRef.current = () => {};
       for (const timer of timers) window.clearTimeout(timer);
-      window.removeEventListener("pointerdown", playOnGesture);
-      window.removeEventListener("keydown", playOnGesture);
+      detachGesture();
       audio?.pause();
     };
   }, [measured]);
@@ -124,7 +166,7 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
       data-measured={measured}
       data-moving={moving}
       data-finishing={finishing}
-      aria-hidden="true"
+      data-waiting={waitingForGesture}
     >
       <audio
         ref={audioRef}
@@ -152,6 +194,17 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
           <span className={styles.wordmark}>Morfa</span>
         </div>
       </div>
+
+      {waitingForGesture && !moving ? (
+        <button
+          ref={hintRef}
+          className={styles.hint}
+          type="button"
+          onClick={() => gestureHandlerRef.current()}
+        >
+          {t("splash.tapToStart")}
+        </button>
+      ) : null}
     </div>
   );
 }

@@ -411,5 +411,8 @@
     "close": "Close",
     "required": "Enter your current password",
     "failed": "Password verification failed. Try again."
+  },
+  "splash": {
+    "tapToStart": "Click anywhere to start"
   }
 }

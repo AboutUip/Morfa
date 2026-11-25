@@ -411,5 +411,8 @@
     "close": "关闭",
     "required": "请输入当前密码",
     "failed": "密码验证失败，请重试"
+  },
+  "splash": {
+    "tapToStart": "点击任意处开始"
   }
 }
