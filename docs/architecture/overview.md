@@ -23,6 +23,7 @@
 flowchart LR
   U[用户] --> W[Web 客户端<br/>React]
   W -->|REST / SSE| A[API 服务<br/>Node.js]
+  C[MCP 客户端 / LLM] -->|JSON-RPC + API Key| A
   A --> D[(SQLite<br/>WAL)]
   A --> O[Agent 编排器]
   O --> M[模型提供方]
@@ -42,8 +43,9 @@ flowchart LR
 
 | 组件 | 职责 | 现状 |
 | --- | --- | --- |
-| Web 客户端 | 编辑器 UI、画布渲染、状态管理、i18n、主题 | 待搭建 |
-| API 服务 | REST/SSE 接口、鉴权、校验、限流、日志 | 认证 API 已实现 |
+| Web 客户端 | 编辑器 UI、画布渲染、状态管理、i18n、主题 | 项目页 / 账号 / 个人面板已实现 |
+| API 服务 | REST/SSE 接口、鉴权、校验、限流、日志 | 认证、模型与 MCP API 已实现 |
+| MCP 服务 | 能力注册、API Key 权限、`tools/list` / `tools/call`、llms.txt | 已实现 |
 | 设计文档服务 | 读取 / 写入结构化文档、版本与补丁 | 待搭建 |
 | Agent 编排器 | 规划、工具调用、流式事件、运行记录 | 待搭建 |
 | XAIOP SDK | 结构化数据的流式编解码（Node / browser / core） | 已 vendored |
@@ -90,6 +92,7 @@ flowchart LR
 - [ADR 0002：仓库结构](../decisions/0002-monorepo.md)
 - [ADR 0003：主题与 i18n 作为一等能力](../decisions/0003-theming-and-i18n.md)
 - [ADR 0004：以 vendored 源码集成 XAIOP](../decisions/0004-xaiop-integration.md) · [集成文档](../integrations/xaiop.md)
+- [MCP 集成与 API Key 权限](../integrations/mcp.md)
 - [ADR 0005：账号认证与头像存储](../decisions/0005-auth-and-avatar.md)
 
 ## 待确认问题

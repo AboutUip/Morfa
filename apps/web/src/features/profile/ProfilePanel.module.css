@@ -906,6 +906,580 @@
   font-size: 10px;
 }
 
+.apiSection {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--mf-border);
+}
+
+.apiSectionHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.apiSectionHeader h3 {
+  color: var(--mf-text-primary);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.apiSectionHint {
+  margin-top: 4px;
+  color: var(--mf-text-tertiary);
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.apiEndpointRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.apiEndpointValue {
+  min-width: 0;
+  flex: 1;
+  padding: 8px 10px;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--mf-border);
+  border-radius: 8px;
+  background: var(--mf-bg-app);
+  color: var(--mf-text-secondary);
+  font-family: var(--mf-font-mono);
+  font-size: 10px;
+}
+
+.apiEndpointRow .textButton,
+.apiSecretActions .textButton,
+.apiSectionHeader > .textButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.apiEndpointRow .textButton {
+  flex: none;
+}
+
+.apiLinks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.apiLinks .buttonSecondary {
+  text-decoration: none;
+}
+
+.apiExternalLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  color: var(--mf-accent);
+  font-size: 10px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+
+.apiExternalLink:hover {
+  opacity: 0.82;
+}
+
+.apiKeyList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.apiKeyCard {
+  padding: 11px 12px;
+  border: 1px solid var(--mf-border);
+  border-radius: var(--mf-radius-md);
+  background: var(--mf-bg-panel);
+}
+
+.apiKeyHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.apiKeyIdentity {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.apiKeyIdentity strong {
+  color: var(--mf-text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.apiKeyIdentity code {
+  color: var(--mf-text-tertiary);
+  font-family: var(--mf-font-mono);
+  font-size: 9px;
+}
+
+.apiKeyActions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+
+.apiKeyActions .textButton,
+.apiDangerAction {
+  white-space: nowrap;
+}
+
+.apiDangerAction {
+  color: var(--mf-danger);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.apiDangerAction:hover:not(:disabled) {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.apiDangerAction:disabled {
+  opacity: 0.5;
+}
+
+.apiKeyBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 7px;
+}
+
+.apiKeyBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: var(--mf-radius-pill);
+  background: var(--mf-bg-app);
+  color: var(--mf-text-tertiary);
+  font-size: 8px;
+  font-weight: 600;
+}
+
+.apiKeyBadge::before {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--mf-border-strong);
+  content: "";
+}
+
+.apiKeyBadge[data-on="true"] {
+  background: var(--mf-accent-soft);
+  color: var(--mf-accent);
+}
+
+.apiKeyBadge[data-on="true"]::before {
+  background: var(--mf-accent);
+}
+
+.apiKeyMeta {
+  margin-top: 7px;
+  color: var(--mf-text-tertiary);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.apiKeyCapabilityCount {
+  margin-top: 2px;
+  color: var(--mf-accent);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.apiKeyEditor {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--mf-border);
+}
+
+.apiKeyEditorActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.apiSecretBox {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 10px;
+  padding: 11px 12px;
+  border: 1px solid color-mix(in srgb, var(--mf-accent) 55%, transparent);
+  border-radius: var(--mf-radius-md);
+  background: var(--mf-accent-soft);
+}
+
+.apiSecretBox strong {
+  color: var(--mf-text-primary);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.apiSecretValue {
+  padding: 7px 9px;
+  border: 1px solid var(--mf-border);
+  border-radius: 7px;
+  background: var(--mf-bg-surface);
+  color: var(--mf-text-primary);
+  font-family: var(--mf-font-mono);
+  font-size: 10px;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.apiSecretActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.apiSecretHint {
+  color: var(--mf-text-secondary);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.apiSwitchList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.apiSwitchRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--mf-border);
+  border-radius: var(--mf-radius-sm);
+  background: var(--mf-bg-app);
+  text-align: left;
+  transition:
+    border-color var(--mf-transition),
+    background var(--mf-transition);
+}
+
+.apiSwitchRow:hover:not(:disabled) {
+  border-color: var(--mf-border-strong);
+  background: var(--mf-bg-hover);
+}
+
+.apiSwitchRow:disabled {
+  opacity: 0.6;
+}
+
+.apiSwitchCopy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.apiSwitchLabel {
+  color: var(--mf-text-primary);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.apiSwitchHint {
+  color: var(--mf-text-tertiary);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.apiSwitchTrack {
+  position: relative;
+  display: block;
+  flex: none;
+  width: 36px;
+  height: 20px;
+  border: 1px solid var(--mf-border-strong);
+  border-radius: var(--mf-radius-pill);
+  background: var(--mf-bg-surface);
+  transition:
+    background var(--mf-transition),
+    border-color var(--mf-transition);
+}
+
+.apiSwitchTrack[data-checked="true"] {
+  border-color: var(--mf-accent);
+  background: var(--mf-accent);
+}
+
+.apiSwitchThumb {
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--mf-bg-surface);
+  box-shadow: 0 1px 2px rgba(15, 15, 20, 0.2);
+  transition: transform var(--mf-transition);
+}
+
+.apiSwitchTrack[data-checked="true"] .apiSwitchThumb {
+  transform: translateX(16px);
+}
+
+.apiSearchRow {
+  position: relative;
+  margin-top: 10px;
+}
+
+.apiSearchIcon {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  color: var(--mf-text-tertiary);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.apiSearchInput {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px 0 31px;
+  border: 1px solid var(--mf-border);
+  border-radius: 8px;
+  outline: none;
+  background: var(--mf-bg-app);
+  color: var(--mf-text-primary);
+  font: inherit;
+  font-size: 11px;
+  transition:
+    border-color var(--mf-transition),
+    box-shadow var(--mf-transition),
+    background var(--mf-transition);
+}
+
+.apiSearchInput::placeholder {
+  color: var(--mf-text-tertiary);
+}
+
+.apiSearchInput:focus {
+  border-color: var(--mf-accent);
+  background: var(--mf-bg-surface);
+  box-shadow: 0 0 0 3px var(--mf-accent-soft);
+}
+
+.apiCatalogList {
+  display: flex;
+  max-height: 320px;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  padding-right: 2px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.apiCatalogItem {
+  border: 1px solid var(--mf-border);
+  border-radius: 8px;
+  background: var(--mf-bg-panel);
+}
+
+.apiCatalogButton {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  color: inherit;
+  text-align: left;
+}
+
+.apiCatalogButton:hover {
+  background: var(--mf-bg-hover);
+}
+
+.apiCatalogInfo {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.apiCatalogTitleLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.apiCatalogTitleLine strong {
+  color: var(--mf-text-primary);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.apiCatalogTitleLine code {
+  color: var(--mf-text-tertiary);
+  font-family: var(--mf-font-mono);
+  font-size: 8px;
+  overflow-wrap: anywhere;
+}
+
+.apiCatalogDescription {
+  color: var(--mf-text-secondary);
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.apiCatalogBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.apiCatalogCategory,
+.apiRequirementBadge,
+.apiNoRequirement {
+  padding: 1px 6px;
+  border-radius: var(--mf-radius-pill);
+  font-size: 8px;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.apiCatalogCategory {
+  background: var(--mf-bg-selected);
+  color: var(--mf-text-secondary);
+}
+
+.apiRequirementBadge {
+  background: var(--mf-accent-soft);
+  color: var(--mf-accent);
+}
+
+.apiNoRequirement {
+  background: var(--mf-bg-app);
+  color: var(--mf-text-tertiary);
+}
+
+.apiCatalogChevron {
+  flex: none;
+  margin-top: 2px;
+  color: var(--mf-text-tertiary);
+  transition: transform var(--mf-transition);
+}
+
+.apiCatalogChevron[data-open="true"] {
+  transform: rotate(180deg);
+}
+
+.apiCatalogDetail {
+  padding: 9px 10px 10px;
+  border-top: 1px solid var(--mf-border);
+  background: var(--mf-bg-app);
+  color: var(--mf-text-secondary);
+  font-size: 9px;
+  line-height: 1.65;
+}
+
+.apiCatalogDetail > p + p {
+  margin-top: 5px;
+}
+
+.apiCatalogDetail strong {
+  color: var(--mf-text-primary);
+  font-weight: 600;
+}
+
+.apiSchemaList {
+  margin-top: 8px;
+  border-top: 1px solid var(--mf-border);
+}
+
+.apiSchemaRow {
+  display: grid;
+  grid-template-columns: minmax(72px, 118px) minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 7px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--mf-border);
+}
+
+.apiSchemaRow code {
+  color: var(--mf-text-primary);
+  font-family: var(--mf-font-mono);
+  font-size: 8px;
+  overflow-wrap: anywhere;
+}
+
+.apiSchemaRow span {
+  color: var(--mf-text-tertiary);
+  font-size: 8px;
+  line-height: 1.5;
+}
+
+.apiSchemaRow em {
+  color: var(--mf-accent);
+  font-size: 8px;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.apiDetailLabel {
+  margin-top: 8px;
+  margin-bottom: 4px;
+  color: var(--mf-text-secondary);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.apiCodeBlock {
+  max-height: 160px;
+  margin: 0;
+  padding: 8px 9px;
+  overflow: auto;
+  border: 1px solid var(--mf-border);
+  border-radius: 6px;
+  background: var(--mf-bg-surface);
+  color: var(--mf-text-primary);
+  font-family: var(--mf-font-mono);
+  font-size: 8px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overscroll-behavior: contain;
+}
+
 @keyframes backdrop-in {
   from {
     opacity: 0;
@@ -979,17 +1553,24 @@
   }
 
   .tabs {
+    width: 100%;
     flex-direction: row;
     gap: 2px;
-    width: auto;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .tabs::-webkit-scrollbar {
+    display: none;
   }
 
   .tab {
     width: auto;
     height: 40px;
-    padding: 0 12px;
-    gap: 6px;
-    font-size: 12px;
+    flex: none;
+    padding: 0 10px;
+    gap: 5px;
+    font-size: 11px;
   }
 
   .logoutButton {
@@ -1082,6 +1663,93 @@
     height: 36px;
     padding: 0 9px;
     font-size: 10px;
+  }
+
+  .apiSectionHeader {
+    flex-wrap: wrap;
+  }
+
+  .apiEndpointRow {
+    flex-wrap: wrap;
+  }
+
+  .apiEndpointValue {
+    flex-basis: 100%;
+    font-size: 11px;
+  }
+
+  .apiLinks .buttonSecondary,
+  .apiSecretActions .buttonSecondary {
+    min-height: 42px;
+    font-size: 12px;
+  }
+
+  .apiKeyHeader {
+    flex-wrap: wrap;
+  }
+
+  .apiKeyActions {
+    width: auto;
+    margin-left: auto;
+    justify-content: flex-end;
+    gap: 14px;
+  }
+
+  .apiKeyActions .textButton,
+  .apiDangerAction {
+    min-height: 36px;
+    font-size: 11px;
+  }
+
+  .apiSwitchRow {
+    min-height: 54px;
+    padding: 9px 10px;
+  }
+
+  .apiSwitchLabel {
+    font-size: 12px;
+  }
+
+  .apiSwitchHint {
+    font-size: 10px;
+  }
+
+  .apiSearchInput {
+    height: 42px;
+    font-size: 16px;
+  }
+
+  .apiCatalogList {
+    max-height: 360px;
+  }
+
+  .apiCatalogButton {
+    padding: 10px;
+  }
+
+  .apiCatalogTitleLine strong {
+    font-size: 11px;
+  }
+
+  .apiCatalogDescription,
+  .apiCatalogDetail {
+    font-size: 10px;
+  }
+
+  .apiSchemaRow {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .apiSchemaRow code {
+    grid-column: 1;
+  }
+
+  .apiSchemaRow em {
+    grid-column: 2;
+  }
+
+  .apiSchemaRow span {
+    grid-column: 1 / -1;
   }
 
   .button,

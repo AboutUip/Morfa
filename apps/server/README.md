@@ -2,7 +2,7 @@
 
 Morfa 的 Node.js 后端：HTTP API、账号认证、VCode 验证、SQLite 数据访问、加密数据导出与头像文件存储。
 
-> 状态：M1 认证、VCode、账号、导出、模型供应商与模型可用性测试 API 已实现；编辑器与项目接口待接入。
+> 状态：M1 认证、VCode、账号、导出、模型供应商、模型可用性测试、API Key 与原生 MCP API 已实现；编辑器与项目接口待接入。
 
 ## 技术栈
 
@@ -19,7 +19,8 @@ Morfa 的 Node.js 后端：HTTP API、账号认证、VCode 验证、SQLite 数�
 ```text
 src/
 ├─ api/         认证、账号、导出与头像路由
-├─ services/    认证、VCode、个人资料、数据导出 / 导入、模型供应商与模型测试
+├─ mcp/         MCP 总控、能力注册、鉴权、参数校验与 llms.txt
+├─ services/    认证、VCode、个人资料、偏好、API Key、数据导出 / 导入、模型供应商与模型测试
 ├─ db/          连接、迁移、用户 / 会话 / 票据 / 导出 / 项目仓储
 ├─ lib/         Cookie、错误处理、密钥派生与加密辅助
 └─ index.ts     Fastify 启动入口
@@ -54,6 +55,20 @@ data/           本地 SQLite、头像、导出文件与主密钥（不提交）
 | `POST` | `/api/me/model-providers/:id/test` | 真实调用模型，以 NDJSON 流返回测试过程与结果 |
 | `DELETE` | `/api/me/model-providers/:id` | 删除供应商 |
 | `POST` | `/api/me/model-providers/:id/reveal-key` | 消费 VCode ticket 后查看 API Key |
+| `GET` | `/api/me/preferences` | 读取账号级语言 / 主题偏好 |
+| `PATCH` | `/api/me/preferences` | 更新账号级语言 / 主题偏好 |
+| `GET` | `/api/me/api-keys` | 列出当前账号的 API Key（不含明文） |
+| `POST` | `/api/me/api-keys` | 创建 API Key，并设置 VCode / 密码权限 |
+| `PATCH` | `/api/me/api-keys/:id` | 更新 API Key 名称或权限 |
+| `DELETE` | `/api/me/api-keys/:id` | 删除 API Key |
+| `GET` | `/api/me/mcp/capabilities` | 读取完整 MCP 能力目录 |
+| `GET` | `/api/me/mcp/capabilities/:name` | 读取 MCP 能力详情 |
+| `POST` | `/mcp` | MCP JSON-RPC 2.0 端点，使用 API Key 认证 |
+| `GET` | `/api/mcp/capabilities` | 使用 API Key 查询可用 MCP 能力 |
+| `GET` | `/api/mcp/capabilities/:name` | 使用 API Key 查询能力详情 |
+| `POST` | `/api/mcp/capabilities/:name/call` | 使用 API Key 直接调用能力 |
+| `GET` | `/api/mcp/export/latest` | 使用 API Key 下载当前有效导出包 |
+| `GET` | `/llms.txt` | 公开的 MCP llms.txt 文档 |
 | `GET` | `/uploads/avatars/:filename` | 读取头像文件 |
 
 注册成功会直接创建会话，返回 `201` 和 `{ user, importedProjectCount }`，前端无需再次登录。缺少 VCode 的老用户登录时返回 `requiresVCodeSetup`、`setupToken` 和 `preview`，完成设置后才创建会话。
@@ -73,6 +88,9 @@ data/           本地 SQLite、头像、导出文件与主密钥（不提交）
 - `POST /api/me/model-providers/:id/test` 使用存储的 API Key 发起真实请求，固定提示模型返回 `MORFA`；模型支持流式时使用流式协议。响应为 `application/x-ndjson`，事件类型包括 `start`、`reasoning`、`delta`、`done`、`error`；空返回、鉴权失败、超时与中断分别映射为稳定错误码。
 - 模型测试会真实消耗供应商 token，单次最长 60 秒；测试响应不缓存，API Key 与模型正文不写入日志。
 - 同一用户只保留一个有效导出包；新导出使旧包失效，导入成功后吊销数据包。
+- API Key 只保存 SHA-256 哈希与展示前缀，明文只在创建响应中返回一次；每个 Key 可独立开启 VCode 与密码敏感操作权限，调用时分别传入 `vcode` / `password`。
+- MCP 能力注册与执行统一由 `apps/server/src/mcp/McpController` 管理；`GET /llms.txt` 自动生成能力目录、参数 schema 与调用示例。详见 [MCP 集成](../../docs/integrations/mcp.md)。
+- 账号级语言与主题偏好保存在 `user_preferences`；前端登录后读取，并在窗口聚焦或轮询时同步 MCP 发起的修改。
 
 ## 导出安全
 

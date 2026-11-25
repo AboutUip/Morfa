@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -11,9 +12,12 @@ import {
 import {
   ApiError,
   authApi,
+  preferencesApi,
   type AuthUser,
   type RegisterResponse,
 } from "../../lib/api";
+import { getLocale, setLocale } from "../../lib/i18n";
+import { useTheme } from "../../lib/theme";
 
 type AuthStatus = "loading" | "ready";
 
@@ -42,10 +46,61 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const { mode, setMode } = useTheme();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [pendingVCodeSetup, setPendingVCodeSetup] =
     useState<PendingVCodeSetup | null>(null);
+  const setModeRef = useRef(setMode);
+  const modeRef = useRef(mode);
+
+  useEffect(() => {
+    setModeRef.current = setMode;
+    modeRef.current = mode;
+  }, [mode, setMode]);
+
+  const userId = user?.id ?? null;
+
+  useEffect(() => {
+    if (!userId) return;
+
+    let active = true;
+
+    const applyPreferences = async () => {
+      if (document.visibilityState === "hidden") return;
+
+      try {
+        const { preferences } = await preferencesApi.get();
+        if (!active) return;
+
+        if (preferences.locale && preferences.locale !== getLocale()) {
+          setLocale(preferences.locale);
+        }
+        if (
+          preferences.themeMode &&
+          preferences.themeMode !== modeRef.current
+        ) {
+          setModeRef.current(preferences.themeMode);
+        }
+      } catch {
+        // 偏好同步失败不阻塞主流程，保留当前本地设置
+      }
+    };
+
+    void applyPreferences();
+    const interval = window.setInterval(() => {
+      void applyPreferences();
+    }, 20_000);
+    const onFocus = () => void applyPreferences();
+
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [userId]);
 
   useEffect(() => {
     let active = true;

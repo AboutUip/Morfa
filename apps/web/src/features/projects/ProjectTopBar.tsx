@@ -19,6 +19,7 @@ import {
   SlidersIcon,
   SunIcon,
 } from "../../components/icons";
+import { preferencesApi } from "../../lib/api";
 import { setLocale, type Locale } from "../../lib/i18n";
 import { useMediaQuery } from "../../lib/useMediaQuery";
 import { useTheme } from "../../lib/theme";
@@ -316,7 +317,22 @@ export function ProjectTopBar({
 
   const selectLanguage = (locale: Locale) => {
     setLocale(locale);
+    if (user) {
+      void preferencesApi.update({ locale }).catch(() => {
+        // 本地语言已切换，服务端同步失败不影响当前会话
+      });
+    }
     closeLanguageMenu();
+  };
+
+  const handleThemeToggle = () => {
+    const next = resolved === "dark" ? "light" : "dark";
+    toggle();
+    if (user) {
+      void preferencesApi.update({ themeMode: next }).catch(() => {
+        // 本地主题已切换，服务端同步失败不影响当前会话
+      });
+    }
   };
 
   const closeProfile = () => {
@@ -463,7 +479,7 @@ export function ProjectTopBar({
           type="button"
           title={t("app.toggleTheme")}
           aria-label={t("app.toggleTheme")}
-          onClick={toggle}
+          onClick={handleThemeToggle}
         >
           {resolved === "dark" ? <SunIcon size={15} /> : <MoonIcon size={15} />}
         </button>

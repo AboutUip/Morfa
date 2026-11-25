@@ -17,7 +17,7 @@
 | `light` | 固定浅色 |
 | `dark` | 固定深色 |
 
-- 用户偏好存储在 `localStorage` 的 `morfa.theme`，取值为 `system | light | dark`。
+- 用户偏好存储在 `localStorage` 的 `morfa.theme`，取值为 `system | light | dark`；登录后会同步到 `user_preferences`，并在窗口聚焦或轮询时应用服务端（包括 MCP）发起的修改。
 - 实际生效的主题称为 **resolved theme**（`light | dark`），写入 `<html data-theme="...">`。
 - 同时设置 CSS `color-scheme: light | dark`，让原生表单控件与系统 UI 匹配。
 - 滚动条统一由 `--mf-scrollbar` 驱动：WebKit / Chrome 使用 8px 透明轨道、圆角细滑块并隐藏箭头；Firefox 使用 `scrollbar-width: thin` 与 `scrollbar-color`，保持低调但不隐藏。

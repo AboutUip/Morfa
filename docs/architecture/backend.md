@@ -1,6 +1,6 @@
 # 后端架构
 
-> 状态：M1 认证、VCode、账号、导出、模型供应商与模型测试 API 已实现 · 最后更新：2026-11-26
+> 状态：M1 认证、VCode、账号、导出、模型供应商、模型测试、API Key 与 MCP API 已实现 · 最后更新：2026-11-26
 
 ## 职责
 
@@ -31,6 +31,7 @@ apps/server/
 │  ├─ services/            # 业务用例：项目、设计文档、用户
 │  ├─ db/                  # 连接、schema、仓储、迁移执行器
 │  ├─ agent/               # 编排器、模型适配、工具注册与运行记录
+│  ├─ mcp/                 # MCP 总控、能力注册、API Key 鉴权与 llms.txt
 │  └─ lib/                 # 配置、日志、错误、鉴权等基础设施
 ├─ migrations/             # 顺序编号的 SQL 迁移
 ├─ data/                   # 本地 SQLite 文件（不提交）
@@ -69,6 +70,13 @@ apps/server/
 - `POST /api/me/model-providers/:id/test`：真实调用模型，以 `application/x-ndjson` 流返回 `start`、`reasoning`、`delta`、`done`、`error` 事件；支持根据模型能力自动选择流式 / 非流式，并在开启思考时发送供应商对应的推理参数。
 - `DELETE /api/me/model-providers/:id`：删除供应商并级联删除模型。
 - `POST /api/me/model-providers/:id/reveal-key`：消费 `reveal_api_key` ticket 后返回解密后的 API Key。
+- `GET /api/me/preferences` / `PATCH`：读取或更新账号级语言与主题偏好；未设置时返回 `null`，前端保留本地设置。
+- `GET /api/me/api-keys` / `POST` / `PATCH /:id` / `DELETE /:id`：管理 MCP API Key。明文只在创建响应返回一次，数据库保存 SHA-256 哈希与展示前缀。
+- `POST /mcp`：MCP JSON-RPC 2.0 端点，使用 `Authorization: Bearer mf_...` 认证；支持 `initialize`、`ping`、`tools/list`、`tools/call` 与通知请求。
+- `GET /api/mcp/capabilities` / `GET /api/mcp/capabilities/:name` / `POST /api/mcp/capabilities/:name/call`：与 MCP 共用同一套能力注册表和权限校验，便于其他模块接入。
+- `GET /api/mcp/export/latest`：使用 API Key 下载当前有效导出包。
+- `GET /api/me/mcp/capabilities` / `GET /api/me/mcp/capabilities/:name`：供 Web 个人面板读取完整能力目录。
+- `GET /llms.txt`：由能力注册表自动生成的公开 MCP 文档，包含输入 schema 与调用示例。
 - `GET /uploads/avatars/:filename`：读取头像。
 - 登录账号写入前转小写，数据库使用 `COLLATE NOCASE UNIQUE` 去重。
 - 密码与 VCode 均使用 `scrypt` + 随机盐哈希；会话令牌、setup token 与敏感操作 ticket 只保存 SHA-256 哈希。
@@ -78,6 +86,9 @@ apps/server/
 - 模型列表由服务端请求供应商，限制为 HTTP / HTTPS、15 秒超时，并且不记录 API Key 或响应正文；自托管部署应结合出站网络策略评估 Base URL 的 SSRF 风险。
 - 模型能力随模型一起存储。拉取模型列表时从 `capabilities`、`supported_parameters`、`architecture` 等元数据识别流式 / 思考 / 多模态能力；无法稳定识别的采用最小默认值（流式开启、思考与多模态关闭），并提供 `PATCH` 接口供用户手动修正。
 - 模型测试使用固定提示词验证模型确实返回内容；OpenAI 协议发送 `reasoning_effort`，Anthropic 协议发送 `thinking` 与对应 token 预算。流式请求按 SSE 增量解析，客户端断开时中止上游请求，单次测试最长 60 秒。空响应、鉴权失败、超时、流格式错误与上游错误分别返回稳定错误码。
+- MCP 能力统一由 `src/mcp/McpController` 注册和执行：能力定义包含双语标题 / 描述、JSON schema、权限要求、示例与只读 / 破坏性注解。控制器负责参数校验、API Key 权限、`tools/list` 过滤、`tools/call` 结果封装和 `llms.txt` 生成；新模块只需 `register()` 一个能力定义。
+- API Key 有两个独立权限位：VCode 与密码。能力声明自己需要的权限，控制器在每次调用时校验 Key 权限并检查调用参数中的 `vcode` / `password`；同时需要两项的能力要求 Key 同时开启两个权限位。详见 [MCP 集成](../integrations/mcp.md)。
+- 语言与主题偏好写入 `user_preferences`；MCP 修改后，前端通过窗口聚焦与 20 秒轮询同步，避免另建长连接。
 - 头像文件写入 `apps/server/data/uploads/avatars/`，数据库仅保存 `uploads/avatars/<uuid>.<ext>` 相对路径，限制 PNG / JPG / WebP 2 MB。
 - 详细取舍见 [ADR 0005](../decisions/0005-auth-and-avatar.md)。
 

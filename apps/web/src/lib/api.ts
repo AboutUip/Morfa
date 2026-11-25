@@ -62,6 +62,78 @@ export interface ExportSummary {
   downloadUrl: string;
 }
 
+export type UserLocale = "zh-CN" | "en-US";
+export type UserThemeMode = "system" | "light" | "dark";
+
+export interface UserPreferences {
+  locale: UserLocale | null;
+  themeMode: UserThemeMode | null;
+  updatedAt: number | null;
+}
+
+export interface ApiKeySummary {
+  id: string;
+  name: string;
+  prefix: string;
+  allowVCode: boolean;
+  allowPassword: boolean;
+  lastUsedAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type McpCategory =
+  | "system"
+  | "appearance"
+  | "profile"
+  | "security"
+  | "data"
+  | "models";
+
+export interface McpLocalizedText {
+  "zh-CN": string;
+  "en-US": string;
+}
+
+export interface McpPermissionRequirements {
+  vcode: boolean;
+  password: boolean;
+}
+
+export interface McpCapabilitySummary {
+  name: string;
+  title: McpLocalizedText;
+  description: McpLocalizedText;
+  category: McpCategory;
+  requirements: McpPermissionRequirements;
+  available: boolean | null;
+}
+
+export interface McpInputPropertySchema {
+  type: "string" | "boolean" | "number";
+  description: string;
+  enum?: string[];
+  minLength?: number;
+  maxLength?: number;
+}
+
+export interface McpInputSchema {
+  type: "object";
+  properties: Record<string, McpInputPropertySchema>;
+  required?: string[];
+  additionalProperties?: false;
+}
+
+export interface McpCapabilityDetail extends McpCapabilitySummary {
+  usage: McpLocalizedText;
+  returns: McpLocalizedText;
+  inputSchema: McpInputSchema;
+  examples: Array<{
+    title?: McpLocalizedText;
+    arguments: Record<string, unknown>;
+  }>;
+}
+
 interface ErrorEnvelope {
   error?: {
     code?: string;
@@ -211,6 +283,70 @@ export const profileApi = {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(input),
     }),
+};
+
+export const preferencesApi = {
+  get: () =>
+    request<{ preferences: UserPreferences }>("/api/me/preferences"),
+
+  update: (input: {
+    locale?: UserLocale;
+    themeMode?: UserThemeMode;
+  }) =>
+    request<{ preferences: UserPreferences }>("/api/me/preferences", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+};
+
+export const apiKeyApi = {
+  list: () => request<{ keys: ApiKeySummary[] }>("/api/me/api-keys"),
+
+  create: (input: {
+    name: string;
+    allowVCode: boolean;
+    allowPassword: boolean;
+  }) =>
+    request<{ key: ApiKeySummary; apiKey: string }>("/api/me/api-keys", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+
+  update: (
+    keyId: string,
+    input: {
+      name?: string;
+      allowVCode?: boolean;
+      allowPassword?: boolean;
+    },
+  ) =>
+    request<{ key: ApiKeySummary }>(
+      `/api/me/api-keys/${encodeURIComponent(keyId)}`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(input),
+      },
+    ),
+
+  remove: (keyId: string) =>
+    request<void>(`/api/me/api-keys/${encodeURIComponent(keyId)}`, {
+      method: "DELETE",
+    }),
+};
+
+export const mcpApi = {
+  capabilities: () =>
+    request<{ count: number; capabilities: McpCapabilitySummary[] }>(
+      "/api/me/mcp/capabilities",
+    ),
+
+  capability: (name: string) =>
+    request<{ capability: McpCapabilityDetail }>(
+      `/api/me/mcp/capabilities/${encodeURIComponent(name)}`,
+    ),
 };
 
 export const modelProviderApi = {

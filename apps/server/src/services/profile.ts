@@ -1,3 +1,4 @@
+import { deleteApiKeysForUser } from "../db/apiKeys.js";
 import {
   cancelUser,
   deleteUserSessions,
@@ -138,5 +139,6 @@ export async function cancelAccount(
     consumeTicketOrThrow(user.id, "cancel", input.ticket);
     cancelUser(user.id, now);
     deleteUserSessions(user.id);
+    deleteApiKeysForUser(user.id);
   });
 }

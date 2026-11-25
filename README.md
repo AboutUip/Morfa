@@ -13,7 +13,7 @@ Morfa 是一个 AI 原生的在线 UI 设计工具。它把自然语言意图与
 
 > 仓库：<https://github.com/AboutUip/Morfa> · XAIOP 上游：<https://github.com/AboutUip/XAIOP>
 >
-> 当前阶段：**M1 进行中**。已可启动 Web + API：3 秒启动加载（进度接口可扩展）、项目主页、账号注册 / 登录、VCode 验证、个人资料编辑、AI 模型供应商配置与模型测试、加密数据导出与注册时导入、深色 / 浅色主题与中英文切换。编辑器与项目创建能力待后续里程碑接入。
+> 当前阶段：**M1 进行中**。已可启动 Web + API：3 秒启动加载（进度接口可扩展）、项目主页、账号注册 / 登录、VCode 验证、个人资料编辑、AI 模型供应商配置与模型测试、原生 MCP 服务与 API Key、加密数据导出与注册时导入、深色 / 浅色主题与中英文切换。编辑器与项目创建能力待后续里程碑接入。
 
 ## 核心方向
 
@@ -31,7 +31,8 @@ Morfa 是一个 AI 原生的在线 UI 设计工具。它把自然语言意图与
 - **项目主页**：顶栏 `logo | Morfa` 与「项目 | 组件 | 设置」切换 Tab；移动端折叠为左上角 Logo 下拉菜单，箭头提示展开状态；项目区域默认空状态，右上角提供登录入口。组件与设置暂为占位页。
 - **账号系统**：登录 / 注册弹窗（仅关闭按钮退出，点击蒙版不关闭），支持头像、昵称、登录账号、密码、确认密码与必选 6 位 VCode；注册时可选择导入原账号数据包，成功后自动登录。
 - **VCode 验证**：独立 3×4 数字键盘弹窗，输入 6 位自动确认；用于数据导出、注销账号、忘记密码与查看模型 API Key；已有用户缺少 VCode 时自动登出，登录后引导设置。
-- **个人面板**：桌面端点击头像打开相对屏幕居中的双列面板；移动端为全屏面板，顶部横向「个人 / 账号 / 模型」Tab、底部退出登录。个人页可改头像、昵称、密码（新密码单输入 + 旧密码验证弹窗），账号页可导出加密数据包与注销账号（密码验证 → VCode 串行）。模型页可创建 OpenAI / Anthropic 供应商，服务端自动拉取模型并收纳在供应商卡片内；每个模型可发起真实调用测试（支持流式与思考过程展示），也可编辑流式、思考与多模态能力；API Key 加密存储且查看时必须验证 VCode。
+- **个人面板**：桌面端点击头像打开相对屏幕居中的双列面板；移动端为全屏面板，顶部横向「个人 / 账号 / 模型 / API」Tab、底部退出登录。个人页可改头像、昵称、密码（新密码单输入 + 旧密码验证弹窗），账号页可导出加密数据包与注销账号（密码验证 → VCode 串行）。模型页可创建 OpenAI / Anthropic 供应商，服务端自动拉取模型并收纳在供应商卡片内；每个模型可发起真实调用测试（支持流式与思考过程展示），也可编辑流式、思考与多模态能力；API Key 加密存储且查看时必须验证 VCode。API 页可创建带 VCode / 密码权限的 MCP API Key，查看端点、下载 `llms.txt`，并搜索与展开全部 MCP 能力。
+- **原生 MCP**：`POST /mcp` 提供 JSON-RPC 2.0 能力，支持修改语言 / 主题 / 头像 / 昵称 / 密码、创建导出包、注销账号，以及模型供应商添加、刷新、能力配置、真实测试、查看 Key 与删除。MCP 总控统一注册能力、校验 API Key 权限并生成 `llms.txt`；敏感能力要求调用时传入 VCode / 密码，同时需要两项的能力要求 Key 同时开启两项权限。
 - **数据导出 / 导入**：服务端使用 AES-256-GCM 加密并 gzip 压缩项目数据；同一用户仅保留一个有效导出包，新导出覆盖旧包；导入仅在注册时提供，要求原账号已注销、数据包未消费，服务端解密导入后吊销数据包。
 - **存储与安全**：SQLite 保存用户、会话、VCode 哈希、导出与项目数据；登录账号唯一且大小写不敏感；密码与 VCode 均使用 scrypt 哈希；导出主密钥保存在服务器；头像文件写入磁盘，数据库只保存相对路径。
 - **移动端 / 桌面端**：同一套 React 应用响应式适配；安全区、`100dvh`、移动端底部抽屉、16px 表单输入与 44px 触控目标；提供 PWA manifest 与图标。
@@ -46,8 +47,8 @@ Morfa 是一个 AI 原生的在线 UI 设计工具。它把自然语言意图与
 | --- | --- | --- |
 | 前端 | React + TypeScript | 已搭建 |
 | 前端构建 | Vite | 已接入 |
-| 后端 | Node.js + TypeScript + Fastify | 已搭建（认证 API） |
-| 数据库 | SQLite（WAL 模式，node:sqlite） | 已接入（认证） |
+| 后端 | Node.js + TypeScript + Fastify | 已搭建（认证、模型与 MCP API） |
+| 数据库 | SQLite（WAL 模式，node:sqlite） | 已接入（认证、模型、API Key） |
 | Agent 流式协议 | XAIOP SDK `0.16.0`（vendored 源码） | 已集成 |
 | 仓库组织 | npm workspaces（monorepo） | 已采用 |
 | 测试 | Vitest + Playwright | 建议方案 |
@@ -59,8 +60,8 @@ Web 依赖版本已写入 `apps/web/package.json` 与根锁文件；其余依赖
 ```text
 Morfa/
 ├─ apps/
-│  ├─ web/                 # React 前端（项目页 + 账号弹窗）
-│  └─ server/              # Fastify API、SQLite 认证与头像存储
+│  ├─ web/                 # React 前端（项目页、账号、模型与 API 面板）
+│  └─ server/              # Fastify API、SQLite、MCP 总控与文件存储
 ├─ packages/
 │  └─ shared/              # 跨端共享的类型、契约与常量
 ├─ branding/               # 标志、徽标与 favicon / app icons
@@ -71,7 +72,7 @@ Morfa/
 │  ├─ architecture/        # 架构、前端、后端、数据库
 │  ├─ design/              # 主题与国际化规范
 │  ├─ agent/               # Agent 能力与运行机制
-│  ├─ integrations/        # 第三方依赖集成（XAIOP）
+│  ├─ integrations/        # MCP 与第三方依赖集成
 │  ├─ guides/              # 开发指南
 │  ├─ decisions/           # 架构决策记录（ADR）
 │  └─ en/                  # 英文文档
@@ -111,6 +112,7 @@ npm run xaiop:check  # 校验 XAIOP Node / browser / core 入口
 | [字体规范](docs/design/typography.md) | Maple Mono CN 的选型、子集与使用规则 |
 | [键盘与可访问性](docs/design/accessibility.md) | 焦点顺序、键盘操作与弹窗焦点管理 |
 | [Agent 设计](docs/agent/overview.md) | Agent 运行机制、工具与安全边界 |
+| [MCP 集成](docs/integrations/mcp.md) | 原生 MCP 服务、API Key 权限、能力清单与调用方式 |
 | [XAIOP 集成](docs/integrations/xaiop.md) | SDK 来源、编译方式与 Vite 按需构建 |
 | [开发指南](docs/guides/development.md) | 环境、命令、分支与提交规范 |
 | [架构决策](docs/decisions/) | ADR 记录与背景 |

@@ -2,7 +2,7 @@
 
 本目录是 Morfa 的文档入口与唯一事实来源，覆盖产品、架构、设计、Agent 与开发流程。
 
-> 状态：随项目初始化建立 · 最后更新：2026-11-25
+> 状态：随项目初始化建立 · 最后更新：2026-11-26
 
 ## 语言与写作约定
 
@@ -28,16 +28,17 @@
 | [design/typography.md](design/typography.md) | 字体选择、子集策略、性能与使用规则 | 已接入 |
 | [design/accessibility.md](design/accessibility.md) | 键盘交互、焦点陷阱、跳过链接与验证 | 已实现基础 |
 | [agent/overview.md](agent/overview.md) | Agent 定位、运行生命周期、工具与安全 | 草案 |
+| [integrations/mcp.md](integrations/mcp.md) | 原生 MCP 服务、API Key 权限、能力清单与接入方式 | 已实现 |
 | [integrations/xaiop.md](integrations/xaiop.md) | XAIOP SDK 的来源、编译、Vite 集成与验证 | 已集成 |
 | [guides/development.md](guides/development.md) | 本地环境、命令、分支与提交规范 | 草案 |
-| [decisions/](decisions/) | 架构决策记录（ADR） | 持续更新 |
+| [decisions/](decisions/) | 架构决策记录（ADR），含原生 MCP 与 API Key 权限模型 | 持续更新 |
 | [en/README.md](en/README.md) | 英文概览与文档索引 | 草案 |
 
 ## 阅读路径
 
 - **新加入的开发者**：README → 产品愿景 → 架构总览 → 开发指南 → 对应模块文档。
 - **产品与设计**：产品愿景 → 路线图 → 主题规范 → i18n 规范。
-- **Agent 方向**：架构总览 → Agent 设计 → XAIOP 集成 → 数据库设计（运行记录部分）。
+- **Agent / MCP 方向**：架构总览 → Agent 设计 → MCP 集成 → XAIOP 集成 → 数据库设计（运行记录部分）。
 - **第三方依赖维护**：XAIOP 集成 → vendor README → ADR 0004。
 - **架构评审**：架构总览 → 各模块文档 → ADR 列表。
 

@@ -4,8 +4,11 @@ import multipart from "@fastify/multipart";
 import Fastify from "fastify";
 
 import { registerAccountRoutes } from "./api/account.js";
+import { registerApiKeyRoutes } from "./api/apiKeys.js";
 import { registerAuthRoutes } from "./api/auth.js";
+import { registerMcpRoutes } from "./api/mcp.js";
 import { registerModelProviderRoutes } from "./api/modelProviders.js";
+import { registerPreferencesRoutes } from "./api/preferences.js";
 import { registerUploadRoutes } from "./api/uploads.js";
 import {
   AVATARS_DIR,
@@ -22,6 +25,7 @@ import {
   purgeExpiredTickets,
 } from "./db/vcode.js";
 import { ApiError } from "./lib/errors.js";
+import { mcpController } from "./mcp/runtime.js";
 
 fs.mkdirSync(AVATARS_DIR, { recursive: true });
 fs.mkdirSync(EXPORTS_DIR, { recursive: true });
@@ -50,7 +54,10 @@ app.get("/api/health", async () => ({ ok: true }));
 
 registerAuthRoutes(app);
 registerAccountRoutes(app);
+registerPreferencesRoutes(app);
+registerApiKeyRoutes(app);
 registerModelProviderRoutes(app);
+registerMcpRoutes(app, mcpController);
 registerUploadRoutes(app);
 
 app.setErrorHandler((error, request, reply) => {

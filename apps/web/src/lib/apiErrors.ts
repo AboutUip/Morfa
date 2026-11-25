@@ -61,6 +61,11 @@ const API_ERROR_KEYS: Record<string, string> = {
   MODEL_EMPTY_RESPONSE: "profile.models.errors.emptyResponse",
   MODEL_STREAM_INVALID: "profile.models.errors.streamInvalid",
   MODEL_UNREACHABLE: "profile.models.errors.unreachable",
+  API_KEY_LIMIT_REACHED: "profile.api.errors.limitReached",
+  API_KEY_NAME_INVALID: "profile.api.errors.nameInvalid",
+  API_KEY_NOT_FOUND: "profile.api.errors.notFound",
+  API_KEY_CREATE_FAILED: "profile.api.errors.createFailed",
+  MCP_CAPABILITY_NOT_FOUND: "profile.api.errors.capabilityNotFound",
 };
 
 export function apiErrorKey(error: unknown, fallbackKey: string): string {
