@@ -19,7 +19,8 @@
 
 - 用户偏好存储在 `localStorage` 的 `morfa.theme`，取值为 `system | light | dark`。
 - 实际生效的主题称为 **resolved theme**（`light | dark`），写入 `<html data-theme="...">`。
-- 同时设置 CSS `color-scheme: light | dark`，让原生滚动条、表单控件与系统 UI 匹配。
+- 同时设置 CSS `color-scheme: light | dark`，让原生表单控件与系统 UI 匹配。
+- 滚动条统一由 `--mf-scrollbar` 驱动：WebKit / Chrome 使用 8px 透明轨道、圆角细滑块并隐藏箭头；Firefox 使用 `scrollbar-width: thin` 与 `scrollbar-color`，保持低调但不隐藏。
 
 ## 设计令牌
 
