@@ -66,7 +66,8 @@
     "logout": "退出登录",
     "tabs": {
       "profile": "个人",
-      "account": "账号"
+      "account": "账号",
+      "models": "模型"
     },
     "nickname": "昵称",
     "loginAccount": "登录账号",
@@ -122,7 +123,8 @@
     "vcode": {
       "password_reset": "验证 VCode 后即可设置新密码，无需原密码。",
       "export": "生成导出包需要通过 VCode 验证。",
-      "cancel": "当前密码已验证。请输入 VCode 完成注销。"
+      "cancel": "当前密码已验证。请输入 VCode 完成注销。",
+      "reveal_api_key": "查看 API Key 前需要验证 VCode。"
     },
     "errors": {
       "unauthorized": "登录状态已失效，请重新登录",
@@ -135,6 +137,66 @@
       "cancelFailed": "注销失败，请稍后重试",
       "newPasswordRequired": "请输入新密码",
       "passwordTooLong": "密码不能超过 128 位"
+    },
+    "models": {
+      "intro": "配置 OpenAI 或 Anthropic 兼容的模型供应商。保存时会自动拉取可用模型。",
+      "add": "添加供应商",
+      "addTitle": "创建供应商",
+      "cancel": "取消",
+      "protocol": "协议",
+      "protocolOpenAI": "OpenAI",
+      "protocolAnthropic": "Anthropic",
+      "name": "名称（可选）",
+      "namePlaceholder": "留空则使用协议与域名",
+      "baseUrl": "Base URL",
+      "baseUrlPlaceholderOpenAI": "https://api.openai.com/v1",
+      "baseUrlPlaceholderAnthropic": "https://api.anthropic.com/v1",
+      "apiKey": "API Key",
+      "apiKeyPlaceholder": "粘贴 API Key",
+      "submit": "连接并拉取模型",
+      "submitting": "正在连接并拉取…",
+      "autoFetchHint": "只有成功拉取模型列表后才会保存供应商。",
+      "emptyTitle": "还没有模型供应商",
+      "emptyHint": "添加 OpenAI 或 Anthropic 供应商后，可用模型会收纳在对应卡片中。",
+      "loading": "正在读取供应商…",
+      "retry": "重试",
+      "created": "供应商已添加，并已拉取模型。",
+      "modelsRefreshed": "模型列表已更新。",
+      "deleted": "供应商已删除。",
+      "modelCount": "{{value}} 个模型",
+      "baseUrlLabel": "接口地址",
+      "availableModels": "可用模型",
+      "noModels": "暂未拉取到模型",
+      "refresh": "刷新模型",
+      "refreshing": "正在刷新…",
+      "delete": "删除供应商",
+      "deleteConfirm": "再次点击确认删除",
+      "deleting": "正在删除…",
+      "revealKey": "查看 Key",
+      "hideKey": "隐藏 Key",
+      "keyHint": "查看 API Key 需要验证 VCode。",
+      "keyVerified": "VCode 已验证，API Key 仅显示在当前页面。",
+      "lastSynced": "最近同步：{{date}}",
+      "neverSynced": "尚未同步",
+      "errors": {
+        "protocolInvalid": "供应商协议不正确",
+        "nameInvalid": "供应商名称不正确",
+        "baseUrlRequired": "请输入 Base URL",
+        "baseUrlInvalid": "Base URL 格式不正确，请使用 http 或 https",
+        "keyRequired": "请输入 API Key",
+        "notFound": "供应商不存在或已被删除",
+        "authFailed": "API Key 无效或没有权限",
+        "unreachable": "无法连接供应商，请检查 Base URL",
+        "timeout": "连接供应商超时",
+        "fetchFailed": "供应商模型列表请求失败",
+        "responseInvalid": "供应商返回的模型列表格式不正确",
+        "keyCorrupt": "API Key 数据无法读取，请重新添加供应商",
+        "loadFailed": "读取供应商失败",
+        "createFailed": "添加供应商失败",
+        "deleteFailed": "删除供应商失败",
+        "syncFailed": "刷新模型失败",
+        "revealFailed": "查看 API Key 失败"
+      }
     }
   },
   "auth": {

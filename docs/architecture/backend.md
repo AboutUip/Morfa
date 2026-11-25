@@ -1,6 +1,6 @@
 # 后端架构
 
-> 状态：M1 认证、VCode、账号与导出 API 已实现 · 最后更新：2026-11-26
+> 状态：M1 认证、VCode、账号、导出与模型供应商 API 已实现 · 最后更新：2026-11-26
 
 ## 职责
 
@@ -44,7 +44,7 @@ apps/server/
 - `db` 封装 SQL 与事务，不依赖 HTTP 类型。
 - `agent` 通过服务接口读写设计文档，不直接拼 SQL。
 
-## 已实现：认证与账号 API
+## 已实现：认证、账号与模型供应商 API
 
 - `GET /api/health`：健康检查。
 - `GET /api/auth/me`：读取当前会话用户；未登录返回 `{ user: null }`。会话用户缺少 VCode 或已注销时，服务端删除会话并清除 Cookie。
@@ -62,11 +62,18 @@ apps/server/
 - `POST /api/me/export`：消费 `export` ticket，生成新的加密导出包并使旧包立即失效。
 - `GET /api/me/export/download`：下载当前有效导出包。
 - `POST /api/me/cancel`：校验当前密码并消费 `cancel` ticket，软删除账号、清除密码与 VCode、吊销全部会话。
+- `GET /api/me/model-providers`：读取当前用户的模型供应商与已拉取模型。
+- `POST /api/me/model-providers`：创建 OpenAI / Anthropic 供应商；服务端请求模型列表，成功后才保存供应商。
+- `POST /api/me/model-providers/:id/sync`：使用存储的 API Key 重新拉取模型列表。
+- `DELETE /api/me/model-providers/:id`：删除供应商并级联删除模型。
+- `POST /api/me/model-providers/:id/reveal-key`：消费 `reveal_api_key` ticket 后返回解密后的 API Key。
 - `GET /uploads/avatars/:filename`：读取头像。
 - 登录账号写入前转小写，数据库使用 `COLLATE NOCASE UNIQUE` 去重。
 - 密码与 VCode 均使用 `scrypt` + 随机盐哈希；会话令牌、setup token 与敏感操作 ticket 只保存 SHA-256 哈希。
 - VCode 验证失败按用户限流（10 分钟 5 次），验证成功后 ticket 只能消费一次。
 - 导出包使用随机数据密钥 AES-256-GCM 加密，数据密钥再由服务器主密钥包裹；主密钥来自 `MORFA_EXPORT_MASTER_KEY` 或本地 `data/export-master.key`。
+- 模型供应商 API Key 使用同一服务器主密钥做 AES-256-GCM 加密后存储；列表接口不返回 Key，只有消费 `reveal_api_key` ticket 后才能解密查看。
+- 模型列表由服务端请求供应商，限制为 HTTP / HTTPS、15 秒超时，并且不记录 API Key 或响应正文；自托管部署应结合出站网络策略评估 Base URL 的 SSRF 风险。
 - 头像文件写入 `apps/server/data/uploads/avatars/`，数据库仅保存 `uploads/avatars/<uuid>.<ext>` 相对路径，限制 PNG / JPG / WebP 2 MB。
 - 详细取舍见 [ADR 0005](../decisions/0005-auth-and-avatar.md)。
 

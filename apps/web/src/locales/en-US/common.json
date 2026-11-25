@@ -66,7 +66,8 @@
     "logout": "Sign out",
     "tabs": {
       "profile": "Profile",
-      "account": "Account"
+      "account": "Account",
+      "models": "Models"
     },
     "nickname": "Nickname",
     "loginAccount": "Login account",
@@ -122,7 +123,8 @@
     "vcode": {
       "password_reset": "After verifying your VCode you can set a new password without the old one.",
       "export": "Creating an export archive requires VCode verification.",
-      "cancel": "Current password verified. Enter your VCode to finish cancelling."
+      "cancel": "Current password verified. Enter your VCode to finish cancelling.",
+      "reveal_api_key": "Verify your VCode before revealing the API key."
     },
     "errors": {
       "unauthorized": "Your session expired. Sign in again.",
@@ -135,6 +137,66 @@
       "cancelFailed": "Could not cancel the account. Try again.",
       "newPasswordRequired": "Enter a new password",
       "passwordTooLong": "Password must be 128 characters or fewer"
+    },
+    "models": {
+      "intro": "Configure OpenAI- or Anthropic-compatible model providers. Saving will fetch the available models automatically.",
+      "add": "Add provider",
+      "addTitle": "Create provider",
+      "cancel": "Cancel",
+      "protocol": "Protocol",
+      "protocolOpenAI": "OpenAI",
+      "protocolAnthropic": "Anthropic",
+      "name": "Name (optional)",
+      "namePlaceholder": "Defaults to protocol and hostname",
+      "baseUrl": "Base URL",
+      "baseUrlPlaceholderOpenAI": "https://api.openai.com/v1",
+      "baseUrlPlaceholderAnthropic": "https://api.anthropic.com/v1",
+      "apiKey": "API Key",
+      "apiKeyPlaceholder": "Paste API Key",
+      "submit": "Connect and fetch models",
+      "submitting": "Connecting and fetching…",
+      "autoFetchHint": "The provider is only saved after the model list is fetched successfully.",
+      "emptyTitle": "No model providers yet",
+      "emptyHint": "Add an OpenAI or Anthropic provider; its available models stay tucked inside the provider card.",
+      "loading": "Loading providers…",
+      "retry": "Retry",
+      "created": "Provider added and models fetched.",
+      "modelsRefreshed": "Model list updated.",
+      "deleted": "Provider deleted.",
+      "modelCount": "Models: {{value}}",
+      "baseUrlLabel": "Endpoint",
+      "availableModels": "Available models",
+      "noModels": "No models fetched",
+      "refresh": "Refresh models",
+      "refreshing": "Refreshing…",
+      "delete": "Delete provider",
+      "deleteConfirm": "Click again to confirm",
+      "deleting": "Deleting…",
+      "revealKey": "Reveal key",
+      "hideKey": "Hide key",
+      "keyHint": "VCode verification is required to reveal the API key.",
+      "keyVerified": "VCode verified. The API key is only shown on this page.",
+      "lastSynced": "Last synced: {{date}}",
+      "neverSynced": "Not synced yet",
+      "errors": {
+        "protocolInvalid": "Provider protocol is invalid",
+        "nameInvalid": "Provider name is invalid",
+        "baseUrlRequired": "Enter a Base URL",
+        "baseUrlInvalid": "Base URL must use HTTP or HTTPS",
+        "keyRequired": "Enter an API Key",
+        "notFound": "Provider not found or already deleted",
+        "authFailed": "API Key is invalid or lacks permission",
+        "unreachable": "Cannot reach the provider. Check the Base URL.",
+        "timeout": "Connecting to the provider timed out",
+        "fetchFailed": "The provider model list request failed",
+        "responseInvalid": "The provider returned an invalid model list",
+        "keyCorrupt": "The API key data cannot be read. Add the provider again.",
+        "loadFailed": "Could not load providers",
+        "createFailed": "Could not add the provider",
+        "deleteFailed": "Could not delete the provider",
+        "syncFailed": "Could not refresh models",
+        "revealFailed": "Could not reveal the API key"
+      }
     }
   },
   "auth": {

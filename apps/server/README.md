@@ -2,7 +2,7 @@
 
 Morfa 的 Node.js 后端：HTTP API、账号认证、VCode 验证、SQLite 数据访问、加密数据导出与头像文件存储。
 
-> 状态：M1 认证、VCode、账号与导出 API 已实现；编辑器与项目接口待接入。
+> 状态：M1 认证、VCode、账号、导出与模型供应商 API 已实现；编辑器与项目接口待接入。
 
 ## 技术栈
 
@@ -47,6 +47,11 @@ data/           本地 SQLite、头像、导出文件与主密钥（不提交）
 | `POST` | `/api/me/export` | 消费 ticket，生成加密导出包 |
 | `GET` | `/api/me/export/download` | 下载当前有效导出包 |
 | `POST` | `/api/me/cancel` | 校验密码 + ticket 后注销账号 |
+| `GET` | `/api/me/model-providers` | 读取模型供应商与已拉取模型 |
+| `POST` | `/api/me/model-providers` | 创建 OpenAI / Anthropic 供应商并拉取模型 |
+| `POST` | `/api/me/model-providers/:id/sync` | 重新拉取供应商模型 |
+| `DELETE` | `/api/me/model-providers/:id` | 删除供应商 |
+| `POST` | `/api/me/model-providers/:id/reveal-key` | 消费 VCode ticket 后查看 API Key |
 | `GET` | `/uploads/avatars/:filename` | 读取头像文件 |
 
 注册成功会直接创建会话，返回 `201` 和 `{ user, importedProjectCount }`，前端无需再次登录。缺少 VCode 的老用户登录时返回 `requiresVCodeSetup`、`setupToken` 和 `preview`，完成设置后才创建会话。
@@ -60,6 +65,8 @@ data/           本地 SQLite、头像、导出文件与主密钥（不提交）
 - 会话 Cookie 名为 `morfa_session`，`HttpOnly; SameSite=Lax`，生产环境自动附加 `Secure`。
 - 服务启动时自动执行 `migrations/*.sql`，迁移记录写入 `schema_migrations`。
 - setup token 10 分钟有效；VCode 敏感操作 ticket 5 分钟有效且只能消费一次。
+- 模型供应商 API Key 使用服务器主密钥 AES-256-GCM 加密存储；列表接口不返回 Key，查看 Key 需要 `reveal_api_key` ticket。
+- 模型列表由服务端请求供应商，限制 HTTP / HTTPS 与 15 秒超时；自托管部署应评估可访问的出站地址范围，避免 SSRF 风险。
 - 同一用户只保留一个有效导出包；新导出使旧包失效，导入成功后吊销数据包。
 
 ## 导出安全

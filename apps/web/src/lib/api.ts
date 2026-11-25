@@ -28,7 +28,30 @@ export interface VCodeTicket {
   expiresAt: number;
 }
 
-export type VCodePurpose = "password_reset" | "export" | "cancel";
+export type VCodePurpose =
+  | "password_reset"
+  | "export"
+  | "cancel"
+  | "reveal_api_key";
+
+export interface ModelProviderModel {
+  id: string;
+  displayName: string | null;
+  createdAt: number | null;
+}
+
+export type ModelProviderProtocol = "openai" | "anthropic";
+
+export interface ModelProvider {
+  id: string;
+  name: string;
+  protocol: ModelProviderProtocol;
+  baseUrl: string;
+  models: ModelProviderModel[];
+  createdAt: number;
+  updatedAt: number;
+  lastSyncedAt: number | null;
+}
 
 export interface ExportSummary {
   createdAt: number;
@@ -185,4 +208,45 @@ export const profileApi = {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(input),
     }),
+};
+
+export const modelProviderApi = {
+  list: () =>
+    request<{ providers: ModelProvider[] }>("/api/me/model-providers"),
+
+  create: (input: {
+    name: string;
+    protocol: ModelProviderProtocol;
+    baseUrl: string;
+    apiKey: string;
+  }) =>
+    request<{ provider: ModelProvider }>("/api/me/model-providers", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+
+  sync: (providerId: string) =>
+    request<{ provider: ModelProvider }>(
+      `/api/me/model-providers/${encodeURIComponent(providerId)}/sync`,
+      { method: "POST" },
+    ),
+
+  remove: (providerId: string) =>
+    request<void>(
+      `/api/me/model-providers/${encodeURIComponent(providerId)}`,
+      { method: "DELETE" },
+    ),
+
+  revealKey: (providerId: string, ticket: string) =>
+    request<{ apiKey: string }>(
+      `/api/me/model-providers/${encodeURIComponent(
+        providerId,
+      )}/reveal-key`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ticket }),
+      },
+    ),
 };

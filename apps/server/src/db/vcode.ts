@@ -1,6 +1,10 @@
 import { db } from "./connection.js";
 
-export type TicketPurpose = "password_reset" | "export" | "cancel";
+export type TicketPurpose =
+  | "password_reset"
+  | "export"
+  | "cancel"
+  | "reveal_api_key";
 
 export interface SetupTokenRow {
   token_hash: string;

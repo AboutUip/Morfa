@@ -36,7 +36,12 @@ function readString(value: unknown): string {
 }
 
 function readPurpose(value: unknown): TicketPurpose {
-  if (value === "password_reset" || value === "export" || value === "cancel") {
+  if (
+    value === "password_reset" ||
+    value === "export" ||
+    value === "cancel" ||
+    value === "reveal_api_key"
+  ) {
     return value;
   }
 

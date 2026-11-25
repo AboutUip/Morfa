@@ -41,7 +41,7 @@ apps/web/
 features/
 ├─ bootstrap/              # 启动任务、加载界面、进度汇总（已实现）
 ├─ auth/                   # AuthProvider、登录 / 注册与 VCode 设置门（已实现）
-├─ profile/                # 个人面板、资料编辑、导出与注销（已实现）
+├─ profile/                # 个人面板、资料编辑、模型供应商、导出与注销（已实现）
 ├─ projects/               # 项目主页与顶栏（已实现）
 ├─ editor/                 # 画布、图层、属性面板、快捷键（规划）
 ├─ agent/                  # 对话、运行状态、变更预览（规划）

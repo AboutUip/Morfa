@@ -14,6 +14,7 @@ import {
   CloseIcon,
   KeyIcon,
   LogoutIcon,
+  SparkIcon,
   UserIcon,
 } from "../../components/icons";
 import { profileApi, type VCodePurpose } from "../../lib/api";
@@ -22,6 +23,7 @@ import { useAnimatedClose } from "../../lib/useAnimatedClose";
 import { useMediaQuery } from "../../lib/useMediaQuery";
 import { useAuth } from "../auth/AuthProvider";
 import { AccountTab } from "./AccountTab";
+import { ModelTab } from "./ModelTab";
 import { ProfileTab } from "./ProfileTab";
 import styles from "./ProfilePanel.module.css";
 import type {
@@ -30,7 +32,7 @@ import type {
   VCodeStep,
 } from "./types";
 
-type ProfileTabId = "profile" | "account";
+type ProfileTabId = "profile" | "account" | "models";
 
 interface VCodeRequest {
   purpose: VCodePurpose;
@@ -51,6 +53,7 @@ const TABS: Array<{
 }> = [
   { id: "profile", labelKey: "profile.tabs.profile", icon: UserIcon },
   { id: "account", labelKey: "profile.tabs.account", icon: KeyIcon },
+  { id: "models", labelKey: "profile.tabs.models", icon: SparkIcon },
 ];
 
 const FOCUSABLE_SELECTOR = [
@@ -85,6 +88,7 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
   const tabRefs = useRef<Record<ProfileTabId, HTMLButtonElement | null>>({
     profile: null,
     account: null,
+    models: null,
   });
 
   useEffect(() => {
@@ -336,12 +340,14 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
               requestVCode={requestVCode}
               requestPassword={requestPassword}
             />
-          ) : (
+          ) : activeTab === "account" ? (
             <AccountTab
               requestVCode={requestVCode}
               requestPassword={requestPassword}
               onClose={onClose}
             />
+          ) : (
+            <ModelTab requestVCode={requestVCode} />
           )}
         </section>
       </div>

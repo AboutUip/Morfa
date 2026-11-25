@@ -5,6 +5,7 @@ import Fastify from "fastify";
 
 import { registerAccountRoutes } from "./api/account.js";
 import { registerAuthRoutes } from "./api/auth.js";
+import { registerModelProviderRoutes } from "./api/modelProviders.js";
 import { registerUploadRoutes } from "./api/uploads.js";
 import {
   AVATARS_DIR,
@@ -49,6 +50,7 @@ app.get("/api/health", async () => ({ ok: true }));
 
 registerAuthRoutes(app);
 registerAccountRoutes(app);
+registerModelProviderRoutes(app);
 registerUploadRoutes(app);
 
 app.setErrorHandler((error, request, reply) => {

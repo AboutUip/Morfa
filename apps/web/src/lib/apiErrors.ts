@@ -42,6 +42,17 @@ const API_ERROR_KEYS: Record<string, string> = {
   FILE_TOO_LARGE: "auth.import.archiveTooLarge",
   EXPORT_KEY_INVALID: "profile.errors.exportFailed",
   EXPORT_FILE_INVALID: "profile.errors.exportFailed",
+  PROVIDER_PROTOCOL_INVALID: "profile.models.errors.protocolInvalid",
+  PROVIDER_NAME_INVALID: "profile.models.errors.nameInvalid",
+  PROVIDER_BASE_URL_INVALID: "profile.models.errors.baseUrlInvalid",
+  PROVIDER_KEY_REQUIRED: "profile.models.errors.keyRequired",
+  PROVIDER_NOT_FOUND: "profile.models.errors.notFound",
+  PROVIDER_AUTH_FAILED: "profile.models.errors.authFailed",
+  PROVIDER_UNREACHABLE: "profile.models.errors.unreachable",
+  PROVIDER_TIMEOUT: "profile.models.errors.timeout",
+  PROVIDER_FETCH_FAILED: "profile.models.errors.fetchFailed",
+  PROVIDER_RESPONSE_INVALID: "profile.models.errors.responseInvalid",
+  SECRET_CORRUPT: "profile.models.errors.keyCorrupt",
 };
 
 export function apiErrorKey(error: unknown, fallbackKey: string): string {
