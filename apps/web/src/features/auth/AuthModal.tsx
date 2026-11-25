@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type ChangeEvent,
@@ -26,6 +27,12 @@ type FieldErrors = Partial<Record<FieldName, string>>;
 const ACCOUNT_PATTERN = /^[a-zA-Z0-9_.-]{3,32}$/;
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 const AVATAR_TYPES = ["image/png", "image/jpeg", "image/webp"];
+const HEIGHT_TRANSITION_MS = 320;
+const HEIGHT_TRANSITION_EASING = "cubic-bezier(0.16, 1, 0.3, 1)";
+
+function prefersReducedMotion() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
 
 const SERVER_ERROR_KEYS: Record<string, string> = {
   ACCOUNT_TAKEN: "auth.errors.accountTaken",
@@ -65,6 +72,11 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
   const accountRef = useRef<HTMLInputElement>(null);
   const nicknameRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  const heightAnimationRef = useRef<{
+    from: number;
+    timer: number;
+  } | null>(null);
 
   useEffect(() => {
     const target = mode === "register" ? nicknameRef.current : accountRef.current;
@@ -83,6 +95,41 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
     return () => URL.revokeObjectURL(url);
   }, [avatarFile]);
 
+  useEffect(() => {
+    return () => {
+      if (heightAnimationRef.current) {
+        window.clearTimeout(heightAnimationRef.current.timer);
+      }
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    const animation = heightAnimationRef.current;
+
+    if (!panel || !animation) return;
+
+    panel.scrollTop = 0;
+    panel.style.transition = "none";
+    panel.style.height = "auto";
+
+    const targetHeight = panel.getBoundingClientRect().height;
+    panel.style.height = `${animation.from}px`;
+
+    // Force a layout flush before starting the height transition.
+    void panel.offsetHeight;
+
+    panel.style.transition = `height ${HEIGHT_TRANSITION_MS}ms ${HEIGHT_TRANSITION_EASING}`;
+    panel.style.height = `${targetHeight}px`;
+
+    animation.timer = window.setTimeout(() => {
+      panel.style.height = "";
+      panel.style.transition = "";
+      panel.style.overflow = "";
+      heightAnimationRef.current = null;
+    }, HEIGHT_TRANSITION_MS + 20);
+  }, [mode]);
+
   const clearFieldError = (field: FieldName) => {
     setFieldErrors((current) => {
       if (!current[field]) return current;
@@ -94,6 +141,23 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
 
   const switchMode = (nextMode: AuthMode) => {
     if (busy || nextMode === mode) return;
+
+    const panel = panelRef.current;
+    if (panel && !prefersReducedMotion()) {
+      if (heightAnimationRef.current) {
+        window.clearTimeout(heightAnimationRef.current.timer);
+      }
+
+      // FLIP：先冻结当前高度，渲染新内容后在 layout effect 中量测并过渡。
+      panel.style.transition = "none";
+      panel.style.overflow = "hidden";
+      panel.style.height = `${panel.getBoundingClientRect().height}px`;
+      heightAnimationRef.current = {
+        from: panel.getBoundingClientRect().height,
+        timer: 0,
+      };
+    }
+
     setMode(nextMode);
     setFieldErrors({});
     setFormError(null);
@@ -210,6 +274,7 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
   return createPortal(
     <div className={styles.overlay}>
       <section
+        ref={panelRef}
         className={styles.panel}
         role="dialog"
         aria-modal="true"
