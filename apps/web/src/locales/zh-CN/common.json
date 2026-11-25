@@ -34,6 +34,7 @@
     "retry": "重试",
     "myProjects": "我的项目",
     "projectCount": "{{count}} 个项目",
+    "lastModified": "最近修改于 {{date}}",
     "types": {
       "software": "软件平台",
       "website": "网站平台"

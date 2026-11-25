@@ -2,14 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { BrandMark } from "../../components/BrandMark";
-import {
-  CopyIcon,
-  LayersIcon,
-  SlidersIcon,
-} from "../../components/icons";
-import {
-  type ProjectSummary,
-} from "../../lib/api";
+import { LayersIcon, SlidersIcon } from "../../components/icons";
+import { type ProjectSummary } from "../../lib/api";
 import { projectsStore, useProjects } from "../../lib/projects";
 import { AuthModal } from "../auth/AuthModal";
 import { useAuth } from "../auth/AuthProvider";
@@ -18,15 +12,15 @@ import { ProjectLauncher } from "./ProjectLauncher";
 import { ProjectTopBar, type WorkspaceTab } from "./ProjectTopBar";
 import styles from "./ProjectsPage.module.css";
 
-function ProjectIcon({ project }: { project: ProjectSummary }) {
+function ProjectCover({ project }: { project: ProjectSummary }) {
   return (
-    <span className={styles.projectIcon}>
+    <div className={styles.projectCover} data-type={project.type}>
       {project.iconUrl ? (
         <img src={project.iconUrl} alt="" />
       ) : (
-        <BrandMark size={30} />
+        <BrandMark size={64} />
       )}
-    </span>
+    </div>
   );
 }
 
@@ -36,12 +30,12 @@ export function ProjectsPage() {
   const projectState = useProjects();
   const [authOpen, setAuthOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("projects");
-  const [copiedId, setCopiedId] = useState<string | null>(null);
   const locale = i18n.resolvedLanguage === "en-US" ? "en-US" : "zh-CN";
   const dateFormatter = useMemo(
     () =>
       new Intl.DateTimeFormat(locale, {
         dateStyle: "medium",
+        timeStyle: "short",
       }),
     [locale],
   );
@@ -58,23 +52,7 @@ export function ProjectsPage() {
     });
   }, [user]);
 
-  useEffect(() => {
-    if (!copiedId) return;
-    const timer = window.setTimeout(() => setCopiedId(null), 1800);
-    return () => window.clearTimeout(timer);
-  }, [copiedId]);
-
   const openAuth = () => setAuthOpen(true);
-
-  const copyShareCode = async (project: ProjectSummary) => {
-    if (!project.shareCode) return;
-    try {
-      await navigator.clipboard.writeText(project.shareCode);
-      setCopiedId(project.id);
-    } catch {
-      // 剪贴板不可用时保留可见的邀请码
-    }
-  };
 
   const renderProjects = () => {
     if (!user) {
@@ -181,19 +159,13 @@ export function ProjectsPage() {
         aria-labelledby="tab-projects"
       >
         <header className={styles.projectsHeader}>
-          <div>
-            <h2>{t("projects.myProjects")}</h2>
-            <p>
-              {t("projects.projectCount", { count: projects.length })}
-            </p>
-          </div>
+          <p>{t("projects.projectCount", { count: projects.length })}</p>
         </header>
 
         <div className={styles.projectGrid}>
           {projects.map((project) => (
             <article key={project.id} className={styles.projectCard}>
-              <div className={styles.projectCardTop}>
-                <ProjectIcon project={project} />
+              <div className={styles.projectBody}>
                 <div className={styles.projectBadges}>
                   <span data-kind="type">
                     {t(`projects.types.${project.type}`)}
@@ -207,44 +179,29 @@ export function ProjectsPage() {
                     </span>
                   ) : null}
                 </div>
-              </div>
 
-              <h3>{project.name}</h3>
-              <p className={styles.projectDescription}>
-                {project.description}
-              </p>
+                <h3>{project.name}</h3>
+                <p className={styles.projectDescription}>
+                  {project.description}
+                </p>
 
-              <div className={styles.projectMeta}>
-                <span>
-                  {project.role === "owner"
-                    ? t("projects.ownerYou")
-                    : t("projects.owner", {
-                        name: project.ownerName,
-                      })}
-                </span>
-                <span>{dateFormatter.format(project.updatedAt)}</span>
-              </div>
-
-              {project.shareCode ? (
-                <div className={styles.shareRow}>
-                  <span>{t("projects.shareCodeLabel")}</span>
-                  <code>{project.shareCode}</code>
-                  <button
-                    className={styles.copyButton}
-                    type="button"
-                    onClick={() => void copyShareCode(project)}
-                    aria-label={t("projects.copyShareCode")}
-                    title={t("projects.copyShareCode")}
-                  >
-                    <CopyIcon size={12} />
-                  </button>
-                  {copiedId === project.id ? (
-                    <span className={styles.copied}>
-                      {t("projects.copied")}
-                    </span>
-                  ) : null}
+                <div className={styles.projectMeta}>
+                  <span>
+                    {project.role === "owner"
+                      ? t("projects.ownerYou")
+                      : t("projects.owner", {
+                          name: project.ownerName,
+                        })}
+                  </span>
+                  <span>
+                    {t("projects.lastModified", {
+                      date: dateFormatter.format(project.updatedAt),
+                    })}
+                  </span>
                 </div>
-              ) : null}
+              </div>
+
+              <ProjectCover project={project} />
             </article>
           ))}
         </div>

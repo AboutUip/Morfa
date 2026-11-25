@@ -196,86 +196,50 @@
 
 .projectsSection {
   width: 100%;
-  max-width: 1180px;
-  margin: 0 auto;
   padding: clamp(26px, 4vw, 44px) clamp(4px, 1vw, 10px) 96px;
 }
 
 .projectsHeader {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 18px;
-}
-
-.projectsHeader h2 {
-  color: var(--mf-text-primary);
-  font-size: 16px;
-  font-weight: 650;
-  letter-spacing: -0.015em;
+  margin-bottom: 14px;
 }
 
 .projectsHeader p {
-  margin-top: 4px;
   color: var(--mf-text-tertiary);
   font-size: 10px;
 }
 
 .projectGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
   gap: 12px;
 }
 
 .projectCard {
-  display: flex;
-  min-height: 190px;
-  flex-direction: column;
-  padding: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 34%);
+  min-height: 196px;
+  overflow: hidden;
   border: 1px solid var(--mf-border);
   border-radius: 16px;
   background: var(--mf-bg-panel);
-  transition:
-    border-color var(--mf-transition),
-    transform var(--mf-transition),
-    background var(--mf-transition);
+  transition: border-color var(--mf-transition);
 }
 
 .projectCard:hover {
   border-color: var(--mf-border-strong);
-  transform: translateY(-2px);
 }
 
-.projectCardTop {
+.projectBody {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.projectIcon {
-  display: grid;
-  width: 48px;
-  height: 48px;
-  flex: none;
-  place-items: center;
-  overflow: hidden;
-  border: 1px solid var(--mf-border);
-  border-radius: 14px;
-  background: var(--mf-bg-surface);
-}
-
-.projectIcon img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  min-width: 0;
+  flex-direction: column;
+  padding: 16px;
 }
 
 .projectBadges {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 4px;
 }
 
@@ -307,7 +271,7 @@
 
 .projectCard h3 {
   overflow: hidden;
-  margin-top: 14px;
+  margin-top: 12px;
   color: var(--mf-text-primary);
   font-size: 13px;
   font-weight: 650;
@@ -330,9 +294,10 @@
 
 .projectMeta {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 6px 12px;
   margin-top: auto;
   padding-top: 14px;
   color: var(--mf-text-tertiary);
@@ -345,48 +310,42 @@
   white-space: nowrap;
 }
 
-.shareRow {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 9px;
-  padding-top: 9px;
-  border-top: 1px solid var(--mf-border);
-  color: var(--mf-text-tertiary);
-  font-size: 8px;
-}
-
-.shareRow code {
-  color: var(--mf-text-secondary);
-  font-family: var(--mf-font-mono);
-  font-size: 9px;
-  letter-spacing: 0.08em;
-}
-
-.copyButton {
-  display: inline-flex;
-  width: 22px;
-  height: 22px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  color: var(--mf-text-tertiary);
-}
-
-.copyButton:hover {
-  background: var(--mf-bg-hover);
-  color: var(--mf-text-primary);
-}
-
-.copied {
+.projectMeta span:last-child {
   margin-left: auto;
-  color: var(--mf-success);
+  text-align: right;
 }
 
-@media (max-width: 960px) {
-  .projectGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.projectCover {
+  display: grid;
+  min-height: 100%;
+  place-items: center;
+  overflow: hidden;
+  padding: 18px;
+  border-left: 1px solid var(--mf-border);
+  background: linear-gradient(
+    135deg,
+    var(--mf-bg-selected),
+    var(--mf-bg-surface)
+  );
+}
+
+.projectCover[data-type="website"] {
+  background: linear-gradient(
+    135deg,
+    var(--mf-accent-soft),
+    var(--mf-bg-surface)
+  );
+}
+
+.projectCover > img {
+  max-width: 82%;
+  max-height: 82%;
+  object-fit: contain;
+  filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.22));
+}
+
+.projectCover > span {
+  opacity: 0.92;
 }
 
 @media (max-width: 700px) {
@@ -400,16 +359,24 @@
   }
 
   .projectCard {
-    min-height: 172px;
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+    padding: 0;
+  }
+
+  .projectBody {
     padding: 14px;
   }
 
-  .projectsHeader {
-    margin-bottom: 14px;
+  .projectCover {
+    min-height: 124px;
+    padding: 14px;
+    border-top: 1px solid var(--mf-border);
+    border-left: 0;
   }
 
-  .projectsHeader h2 {
-    font-size: 15px;
+  .projectsHeader {
+    margin-bottom: 12px;
   }
 }
 
