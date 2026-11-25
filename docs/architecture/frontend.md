@@ -1,6 +1,6 @@
 # 前端架构
 
-> 状态：M1 部分实现 · 最后更新：2026-11-25
+> 状态：M1 账号、VCode 与个人面板已实现 · 最后更新：2026-11-26
 
 ## 技术选型
 
@@ -40,14 +40,15 @@ apps/web/
 ```text
 features/
 ├─ bootstrap/              # 启动任务、加载界面、进度汇总（已实现）
-├─ auth/                   # AuthProvider 与登录 / 注册弹窗（已实现）
+├─ auth/                   # AuthProvider、登录 / 注册与 VCode 设置门（已实现）
+├─ profile/                # 个人面板、资料编辑、导出与注销（已实现）
 ├─ projects/               # 项目主页与顶栏（已实现）
 ├─ editor/                 # 画布、图层、属性面板、快捷键（规划）
 ├─ agent/                  # 对话、运行状态、变更预览（规划）
 └─ settings/               # 主题、语言、账户设置（规划）
 ```
 
-当前 `App` 在启动加载结束后渲染 `projects/ProjectsPage`；账号状态由 `auth/AuthProvider` 在应用启动时通过 `/api/auth/me` 恢复。
+当前 `App` 在启动加载结束后渲染 `projects/ProjectsPage`；账号状态由 `auth/AuthProvider` 在应用启动时通过 `/api/auth/me` 恢复。跨功能复用的 `components/VCodeModal` 提供 3×4 数字键盘、6 位自动确认、物理键盘输入、焦点陷阱与焦点恢复；个人面板通过 `features/profile` 组织资料、导出与注销流程。
 
 规则：
 

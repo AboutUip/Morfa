@@ -1,31 +1,49 @@
-import {
-  createHash,
-  randomBytes,
-  randomUUID,
-  scrypt as scryptCallback,
-  timingSafeEqual,
-} from "node:crypto";
-import { promisify } from "node:util";
+import { randomUUID } from "node:crypto";
 
-import { SESSION_TTL_MS } from "../config.js";
 import {
-  deleteExpiredSessions,
+  SESSION_TTL_MS,
+  VCODE_SETUP_TTL_MS,
+} from "../config.js";
+import {
+  consumePreparedImport,
+  discardPreparedImportFile,
+  prepareImport,
+  type PreparedImport,
+} from "./dataTransfer.js";
+import { transaction } from "../db/transaction.js";
+import {
   deleteSession,
   findUserByAccount,
+  findUserById,
   findUserBySession,
   insertSession,
-  insertUserWithSession,
+  insertUser,
+  updateUserVCode,
   type UserRow,
 } from "../db/users.js";
+import {
+  consumeSetupToken,
+  deleteSetupToken,
+  deleteSetupTokensForUser,
+  findSetupToken,
+  insertSetupToken,
+  purgeExpiredSetupTokens,
+} from "../db/vcode.js";
 import { ApiError } from "../lib/errors.js";
+import {
+  hashSecret,
+  hashToken,
+  randomToken,
+  verifySecret,
+} from "../lib/secret.js";
 import {
   assertAvatar,
   avatarUrl,
   deleteAvatar,
   saveAvatar,
 } from "./avatar.js";
+import { assertVCodeFormat, hashVCode } from "./vcode.js";
 
-const scrypt = promisify(scryptCallback);
 const ACCOUNT_PATTERN = /^[a-z0-9_.-]{3,32}$/i;
 
 export interface PublicUser {
@@ -41,8 +59,13 @@ export interface RegisterInput {
   loginAccount: string;
   password: string;
   confirmPassword: string;
+  vcode: string;
   avatar: Buffer | null;
   avatarMimeType: string;
+  import?: {
+    originalAccount: string;
+    archive: Buffer;
+  };
 }
 
 export interface LoginInput {
@@ -50,40 +73,20 @@ export interface LoginInput {
   password: string;
 }
 
-function hashToken(token: string) {
-  return createHash("sha256").update(token).digest("hex");
-}
+export type LoginResult =
+  | {
+      kind: "ok";
+      user: PublicUser;
+      token: string;
+    }
+  | {
+      kind: "vcode_setup_required";
+      preview: PublicUser;
+      setupToken: string;
+      expiresAt: number;
+    };
 
-async function hashPassword(password: string): Promise<string> {
-  const salt = randomBytes(16);
-  const derived = (await scrypt(password, salt, 64)) as Buffer;
-  return `scrypt$${salt.toString("hex")}$${derived.toString("hex")}`;
-}
-
-async function verifyPassword(password: string, stored: string): Promise<boolean> {
-  const [scheme, saltHex, hashHex] = stored.split("$");
-  if (scheme !== "scrypt" || !saltHex || !hashHex) return false;
-
-  const expected = Buffer.from(hashHex, "hex");
-  const actual = (await scrypt(
-    password,
-    Buffer.from(saltHex, "hex"),
-    expected.length,
-  )) as Buffer;
-
-  return (
-    expected.length === actual.length && timingSafeEqual(expected, actual)
-  );
-}
-
-function isUniqueAccountError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    /UNIQUE constraint failed: users\.login_account/i.test(error.message)
-  );
-}
-
-function toPublicUser(row: UserRow): PublicUser {
+export function toPublicUser(row: UserRow): PublicUser {
   return {
     id: row.id,
     nickname: row.nickname,
@@ -93,8 +96,15 @@ function toPublicUser(row: UserRow): PublicUser {
   };
 }
 
+function isUniqueAccountError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    /UNIQUE constraint failed: users\.login_account/i.test(error.message)
+  );
+}
+
 function createSessionToken(userId: string): string {
-  const token = randomBytes(32).toString("base64url");
+  const token = randomToken();
   const now = Date.now();
 
   insertSession({
@@ -109,7 +119,11 @@ function createSessionToken(userId: string): string {
 
 export async function registerUser(
   input: RegisterInput,
-): Promise<{ user: PublicUser; token: string }> {
+): Promise<{
+  user: PublicUser;
+  token: string;
+  importedProjectCount: number;
+}> {
   const nickname = input.nickname.trim();
   const loginAccount = input.loginAccount.trim().toLowerCase();
 
@@ -133,6 +147,8 @@ export async function registerUser(
     throw new ApiError(400, "PASSWORD_MISMATCH", "两次输入的密码不一致");
   }
 
+  assertVCodeFormat(input.vcode);
+
   const avatar = input.avatar;
   assertAvatar(avatar, input.avatarMimeType);
 
@@ -140,27 +156,50 @@ export async function registerUser(
     throw new ApiError(409, "ACCOUNT_TAKEN", "该登录账号已被使用");
   }
 
+  let preparedImport: PreparedImport | null = null;
+  if (input.import) {
+    preparedImport = prepareImport(
+      input.import.originalAccount,
+      input.import.archive,
+    );
+  }
+
   const userId = randomUUID();
-  const passwordHash = await hashPassword(input.password);
-  const avatarPath = await saveAvatar(userId, avatar, input.avatarMimeType);
   const createdAt = Date.now();
-  const token = randomBytes(32).toString("base64url");
+
+  const [passwordHash, vcodeHash] = await Promise.all([
+    hashSecret(input.password),
+    hashVCode(input.vcode),
+  ]);
+  const avatarPath = await saveAvatar(avatar, input.avatarMimeType);
+  const sessionToken = randomToken();
 
   try {
-    insertUserWithSession({
-      user: {
+    transaction(() => {
+      insertUser({
         id: userId,
         nickname,
         loginAccount,
         passwordHash,
+        vcodeHash,
         avatarPath,
         createdAt,
-      },
-      session: {
-        tokenHash: hashToken(token),
+      });
+
+      insertSession({
+        tokenHash: hashToken(sessionToken),
+        userId,
         expiresAt: createdAt + SESSION_TTL_MS,
         createdAt,
-      },
+      });
+
+      if (preparedImport) {
+        consumePreparedImport({
+          prepared: preparedImport,
+          newUserId: userId,
+          now: createdAt,
+        });
+      }
     });
   } catch (error) {
     await deleteAvatar(avatarPath);
@@ -168,6 +207,10 @@ export async function registerUser(
       throw new ApiError(409, "ACCOUNT_TAKEN", "该登录账号已被使用");
     }
     throw error;
+  }
+
+  if (preparedImport) {
+    await discardPreparedImportFile(preparedImport);
   }
 
   return {
@@ -178,13 +221,12 @@ export async function registerUser(
       avatarUrl: avatarUrl(avatarPath),
       createdAt,
     },
-    token,
+    token: sessionToken,
+    importedProjectCount: preparedImport?.projects.length ?? 0,
   };
 }
 
-export async function loginUser(
-  input: LoginInput,
-): Promise<{ user: PublicUser; token: string }> {
+export async function loginUser(input: LoginInput): Promise<LoginResult> {
   const loginAccount = input.loginAccount.trim().toLowerCase();
 
   if (!loginAccount || !input.password) {
@@ -192,17 +234,112 @@ export async function loginUser(
   }
 
   const row = findUserByAccount(loginAccount);
-  if (!row || !(await verifyPassword(input.password, row.password_hash))) {
+
+  if (!row) {
     throw new ApiError(401, "INVALID_CREDENTIALS", "账号或密码不正确");
   }
 
-  deleteExpiredSessions();
-  const token = createSessionToken(row.id);
+  if (row.status !== "active") {
+    throw new ApiError(
+      403,
+      "ACCOUNT_CANCELLED",
+      "该账号已注销，无法登录",
+    );
+  }
 
-  return { user: toPublicUser(row), token };
+  if (
+    !row.password_hash ||
+    !(await verifySecret(input.password, row.password_hash))
+  ) {
+    throw new ApiError(401, "INVALID_CREDENTIALS", "账号或密码不正确");
+  }
+
+  if (!row.vcode_hash) {
+    const now = Date.now();
+    purgeExpiredSetupTokens(now);
+    deleteSetupTokensForUser(row.id);
+
+    const setupToken = randomToken();
+    const expiresAt = now + VCODE_SETUP_TTL_MS;
+
+    insertSetupToken({
+      tokenHash: hashToken(setupToken),
+      userId: row.id,
+      expiresAt,
+      createdAt: now,
+    });
+
+    return {
+      kind: "vcode_setup_required",
+      preview: toPublicUser(row),
+      setupToken,
+      expiresAt,
+    };
+  }
+
+  const token = createSessionToken(row.id);
+  return { kind: "ok", user: toPublicUser(row), token };
 }
 
-export function getUserBySession(token: string | null): PublicUser | null {
+export async function completeVCodeSetup(input: {
+  setupToken: string;
+  code: string;
+}): Promise<{ user: PublicUser; token: string }> {
+  assertVCodeFormat(input.code);
+
+  const tokenHash = hashToken(input.setupToken);
+  const setup = findSetupToken(tokenHash);
+  const now = Date.now();
+
+  if (!setup || setup.expires_at <= now) {
+    if (setup) deleteSetupToken(tokenHash);
+    throw new ApiError(
+      400,
+      "SETUP_TOKEN_INVALID",
+      "VCode 设置会话已过期，请重新登录",
+    );
+  }
+
+  const row = findUserById(setup.user_id);
+  if (!row || row.status !== "active") {
+    deleteSetupToken(tokenHash);
+    throw new ApiError(403, "ACCOUNT_CANCELLED", "该账号无法继续使用");
+  }
+
+  const vcodeHash = await hashVCode(input.code);
+  const sessionToken = randomToken();
+
+  transaction(() => {
+    if (!consumeSetupToken(tokenHash, now)) {
+      throw new ApiError(
+        400,
+        "SETUP_TOKEN_INVALID",
+        "VCode 设置会话已过期，请重新登录",
+      );
+    }
+
+    updateUserVCode(row.id, vcodeHash, now);
+    deleteSetupTokensForUser(row.id);
+    insertSession({
+      tokenHash: hashToken(sessionToken),
+      userId: row.id,
+      expiresAt: now + SESSION_TTL_MS,
+      createdAt: now,
+    });
+  });
+
+  return {
+    user: toPublicUser({ ...row, vcode_hash: vcodeHash, updated_at: now }),
+    token: sessionToken,
+  };
+}
+
+export interface SessionUser {
+  row: UserRow;
+  tokenHash: string;
+}
+
+export function getSessionUser(token: string | null): SessionUser | null {
   if (!token) return null;
 
   const tokenHash = hashToken(token);
@@ -214,7 +351,24 @@ export function getUserBySession(token: string | null): PublicUser | null {
     return null;
   }
 
-  return toPublicUser(row);
+  return { row, tokenHash };
+}
+
+export function requireActiveUser(token: string | null): SessionUser {
+  const session = getSessionUser(token);
+  if (!session) {
+    throw new ApiError(401, "UNAUTHORIZED", "请先登录");
+  }
+
+  if (
+    session.row.status !== "active" ||
+    !session.row.vcode_hash
+  ) {
+    deleteSession(session.tokenHash);
+    throw new ApiError(401, "UNAUTHORIZED", "请重新登录");
+  }
+
+  return session;
 }
 
 export function logout(token: string | null) {

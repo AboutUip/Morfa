@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -71,7 +72,6 @@ export function assertAvatar(
 }
 
 export async function saveAvatar(
-  userId: string,
   buffer: Buffer,
   mimeType: string,
 ): Promise<string> {
@@ -81,7 +81,7 @@ export async function saveAvatar(
 
   await fs.mkdir(AVATARS_DIR, { recursive: true });
 
-  const relativePath = `uploads/avatars/${userId}.${EXTENSIONS[mimeType]}`;
+  const relativePath = `uploads/avatars/${randomUUID()}.${EXTENSIONS[mimeType]}`;
   await fs.writeFile(path.join(DATA_DIR, relativePath), buffer);
   return relativePath;
 }

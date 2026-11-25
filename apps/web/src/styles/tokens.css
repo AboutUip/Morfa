@@ -27,4 +27,5 @@
 
   --mf-viewport-height: 100dvh;
   --mf-viewport-offset-top: 0px;
+  --mf-viewport-center-y: 50%;
 }

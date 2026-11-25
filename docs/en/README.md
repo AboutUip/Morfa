@@ -21,11 +21,17 @@ npm run dev     # web http://127.0.0.1:5173 + API http://127.0.0.1:3001
 npm run build
 ```
 
-Accounts support avatar upload (only the relative file path is stored), nickname, unique login account, password confirmation, and automatic sign-in after sign-up. The login/register modal does not close when the backdrop is clicked.
+Accounts support avatar upload (only the relative file path is stored), nickname, unique login account, password confirmation, a required 6-digit VCode, optional import of a cancelled account's archive, and automatic sign-in after sign-up. The login/register modal does not close when the backdrop is clicked.
 
-The UI is responsive across mobile and desktop: safe-area insets, `100dvh`, a bottom-sheet auth modal on small screens, 16px form inputs to avoid iOS zoom, and larger touch targets. The top bar switches between Projects, Components, and Settings (the latter two are placeholders for now). A PWA manifest and icons are included; no Service Worker yet.
+The VCode is a reusable 3×4 keypad dialog that auto-submits after six digits. It gates data export, account cancellation, and password reset. Existing accounts without a VCode are signed out automatically and prompted to set one after their next sign-in. Each VCode is stored only as a salted scrypt hash; setup tokens and one-time sensitive-operation tickets are stored as SHA-256 hashes.
 
-Keyboard accessibility includes a skip link, arrow-key navigation for top-bar tabs and the language menu, a focus trap with an inert background for the auth dialog, Escape to close, and focus restoration to the trigger. Signed-in users can open a two-column profile panel from their avatar; the left rail holds vertical Profile/Account tabs and the sign-out action, while the right side shows the selected details.
+Signed-in users can open a centered two-column profile panel from their avatar. The left rail holds vertical Profile/Account tabs and the sign-out action. The Profile tab edits the avatar, nickname, and password (forgot-password verifies the VCode before allowing a reset). The Account tab shows account details, exports an encrypted project archive, and cancels the account with the current password plus VCode.
+
+Exports are server-encrypted with AES-256-GCM and compressed. Only one valid export exists per user; creating a new one immediately invalidates the old archive. Import is offered only during registration: the original account must be cancelled and the archive must be unused. The server verifies the archive hash, decrypts and unpacks it, consumes the export, and deletes the file. Imported project data never overrides the new account's own profile fields.
+
+The UI is responsive across mobile and desktop: safe-area insets, `visualViewport` tracking for the soft keyboard, a bottom-sheet auth modal on small screens, 16px form inputs to avoid iOS zoom, and larger touch targets. The top bar switches between Projects, Components, and Settings (the latter two are placeholders for now). A PWA manifest and icons are included; no Service Worker yet.
+
+Keyboard accessibility includes a skip link, arrow-key navigation for top-bar tabs and the language menu, focus traps with an inert background, Escape to close, and focus restoration to the trigger. The VCode keypad is ordered 1–9, 0, delete, close; it supports physical digits, Backspace/Delete, automatic submission, and visible focus. The profile panel and nested VCode dialog hand off focus correctly.
 
 **Typeface:** Maple Mono CN 7.9 (monospace, Latin + Simplified Chinese, rounded sans-serif) is self-hosted as subsetted WOFF2 files under `apps/web/src/assets/fonts/maple-mono/`, licensed under SIL OFL 1.1. UI strings use the font; rare characters fall back to system fonts.
 

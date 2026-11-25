@@ -136,6 +136,43 @@ export function KeyIcon(props: IconProps) {
   );
 }
 
+export function BackspaceIcon(props: IconProps) {
+  return (
+    <svg {...iconProps(props)}>
+      <path d="M9 5h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6-7 6-7Z" />
+      <path d="m12 9 6 6M18 9l-6 6" />
+    </svg>
+  );
+}
+
+export function LockIcon(props: IconProps) {
+  return (
+    <svg {...iconProps(props)}>
+      <rect x="5" y="10" width="14" height="10" rx="2" />
+      <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+    </svg>
+  );
+}
+
+export function DownloadIcon(props: IconProps) {
+  return (
+    <svg {...iconProps(props)}>
+      <path d="M12 4v11" />
+      <path d="m7 10 5 5 5-5" />
+      <path d="M5 19h14" />
+    </svg>
+  );
+}
+
+export function AlertIcon(props: IconProps) {
+  return (
+    <svg {...iconProps(props)}>
+      <path d="M12 4 3 20h18L12 4Z" />
+      <path d="M12 10v4M12 17h.01" />
+    </svg>
+  );
+}
+
 export function SlidersIcon(props: IconProps) {
   return (
     <svg {...iconProps(props)}>

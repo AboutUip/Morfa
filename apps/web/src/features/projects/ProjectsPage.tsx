@@ -5,6 +5,7 @@ import { BrandMark } from "../../components/BrandMark";
 import { LayersIcon, SlidersIcon } from "../../components/icons";
 import { AuthModal } from "../auth/AuthModal";
 import { useAuth } from "../auth/AuthProvider";
+import { VCodeSetupGate } from "../auth/VCodeSetupGate";
 import { ProjectTopBar, type WorkspaceTab } from "./ProjectTopBar";
 import styles from "./ProjectsPage.module.css";
 
@@ -96,6 +97,8 @@ export function ProjectsPage() {
       {authOpen ? (
         <AuthModal initialMode="login" onClose={() => setAuthOpen(false)} />
       ) : null}
+
+      <VCodeSetupGate />
     </div>
   );
 }

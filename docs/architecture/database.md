@@ -1,6 +1,6 @@
 # 数据库设计
 
-> 状态：M1 认证表已实现 · 最后更新：2026-11-25
+> 状态：M1 认证、VCode、导出与项目表已实现 · 最后更新：2026-11-26
 
 ## 为什么选择 SQLite
 
@@ -40,17 +40,20 @@ PRAGMA synchronous = NORMAL;
 - 部署前先备份数据库；迁移脚本需在接近生产的数据量上验证耗时。
 - 迁移与代码同时提交，CI 中执行「空库迁移 + 冒烟查询」。
 
-## 已实现表（认证）
+## 已实现表（认证、VCode、导出）
 
-迁移文件：`apps/server/migrations/0001_auth.sql`。
+迁移文件：`apps/server/migrations/0001_auth.sql`、`apps/server/migrations/0002_vcode_account.sql`。
 
 ```text
 users
   id            TEXT PK                 -- UUID
   nickname      TEXT NOT NULL
   login_account TEXT NOT NULL COLLATE NOCASE UNIQUE
-  password_hash TEXT NOT NULL           -- scrypt$salt$hash
+  password_hash TEXT NOT NULL           -- scrypt$salt$hash；注销后清空
+  vcode_hash    TEXT                    -- scrypt$salt$hash；旧用户迁移后为 NULL
   avatar_path   TEXT NOT NULL           -- uploads/avatars/<uuid>.<ext>
+  status        TEXT NOT NULL           -- active / cancelled
+  cancelled_at  INTEGER
   created_at    INTEGER NOT NULL
   updated_at    INTEGER NOT NULL
 
@@ -59,14 +62,53 @@ sessions
   user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE
   expires_at    INTEGER NOT NULL
   created_at    INTEGER NOT NULL
+
+vcode_setup_tokens
+  token_hash    TEXT PK                 -- SHA-256(setup token)
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE
+  expires_at    INTEGER NOT NULL
+  created_at    INTEGER NOT NULL
+
+sensitive_tickets
+  token_hash    TEXT PK                 -- SHA-256(ticket)
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE
+  purpose       TEXT NOT NULL           -- password_reset / export / cancel
+  expires_at    INTEGER NOT NULL
+  created_at    INTEGER NOT NULL
+  consumed_at   INTEGER
+
+exports
+  id                      TEXT PK
+  user_id                 TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE
+  original_login_account  TEXT NOT NULL
+  file_name               TEXT NOT NULL
+  file_size               INTEGER NOT NULL
+  sha256                  TEXT NOT NULL
+  crypto_json             TEXT NOT NULL -- 包裹后的数据密钥与 GCM 参数
+  format_version          INTEGER NOT NULL
+  created_at              INTEGER NOT NULL
+  invalidated_at          INTEGER       -- 被新导出覆盖
+  consumed_at             INTEGER       -- 导入成功后吊销
+  consumed_by_user_id     TEXT REFERENCES users(id)
+
+projects
+  id            TEXT PK
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE
+  name          TEXT NOT NULL
+  data          TEXT NOT NULL DEFAULT '{}'
+  created_at    INTEGER NOT NULL
+  updated_at    INTEGER NOT NULL
 ```
 
 约定：
 
 - 登录账号写入前统一转小写，唯一约束大小写不敏感。
-- 头像文件落在 `data/uploads/avatars/`，数据库仅保存相对路径。
-- 会话保留 30 天，过期后在登录或查询时清理。
-- 索引：`sessions(user_id)`、`sessions(expires_at)`。
+- 密码与 VCode 均使用 scrypt + 随机盐哈希；注销后清空密码与 VCode。
+- 头像与新导出文件存放在 `data/uploads/avatars/` 与 `data/exports/`，数据库只保存相对路径或文件名。
+- 同一用户只能有一个有效导出包：`exports(user_id)` 在 `invalidated_at IS NULL AND consumed_at IS NULL` 上建立部分唯一索引。
+- 新导出会将旧导出标记为 `invalidated_at` 并删除旧文件；导入成功后将导出标记为 `consumed_at` 并删除文件，保留元数据用于审计。
+- 会话保留 30 天，过期后在启动或查询时清理；setup token 10 分钟、敏感操作 ticket 5 分钟。
+- 索引：`sessions(user_id)`、`sessions(expires_at)`、`vcode_setup_tokens(user_id)`、`sensitive_tickets(user_id, purpose)`、`exports(original_login_account)`、`projects(user_id)`。
 
 ## 规划表（草案）
 
@@ -74,15 +116,11 @@ sessions
 
 ### 项目与设计文档
 
-```text
-projects
-  id            TEXT PK
-  owner_id      TEXT NOT NULL REFERENCES users(id)
-  name          TEXT NOT NULL
-  description   TEXT
-  created_at    INTEGER NOT NULL
-  updated_at    INTEGER NOT NULL
+当前 `projects` 表只保存导出 / 导入所需的最小字段（`id`、`user_id`、`name`、`data`、时间戳），项目创建 UI 落地后再补充描述、封面与排序字段。
 
+后续设计文档表草案：
+
+```text
 designs
   id            TEXT PK
   project_id    TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE

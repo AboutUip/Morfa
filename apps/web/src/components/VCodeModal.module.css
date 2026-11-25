@@ -1,0 +1,259 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  display: grid;
+  place-items: center;
+  padding: max(16px, var(--mf-safe-top)) max(16px, var(--mf-safe-right))
+    max(16px, var(--mf-safe-bottom)) max(16px, var(--mf-safe-left));
+  background: rgba(4, 7, 11, 0.58);
+  backdrop-filter: blur(10px);
+  animation: vcode-overlay-in 160ms var(--mf-ease) both;
+}
+
+.panel {
+  position: relative;
+  width: min(336px, 100%);
+  max-height: calc(var(--mf-viewport-height, 100dvh) - 32px);
+  overflow: auto;
+  padding: 24px 24px 22px;
+  border: 1px solid var(--mf-border);
+  border-radius: 22px;
+  background: var(--mf-bg-surface);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.18),
+    0 32px 90px rgba(0, 0, 0, 0.38);
+  text-align: center;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  animation: vcode-panel-in 220ms var(--mf-ease-out) both;
+}
+
+.heading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 0 20px;
+}
+
+.lock {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  margin-bottom: 3px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--mf-accent-soft);
+  color: var(--mf-accent);
+}
+
+.heading h2 {
+  color: var(--mf-text-primary);
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.heading p {
+  max-width: 270px;
+  color: var(--mf-text-tertiary);
+  font-size: 10px;
+  line-height: 1.65;
+}
+
+.dots {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.dot {
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid var(--mf-border-strong);
+  border-radius: 50%;
+  background: transparent;
+  transition:
+    background var(--mf-transition),
+    border-color var(--mf-transition),
+    transform var(--mf-transition);
+}
+
+.dot[data-filled="true"] {
+  border-color: var(--mf-accent);
+  background: var(--mf-accent);
+  transform: scale(1.08);
+}
+
+.dots[data-error="true"] .dot {
+  border-color: var(--mf-danger);
+}
+
+.progress {
+  min-height: 16px;
+  margin-top: 10px;
+  color: var(--mf-text-tertiary);
+  font-size: 10px;
+}
+
+.dots[data-error="true"] + .progress {
+  color: var(--mf-danger);
+}
+
+.keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 56px);
+  justify-content: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.key,
+.deleteKey {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border: 1px solid var(--mf-border);
+  border-radius: 50%;
+  background: var(--mf-bg-panel);
+  color: var(--mf-text-primary);
+  font-size: 18px;
+  font-weight: 600;
+  transition:
+    border-color var(--mf-transition),
+    background var(--mf-transition),
+    color var(--mf-transition),
+    transform var(--mf-transition);
+}
+
+.key:hover:not(:disabled),
+.deleteKey:hover:not(:disabled) {
+  border-color: var(--mf-accent);
+  background: var(--mf-accent-soft);
+  color: var(--mf-accent);
+}
+
+.key:active:not(:disabled),
+.deleteKey:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.key:disabled,
+.deleteKey:disabled {
+  opacity: 0.45;
+}
+
+.deleteKey {
+  grid-column: span 2;
+  width: auto;
+  height: 56px;
+  border-radius: var(--mf-radius-pill);
+}
+
+.closeButton {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--mf-radius-sm);
+  color: var(--mf-text-tertiary);
+  transition:
+    color var(--mf-transition),
+    background var(--mf-transition);
+}
+
+.closeButton:hover:not(:disabled) {
+  background: var(--mf-bg-hover);
+  color: var(--mf-text-primary);
+}
+
+.closeButton:disabled {
+  opacity: 0.4;
+}
+
+@keyframes vcode-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes vcode-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 640px) {
+  .overlay {
+    padding: 12px;
+  }
+
+  .panel {
+    width: min(320px, 100%);
+    padding: 20px 18px 18px;
+    border-radius: 20px;
+  }
+
+  .heading h2 {
+    font-size: 15px;
+  }
+
+  .heading p {
+    font-size: 11px;
+  }
+
+  .dots {
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  .keypad {
+    grid-template-columns: repeat(3, 52px);
+    gap: 9px;
+    margin-top: 12px;
+  }
+
+  .key,
+  .deleteKey {
+    width: 52px;
+    height: 52px;
+  }
+
+  .deleteKey {
+    width: auto;
+    height: 52px;
+  }
+
+  .closeButton {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+@media (pointer: coarse) {
+  .key,
+  .deleteKey {
+    min-height: 52px;
+  }
+
+  .closeButton {
+    width: 40px;
+    height: 40px;
+  }
+}

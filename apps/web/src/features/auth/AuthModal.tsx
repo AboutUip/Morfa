@@ -11,8 +11,9 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import { BrandMark } from "../../components/BrandMark";
-import { CloseIcon, UploadIcon } from "../../components/icons";
-import { ApiError } from "../../lib/api";
+import { VCodeModal } from "../../components/VCodeModal";
+import { CheckIcon, CloseIcon, UploadIcon } from "../../components/icons";
+import { apiErrorMessage } from "../../lib/apiErrors";
 import { useAuth } from "./AuthProvider";
 import styles from "./AuthModal.module.css";
 
@@ -22,11 +23,15 @@ type FieldName =
   | "nickname"
   | "password"
   | "confirmPassword"
-  | "avatar";
+  | "avatar"
+  | "vcode"
+  | "importAccount"
+  | "importArchive";
 type FieldErrors = Partial<Record<FieldName, string>>;
 
 const ACCOUNT_PATTERN = /^[a-zA-Z0-9_.-]{3,32}$/;
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+const MAX_ARCHIVE_BYTES = 20 * 1024 * 1024;
 const AVATAR_TYPES = ["image/png", "image/jpeg", "image/webp"];
 const HEIGHT_TRANSITION_MS = 320;
 const HEIGHT_TRANSITION_EASING = "cubic-bezier(0.16, 1, 0.3, 1)";
@@ -52,21 +57,6 @@ function getFocusableElements(container: HTMLElement): HTMLElement[] {
   );
 }
 
-const SERVER_ERROR_KEYS: Record<string, string> = {
-  ACCOUNT_TAKEN: "auth.errors.accountTaken",
-  ACCOUNT_INVALID: "auth.errors.accountInvalid",
-  NICKNAME_INVALID: "auth.errors.nicknameTooLong",
-  PASSWORD_INVALID: "auth.errors.passwordTooShort",
-  PASSWORD_MISMATCH: "auth.errors.passwordMismatch",
-  AVATAR_REQUIRED: "auth.errors.avatarRequired",
-  AVATAR_TYPE: "auth.errors.avatarType",
-  AVATAR_TOO_LARGE: "auth.errors.avatarTooLarge",
-  INVALID_CREDENTIALS: "auth.errors.invalidCredentials",
-  INVALID_INPUT: "auth.errors.invalidInput",
-  INVALID_REQUEST: "auth.errors.invalidInput",
-  NETWORK_ERROR: "auth.errors.network",
-};
-
 interface AuthModalProps {
   initialMode?: AuthMode;
   onClose: () => void;
@@ -83,6 +73,11 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [vcode, setVcode] = useState("");
+  const [vcodeOpen, setVcodeOpen] = useState(false);
+  const [importEnabled, setImportEnabled] = useState(false);
+  const [importAccount, setImportAccount] = useState("");
+  const [archiveFile, setArchiveFile] = useState<File | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -93,6 +88,10 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
   const confirmPasswordRef = useRef<HTMLInputElement>(null);
   const avatarPickerRef = useRef<HTMLButtonElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const vcodeButtonRef = useRef<HTMLButtonElement>(null);
+  const importAccountRef = useRef<HTMLInputElement>(null);
+  const archivePickerRef = useRef<HTMLButtonElement>(null);
+  const archiveInputRef = useRef<HTMLInputElement>(null);
   const formErrorRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLElement>(null);
   const loginTabRef = useRef<HTMLButtonElement>(null);
@@ -113,17 +112,18 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
     if (formError) formErrorRef.current?.focus();
   }, [formError]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const trigger =
       document.activeElement instanceof HTMLElement
         ? document.activeElement
         : null;
     const root = document.getElementById("root");
+    const wasInert = root?.inert ?? false;
 
     if (root) root.inert = true;
 
     return () => {
-      if (root) root.inert = false;
+      if (root) root.inert = wasInert;
       if (trigger?.isConnected) {
         trigger.focus();
       } else {
@@ -133,6 +133,8 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
   }, []);
 
   useEffect(() => {
+    if (vcodeOpen) return;
+
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         if (busy) return;
@@ -171,7 +173,7 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
 
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [busy, onClose]);
+  }, [busy, onClose, vcodeOpen]);
 
   useEffect(() => {
     if (!avatarFile) {
@@ -307,6 +309,25 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
     setAvatarFile(file);
   };
 
+  const handleArchiveChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    event.target.value = "";
+
+    if (!file) return;
+
+    if (file.size > MAX_ARCHIVE_BYTES) {
+      setArchiveFile(null);
+      setFieldErrors((current) => ({
+        ...current,
+        importArchive: "auth.import.archiveTooLarge",
+      }));
+      return;
+    }
+
+    clearFieldError("importArchive");
+    setArchiveFile(file);
+  };
+
   const focusField = (field: FieldName) => {
     switch (field) {
       case "avatar":
@@ -323,6 +344,15 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
         break;
       case "confirmPassword":
         confirmPasswordRef.current?.focus();
+        break;
+      case "vcode":
+        vcodeButtonRef.current?.focus();
+        break;
+      case "importAccount":
+        importAccountRef.current?.focus();
+        break;
+      case "importArchive":
+        archivePickerRef.current?.focus();
         break;
     }
   };
@@ -355,6 +385,22 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
         errors.avatar = "auth.errors.avatarRequired";
       }
 
+      if (!vcode) {
+        errors.vcode = "vcode.errors.required";
+      }
+
+      if (importEnabled) {
+        if (!importAccount.trim()) {
+          errors.importAccount = "auth.import.accountRequired";
+        }
+
+        if (!archiveFile) {
+          errors.importArchive = "auth.import.archiveRequired";
+        } else if (archiveFile.size > MAX_ARCHIVE_BYTES) {
+          errors.importArchive = "auth.import.archiveTooLarge";
+        }
+      }
+
       if (!confirmPassword) {
         errors.confirmPassword = "auth.errors.passwordRequired";
       } else if (password !== confirmPassword) {
@@ -381,6 +427,9 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
           "loginAccount",
           "password",
           "confirmPassword",
+          "vcode",
+          "importAccount",
+          "importArchive",
         ] as FieldName[]
       ).find((field) => errors[field]);
 
@@ -396,7 +445,11 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
 
     try {
       if (mode === "login") {
-        await login(loginAccount.trim(), password);
+        const outcome = await login(loginAccount.trim(), password);
+        if (outcome === "vcodeSetupRequired") {
+          onClose();
+          return;
+        }
       } else {
         if (!avatarFile) return;
 
@@ -406,16 +459,19 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
         formData.append("loginAccount", loginAccount.trim());
         formData.append("password", password);
         formData.append("confirmPassword", confirmPassword);
+        formData.append("vcode", vcode);
+
+        if (importEnabled) {
+          formData.append("importOriginalAccount", importAccount.trim());
+          if (archiveFile) formData.append("archive", archiveFile);
+        }
+
         await register(formData);
       }
 
       onClose();
     } catch (error) {
-      if (error instanceof ApiError) {
-        setFormError(SERVER_ERROR_KEYS[error.code] ?? error.message);
-      } else {
-        setFormError("auth.errors.unknown");
-      }
+      setFormError(apiErrorMessage(t, error, "auth.errors.unknown"));
     } finally {
       setBusy(false);
     }
@@ -431,6 +487,7 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
         aria-labelledby="auth-title"
         aria-describedby="auth-description"
         tabIndex={-1}
+        inert={vcodeOpen}
       >
         <header className={styles.header}>
           <div className={styles.brand}>
@@ -650,6 +707,135 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
             </label>
           ) : null}
 
+          {mode === "register" ? (
+            <div className={styles.field}>
+              <span className={styles.label}>{t("auth.vcode")}</span>
+              <button
+                ref={vcodeButtonRef}
+                className={styles.vcodeButton}
+                type="button"
+                onClick={() => setVcodeOpen(true)}
+                disabled={busy}
+                aria-invalid={Boolean(fieldErrors.vcode)}
+                aria-label={vcode ? t("auth.vcodeSet") : t("auth.setVcode")}
+                aria-describedby={
+                  fieldErrors.vcode ? "auth-vcode-error" : "auth-vcode-hint"
+                }
+              >
+                <span>{vcode ? "••••••" : t("auth.setVcode")}</span>
+                {vcode ? <CheckIcon size={14} /> : null}
+              </button>
+              {fieldErrors.vcode ? (
+                <span
+                  id="auth-vcode-error"
+                  className={styles.fieldError}
+                  role="alert"
+                >
+                  {t(fieldErrors.vcode)}
+                </span>
+              ) : (
+                <span id="auth-vcode-hint" className={styles.fieldHint}>
+                  {t("auth.vcodeHint")}
+                </span>
+              )}
+            </div>
+          ) : null}
+
+          {mode === "register" ? (
+            <div className={styles.importBlock}>
+              <label className={styles.importToggle}>
+                <input
+                  type="checkbox"
+                  checked={importEnabled}
+                  onChange={(event) => {
+                    setImportEnabled(event.target.checked);
+                    setFieldErrors((current) => {
+                      const next = { ...current };
+                      delete next.importAccount;
+                      delete next.importArchive;
+                      return next;
+                    });
+                  }}
+                  disabled={busy}
+                />
+                <span>{t("auth.import.toggle")}</span>
+              </label>
+              <p className={styles.importHint}>
+                {t("auth.import.description")}
+              </p>
+
+              {importEnabled ? (
+                <>
+                  <label className={styles.field}>
+                    <span className={styles.label}>
+                      {t("auth.import.account")}
+                    </span>
+                    <input
+                      ref={importAccountRef}
+                      className={styles.input}
+                      type="text"
+                      value={importAccount}
+                      onChange={(event) => {
+                        setImportAccount(event.target.value);
+                        clearFieldError("importAccount");
+                      }}
+                      placeholder={t("auth.import.accountPlaceholder")}
+                      autoComplete="username"
+                      autoCapitalize="none"
+                      maxLength={32}
+                      spellCheck={false}
+                      disabled={busy}
+                      aria-invalid={Boolean(fieldErrors.importAccount)}
+                    />
+                    {fieldErrors.importAccount ? (
+                      <span className={styles.fieldError} role="alert">
+                        {t(fieldErrors.importAccount)}
+                      </span>
+                    ) : null}
+                  </label>
+
+                  <div className={styles.field}>
+                    <span className={styles.label}>
+                      {t("auth.import.archive")}
+                    </span>
+                    <button
+                      ref={archivePickerRef}
+                      className={styles.archivePicker}
+                      type="button"
+                      onClick={() => archiveInputRef.current?.click()}
+                      disabled={busy}
+                      aria-invalid={Boolean(fieldErrors.importArchive)}
+                    >
+                      <UploadIcon size={15} />
+                      <span className={styles.archiveName}>
+                        {archiveFile
+                          ? archiveFile.name
+                          : t("auth.import.chooseArchive")}
+                      </span>
+                    </button>
+                    <input
+                      ref={archiveInputRef}
+                      className={styles.fileInput}
+                      type="file"
+                      accept=".morfa,application/octet-stream"
+                      onChange={handleArchiveChange}
+                      tabIndex={-1}
+                    />
+                    {fieldErrors.importArchive ? (
+                      <span className={styles.fieldError} role="alert">
+                        {t(fieldErrors.importArchive)}
+                      </span>
+                    ) : (
+                      <span className={styles.fieldHint}>
+                        {t("auth.import.archiveHint")}
+                      </span>
+                    )}
+                  </div>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+
           {formError ? (
             <div
               ref={formErrorRef}
@@ -657,7 +843,7 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
               role="alert"
               tabIndex={-1}
             >
-              {t(formError)}
+              {formError}
             </div>
           ) : null}
 
@@ -675,6 +861,21 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
           </form>
         </div>
       </section>
+
+      {vcodeOpen ? (
+        <VCodeModal
+          mode="set"
+          title={t("vcode.setTitle")}
+          description={t("vcode.setDescription")}
+          closeLabel={t("vcode.close")}
+          onComplete={async (code) => {
+            setVcode(code);
+            clearFieldError("vcode");
+            setVcodeOpen(false);
+          }}
+          onClose={() => setVcodeOpen(false)}
+        />
+      ) : null}
     </div>,
     document.body,
   );

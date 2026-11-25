@@ -1,6 +1,6 @@
 # 后端架构
 
-> 状态：M1 认证 API 已实现 · 最后更新：2026-11-25
+> 状态：M1 认证、VCode、账号与导出 API 已实现 · 最后更新：2026-11-26
 
 ## 职责
 
@@ -44,16 +44,28 @@ apps/server/
 - `db` 封装 SQL 与事务，不依赖 HTTP 类型。
 - `agent` 通过服务接口读写设计文档，不直接拼 SQL。
 
-## 已实现：认证 API
+## 已实现：认证与账号 API
 
 - `GET /api/health`：健康检查。
-- `GET /api/auth/me`：读取当前会话用户；未登录返回 `{ user: null }`。
-- `POST /api/auth/login`：JSON 登录，成功后写入 `morfa_session` Cookie。
-- `POST /api/auth/register`：`multipart/form-data`，字段为 `avatar`、`nickname`、`loginAccount`、`password`、`confirmPassword`；成功后创建会话并自动登录。
+- `GET /api/auth/me`：读取当前会话用户；未登录返回 `{ user: null }`。会话用户缺少 VCode 或已注销时，服务端删除会话并清除 Cookie。
+- `POST /api/auth/login`：JSON 登录，成功后写入 `morfa_session` Cookie。账号缺少 VCode 时返回 `requiresVCodeSetup` 与短期 setup token，不创建会话。
+- `POST /api/auth/vcode-setup`：校验 setup token 与 6 位 VCode，写入 VCode 哈希并创建会话。
+- `POST /api/auth/register`：`multipart/form-data`，字段为 `avatar`、`nickname`、`loginAccount`、`password`、`confirmPassword`、`vcode`，可选 `importOriginalAccount` 与 `archive`；成功后创建会话并自动登录。
 - `POST /api/auth/logout`：删除会话并清除 Cookie。
+- `PATCH /api/me/profile`：修改昵称。
+- `POST /api/me/avatar`：上传新头像，成功写入后删除旧头像文件。
+- `POST /api/me/password`：校验当前密码后修改密码，保留当前会话并吊销其他会话。
+- `POST /api/me/vcode/verify`：校验 VCode，返回 5 分钟有效的敏感操作 ticket。
+- `POST /api/me/password/forgot`：消费 `password_reset` ticket 后直接设置新密码，无需旧密码。
+- `GET /api/me/export`：读取当前有效导出包状态。
+- `POST /api/me/export`：消费 `export` ticket，生成新的加密导出包并使旧包立即失效。
+- `GET /api/me/export/download`：下载当前有效导出包。
+- `POST /api/me/cancel`：校验当前密码并消费 `cancel` ticket，软删除账号、清除密码与 VCode、吊销全部会话。
 - `GET /uploads/avatars/:filename`：读取头像。
 - 登录账号写入前转小写，数据库使用 `COLLATE NOCASE UNIQUE` 去重。
-- 密码使用 `scrypt` + 随机盐哈希；会话令牌只保存 SHA-256 哈希。
+- 密码与 VCode 均使用 `scrypt` + 随机盐哈希；会话令牌、setup token 与敏感操作 ticket 只保存 SHA-256 哈希。
+- VCode 验证失败按用户限流（10 分钟 5 次），验证成功后 ticket 只能消费一次。
+- 导出包使用随机数据密钥 AES-256-GCM 加密，数据密钥再由服务器主密钥包裹；主密钥来自 `MORFA_EXPORT_MASTER_KEY` 或本地 `data/export-master.key`。
 - 头像文件写入 `apps/server/data/uploads/avatars/`，数据库仅保存 `uploads/avatars/<uuid>.<ext>` 相对路径，限制 PNG / JPG / WebP 2 MB。
 - 详细取舍见 [ADR 0005](../decisions/0005-auth-and-avatar.md)。
 

@@ -6,6 +6,36 @@ export interface AuthUser {
   createdAt: number;
 }
 
+export type LoginResponse =
+  | {
+      user: AuthUser;
+      requiresVCodeSetup?: false;
+    }
+  | {
+      requiresVCodeSetup: true;
+      setupToken: string;
+      expiresAt: number;
+      preview: AuthUser;
+    };
+
+export interface RegisterResponse {
+  user: AuthUser;
+  importedProjectCount: number;
+}
+
+export interface VCodeTicket {
+  ticket: string;
+  expiresAt: number;
+}
+
+export type VCodePurpose = "password_reset" | "export" | "cancel";
+
+export interface ExportSummary {
+  createdAt: number;
+  fileSize: number;
+  downloadUrl: string;
+}
+
 interface ErrorEnvelope {
   error?: {
     code?: string;
@@ -63,14 +93,21 @@ export const authApi = {
   me: () => request<{ user: AuthUser | null }>("/api/auth/me"),
 
   login: (loginAccount: string, password: string) =>
-    request<{ user: AuthUser }>("/api/auth/login", {
+    request<LoginResponse>("/api/auth/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ loginAccount, password }),
     }),
 
+  setupVCode: (setupToken: string, code: string) =>
+    request<{ user: AuthUser }>("/api/auth/vcode-setup", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ setupToken, code }),
+    }),
+
   register: (formData: FormData) =>
-    request<{ user: AuthUser }>("/api/auth/register", {
+    request<RegisterResponse>("/api/auth/register", {
       method: "POST",
       body: formData,
     }),
@@ -78,5 +115,69 @@ export const authApi = {
   logout: () =>
     request<void>("/api/auth/logout", {
       method: "POST",
+    }),
+};
+
+export const profileApi = {
+  updateProfile: (nickname: string) =>
+    request<{ user: AuthUser }>("/api/me/profile", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ nickname }),
+    }),
+
+  uploadAvatar: (file: File) => {
+    const formData = new FormData();
+    formData.append("avatar", file);
+    return request<{ user: AuthUser }>("/api/me/avatar", {
+      method: "POST",
+      body: formData,
+    });
+  },
+
+  changePassword: (input: {
+    currentPassword: string;
+    newPassword: string;
+    confirmPassword: string;
+  }) =>
+    request<void>("/api/me/password", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+
+  verifyVCode: (code: string, purpose: VCodePurpose) =>
+    request<VCodeTicket>("/api/me/vcode/verify", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code, purpose }),
+    }),
+
+  resetPassword: (input: {
+    ticket: string;
+    newPassword: string;
+    confirmPassword: string;
+  }) =>
+    request<void>("/api/me/password/forgot", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+
+  getExport: () =>
+    request<{ export: ExportSummary | null }>("/api/me/export"),
+
+  createExport: (ticket: string) =>
+    request<{ export: ExportSummary }>("/api/me/export", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ticket }),
+    }),
+
+  cancelAccount: (input: { ticket: string; password: string }) =>
+    request<void>("/api/me/cancel", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
     }),
 };

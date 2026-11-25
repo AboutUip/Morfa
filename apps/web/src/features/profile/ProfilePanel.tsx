@@ -1,24 +1,36 @@
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
+import { VCodeModal } from "../../components/VCodeModal";
 import {
   CloseIcon,
   KeyIcon,
   LogoutIcon,
   UserIcon,
 } from "../../components/icons";
+import { profileApi, type VCodePurpose } from "../../lib/api";
 import { useAuth } from "../auth/AuthProvider";
+import { AccountTab } from "./AccountTab";
+import { ProfileTab } from "./ProfileTab";
 import styles from "./ProfilePanel.module.css";
+import type { RequestVCode } from "./types";
 
-type ProfileTab = "profile" | "account";
+type ProfileTabId = "profile" | "account";
+
+interface VCodeRequest {
+  purpose: VCodePurpose;
+  onVerified: (ticket: string) => Promise<void> | void;
+}
 
 const TABS: Array<{
-  id: ProfileTab;
+  id: ProfileTabId;
   labelKey: string;
   icon: typeof UserIcon;
 }> = [
@@ -40,13 +52,16 @@ interface ProfilePanelProps {
 }
 
 export function ProfilePanel({ onClose }: ProfilePanelProps) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { user, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<ProfileTab>("profile");
+  const [activeTab, setActiveTab] = useState<ProfileTabId>("profile");
   const [loggingOut, setLoggingOut] = useState(false);
+  const [vcodeRequest, setVcodeRequest] = useState<VCodeRequest | null>(
+    null,
+  );
 
   const panelRef = useRef<HTMLDivElement>(null);
-  const tabRefs = useRef<Record<ProfileTab, HTMLButtonElement | null>>({
+  const tabRefs = useRef<Record<ProfileTabId, HTMLButtonElement | null>>({
     profile: null,
     account: null,
   });
@@ -55,7 +70,27 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
     tabRefs.current[activeTab]?.focus();
   }, [activeTab]);
 
+  useLayoutEffect(() => {
+    const root = document.getElementById("root");
+    const wasInert = root?.inert ?? false;
+    const trigger =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+
+    if (root) root.inert = true;
+
+    return () => {
+      if (root) root.inert = wasInert;
+      if (trigger?.isConnected) {
+        trigger.focus();
+      }
+    };
+  }, []);
+
   useEffect(() => {
+    if (vcodeRequest) return;
+
     const panel = panelRef.current;
     if (!panel) return;
 
@@ -94,16 +129,9 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
 
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [vcodeRequest]);
 
   if (!user) return null;
-
-  const locale = i18n.resolvedLanguage === "en-US" ? "en-US" : "zh-CN";
-  const joinedAt = new Intl.DateTimeFormat(locale, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  }).format(new Date(user.createdAt));
 
   const handleTabKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
     const currentIndex = TABS.findIndex((tab) => tab.id === activeTab);
@@ -136,6 +164,23 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
     requestAnimationFrame(() => tabRefs.current[nextTab.id]?.focus());
   };
 
+  const requestVCode: RequestVCode = (purpose, onVerified) => {
+    setVcodeRequest({ purpose, onVerified });
+  };
+
+  const handleVCodeComplete = async (code: string) => {
+    if (!vcodeRequest) return;
+
+    const { ticket } = await profileApi.verifyVCode(
+      code,
+      vcodeRequest.purpose,
+    );
+
+    const request = vcodeRequest;
+    setVcodeRequest(null);
+    await request.onVerified(ticket);
+  };
+
   const handleLogout = async () => {
     if (loggingOut) return;
     setLoggingOut(true);
@@ -149,10 +194,11 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
     }
   };
 
-  return (
+  return createPortal(
     <>
       <div
         className={styles.backdrop}
+        data-profile-backdrop="true"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -163,129 +209,92 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
         className={styles.panel}
         role="dialog"
         aria-modal="true"
-        aria-label={t("profile.title")}
+        aria-label={t("profile.panelTitle")}
         tabIndex={-1}
+        inert={Boolean(vcodeRequest)}
       >
         <button
-        className={styles.closeButton}
-        type="button"
-        title={t("profile.close")}
-        aria-label={t("profile.close")}
-        onClick={onClose}
-      >
-        <CloseIcon size={16} />
-      </button>
-
-      <aside className={styles.sidebar}>
-        <nav
-          className={styles.tabs}
-          role="tablist"
-          aria-orientation="vertical"
-          aria-label={t("profile.title")}
-          onKeyDown={handleTabKeyDown}
-        >
-          {TABS.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                ref={(element) => {
-                  tabRefs.current[tab.id] = element;
-                }}
-                id={`profile-tab-${tab.id}`}
-                className={styles.tab}
-                type="button"
-                role="tab"
-                aria-selected={activeTab === tab.id}
-                aria-controls="profile-panel-content"
-                data-active={activeTab === tab.id}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                <Icon size={15} />
-                <span>{t(tab.labelKey)}</span>
-              </button>
-            );
-          })}
-        </nav>
-
-        <button
-          className={styles.logoutButton}
+          className={styles.closeButton}
           type="button"
-          onClick={handleLogout}
-          disabled={loggingOut}
+          title={t("profile.close")}
+          aria-label={t("profile.close")}
+          onClick={onClose}
         >
-          <LogoutIcon size={15} />
-          <span>{t("profile.logout")}</span>
+          <CloseIcon size={16} />
         </button>
-      </aside>
 
-      <section
-        id="profile-panel-content"
-        className={styles.content}
-        role="tabpanel"
-        aria-labelledby={`profile-tab-${activeTab}`}
-      >
-        <div className={styles.contentHeader}>
-          <h2>{t(`profile.tabs.${activeTab}`)}</h2>
-        </div>
+        <aside className={styles.sidebar}>
+          <nav
+            className={styles.tabs}
+            role="tablist"
+            aria-orientation="vertical"
+            aria-label={t("profile.panelTitle")}
+            onKeyDown={handleTabKeyDown}
+          >
+            {TABS.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  ref={(element) => {
+                    tabRefs.current[tab.id] = element;
+                  }}
+                  id={`profile-tab-${tab.id}`}
+                  className={styles.tab}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab.id}
+                  aria-controls="profile-panel-content"
+                  data-active={activeTab === tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                >
+                  <Icon size={15} />
+                  <span>{t(tab.labelKey)}</span>
+                </button>
+              );
+            })}
+          </nav>
 
-        {activeTab === "profile" ? (
-          <>
-            <div className={styles.identity}>
-              <span className={styles.avatar}>
-                <img src={user.avatarUrl} alt="" />
-              </span>
-              <div className={styles.identityText}>
-                <strong>{user.nickname}</strong>
-                <span>@{user.loginAccount}</span>
-              </div>
-            </div>
+          <button
+            className={styles.logoutButton}
+            type="button"
+            onClick={handleLogout}
+            disabled={loggingOut}
+          >
+            <LogoutIcon size={15} />
+            <span>{t("profile.logout")}</span>
+          </button>
+        </aside>
 
-            <dl className={styles.details}>
-              <div>
-                <dt>{t("profile.nickname")}</dt>
-                <dd>{user.nickname}</dd>
-              </div>
-              <div>
-                <dt>{t("profile.loginAccount")}</dt>
-                <dd>{user.loginAccount}</dd>
-              </div>
-              <div>
-                <dt>{t("profile.joined")}</dt>
-                <dd>{joinedAt}</dd>
-              </div>
-            </dl>
+        <section
+          id="profile-panel-content"
+          className={styles.content}
+          role="tabpanel"
+          aria-labelledby={`profile-tab-${activeTab}`}
+        >
+          <div className={styles.contentHeader}>
+            <h2>{t(`profile.tabs.${activeTab}`)}</h2>
+          </div>
 
-            <p className={styles.hint}>{t("profile.readonlyHint")}</p>
-          </>
-        ) : (
-          <>
-            <dl className={styles.details}>
-              <div>
-                <dt>{t("profile.loginAccount")}</dt>
-                <dd>{user.loginAccount}</dd>
-              </div>
-              <div>
-                <dt>{t("profile.userId")}</dt>
-                <dd>
-                  <code>{user.id}</code>
-                </dd>
-              </div>
-              <div>
-                <dt>{t("profile.status")}</dt>
-                <dd>{t("profile.active")}</dd>
-              </div>
-              <div>
-                <dt>{t("profile.joined")}</dt>
-                <dd>{joinedAt}</dd>
-              </div>
-            </dl>
-
-            <p className={styles.hint}>{t("profile.accountHint")}</p>
-          </>
-        )}
-      </section>
+          {activeTab === "profile" ? (
+            <ProfileTab requestVCode={requestVCode} />
+          ) : (
+            <AccountTab requestVCode={requestVCode} onClose={onClose} />
+          )}
+        </section>
       </div>
-    </>
+
+      {vcodeRequest ? (
+        <VCodeModal
+          mode="verify"
+          title={t("vcode.verifyTitle")}
+          description={t(`profile.vcode.${vcodeRequest.purpose}`)}
+          closeLabel={t("vcode.close")}
+          onComplete={handleVCodeComplete}
+          onClose={() => setVcodeRequest(null)}
+        />
+      ) : null}
+    </>,
+    document.body,
   );
 }

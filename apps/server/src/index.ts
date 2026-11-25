@@ -3,22 +3,31 @@ import fs from "node:fs";
 import multipart from "@fastify/multipart";
 import Fastify from "fastify";
 
+import { registerAccountRoutes } from "./api/account.js";
 import { registerAuthRoutes } from "./api/auth.js";
 import { registerUploadRoutes } from "./api/uploads.js";
 import {
   AVATARS_DIR,
-  AVATAR_MAX_BYTES,
+  EXPORTS_DIR,
+  EXPORT_ARCHIVE_MAX_BYTES,
   HOST,
   PORT,
 } from "./config.js";
 import { db } from "./db/connection.js";
 import { migrate } from "./db/migrate.js";
 import { deleteExpiredSessions } from "./db/users.js";
+import {
+  purgeExpiredSetupTokens,
+  purgeExpiredTickets,
+} from "./db/vcode.js";
 import { ApiError } from "./lib/errors.js";
 
 fs.mkdirSync(AVATARS_DIR, { recursive: true });
+fs.mkdirSync(EXPORTS_DIR, { recursive: true });
 migrate();
 deleteExpiredSessions();
+purgeExpiredSetupTokens(Date.now());
+purgeExpiredTickets(Date.now());
 
 const app = Fastify({
   logger: {
@@ -28,17 +37,18 @@ const app = Fastify({
 
 await app.register(multipart, {
   limits: {
-    fileSize: AVATAR_MAX_BYTES,
-    files: 1,
-    fields: 10,
-    fieldSize: 4096,
-    parts: 12,
+    fileSize: EXPORT_ARCHIVE_MAX_BYTES,
+    files: 2,
+    fields: 24,
+    fieldSize: 8192,
+    parts: 28,
   },
 });
 
 app.get("/api/health", async () => ({ ok: true }));
 
 registerAuthRoutes(app);
+registerAccountRoutes(app);
 registerUploadRoutes(app);
 
 app.setErrorHandler((error, request, reply) => {
@@ -52,7 +62,7 @@ app.setErrorHandler((error, request, reply) => {
 
   if (code === "FST_REQ_FILE_TOO_LARGE") {
     return reply.status(413).send({
-      error: { code: "AVATAR_TOO_LARGE", message: "头像文件不能超过 2 MB" },
+      error: { code: "FILE_TOO_LARGE", message: "文件大小超出限制" },
     });
   }
 

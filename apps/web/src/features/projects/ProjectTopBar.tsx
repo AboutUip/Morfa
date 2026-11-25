@@ -108,6 +108,16 @@ export function ProjectTopBar({
     if (!profileOpen) return;
 
     const onPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        (target.closest('[data-vcode-modal="true"]') ||
+          target.closest("#profile-panel") ||
+          target.closest("[data-profile-backdrop]"))
+      ) {
+        return;
+      }
+
       if (!profileAreaRef.current?.contains(event.target as Node)) {
         setProfileOpen(false);
       }
@@ -115,6 +125,7 @@ export function ProjectTopBar({
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        if (document.querySelector('[data-vcode-modal="true"]')) return;
         event.preventDefault();
         setProfileOpen(false);
         profileButtonRef.current?.focus();
@@ -253,11 +264,13 @@ export function ProjectTopBar({
   const closeProfile = () => {
     setProfileOpen(false);
     requestAnimationFrame(() => {
-      if (profileButtonRef.current?.isConnected) {
-        profileButtonRef.current.focus();
-      } else {
-        document.getElementById("workspace-main")?.focus();
-      }
+      requestAnimationFrame(() => {
+        if (profileButtonRef.current?.isConnected) {
+          profileButtonRef.current.focus();
+        } else {
+          document.getElementById("workspace-main")?.focus();
+        }
+      });
     });
   };
 

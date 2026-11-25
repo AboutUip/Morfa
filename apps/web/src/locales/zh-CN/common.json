@@ -35,14 +35,37 @@
     "emptyTitle": "设置即将开放",
     "emptyHint": "外观、语言与账号设置将在这里集中管理。"
   },
+  "vcode": {
+    "setTitle": "设置 VCode",
+    "verifyTitle": "验证 VCode",
+    "setDescription": "设置一个 6 位数字作为验证数字。可以使用任意数字，允许重复，请务必牢记。",
+    "verifyDescription": "请输入 6 位 VCode 以继续。",
+    "progress": "已输入 {{value}} / 6 位",
+    "delete": "删除",
+    "close": "关闭",
+    "submitting": "正在验证…",
+    "setupRequiredTitle": "需要设置 VCode",
+    "setupRequiredBody": "为了账号安全，请为 @{{account}} 设置 6 位验证数字。VCode 无法找回，请务必牢记。设置完成后会自动登录。",
+    "errors": {
+      "required": "请先设置 6 位 VCode",
+      "invalidFormat": "VCode 必须是 6 位数字",
+      "mismatch": "VCode 不正确",
+      "notSet": "当前账号还没有设置 VCode",
+      "rateLimited": "尝试次数过多，请稍后再试",
+      "setupExpired": "VCode 设置会话已过期，请重新登录",
+      "expired": "验证已过期，请重新验证 VCode",
+      "failed": "VCode 验证失败，请重试"
+    }
+  },
   "profile": {
     "title": "个人",
+    "panelTitle": "个人面板",
     "open": "打开个人面板",
     "close": "关闭",
     "logout": "退出登录",
     "tabs": {
       "profile": "个人",
-      "account": "账户"
+      "account": "账号"
     },
     "nickname": "昵称",
     "loginAccount": "登录账号",
@@ -50,8 +73,68 @@
     "status": "账号状态",
     "active": "正常",
     "joined": "加入时间",
-    "readonlyHint": "个人资料目前为只读。",
-    "accountHint": "密码与安全设置即将开放。"
+    "nicknameSection": "昵称",
+    "nicknameSave": "保存昵称",
+    "nicknameSaving": "正在保存…",
+    "nicknameUpdated": "昵称已更新",
+    "avatar": {
+      "change": "更换头像",
+      "uploading": "正在上传…",
+      "updated": "头像已更新"
+    },
+    "password": {
+      "title": "修改密码",
+      "current": "当前密码",
+      "new": "新密码",
+      "confirm": "确认新密码",
+      "change": "更新密码",
+      "changing": "正在更新…",
+      "updated": "密码已更新",
+      "forgot": "忘记密码？",
+      "resetHint": "VCode 已验证。请在 5 分钟内设置新密码。",
+      "resetSubmit": "保存新密码",
+      "resetting": "正在保存…",
+      "resetDone": "密码已重置",
+      "cancelReset": "取消",
+      "ticketExpired": "验证已过期，请重新验证 VCode"
+    },
+    "export": {
+      "title": "数据导出",
+      "description": "导出服务器加密的项目数据包。同一时间只保留一个有效包，重新生成会使旧包立即失效。",
+      "empty": "还没有导出包。",
+      "loading": "正在读取导出状态…",
+      "createdAt": "导出时间",
+      "fileSize": "文件大小",
+      "create": "生成导出包",
+      "recreate": "重新生成导出包",
+      "creating": "正在生成…",
+      "download": "下载导出包",
+      "ready": "导出包已生成。",
+      "warning": "请先下载并妥善保管。注销账号后，只有将该包导入到新账号才能恢复项目数据。"
+    },
+    "cancel": {
+      "title": "注销账号",
+      "description": "注销后原登录账号将无法再次登录，且无法恢复。请先导出数据。",
+      "password": "当前密码",
+      "confirm": "注销账号",
+      "cancelling": "正在注销…",
+      "warning": "此操作不可撤销。需要验证当前密码和 VCode。"
+    },
+    "vcode": {
+      "password_reset": "验证 VCode 后即可设置新密码，无需原密码。",
+      "export": "生成导出包需要通过 VCode 验证。",
+      "cancel": "注销账号需要验证当前密码和 VCode。"
+    },
+    "errors": {
+      "unauthorized": "登录状态已失效，请重新登录",
+      "currentPasswordRequired": "请输入当前密码",
+      "currentPasswordInvalid": "当前密码不正确",
+      "saveFailed": "保存失败，请稍后重试",
+      "avatarFailed": "头像上传失败，请稍后重试",
+      "exportFailed": "数据导出失败，请稍后重试",
+      "exportFileMissing": "导出文件已不存在，请重新生成",
+      "cancelFailed": "注销失败，请稍后重试"
+    }
   },
   "auth": {
     "login": "登录",
@@ -73,6 +156,30 @@
     "avatarHint": "PNG / JPG / WebP，最大 2 MB",
     "chooseAvatar": "选择头像",
     "avatarRequired": "请选择头像",
+    "vcode": "VCode",
+    "setVcode": "设置 VCode",
+    "vcodeSet": "VCode 已设置",
+    "vcodeHint": "6 位数字，允许重复；VCode 无法找回，请务必牢记。",
+    "import": {
+      "toggle": "导入已有数据（可选）",
+      "description": "从已注销账号的数据包恢复项目数据。注册资料以本次填写为准。",
+      "account": "原登录账号",
+      "accountPlaceholder": "已注销账号的登录名",
+      "archive": "数据包",
+      "chooseArchive": "选择 .morfa 数据包",
+      "archiveHint": "最大 20 MB；原账号必须已注销，且数据包未被使用。",
+      "accountRequired": "请输入原登录账号",
+      "archiveRequired": "请选择数据包",
+      "archiveTooLarge": "数据包不能超过 20 MB",
+      "originalAccountNotFound": "找不到该原登录账号",
+      "originalAccountActive": "原登录账号尚未注销，不能导入",
+      "exportNotFound": "原账号没有可用的导出包",
+      "exportConsumed": "该数据包已经被使用过",
+      "exportInvalidated": "该数据包已被新的导出包覆盖",
+      "archiveCorrupted": "数据包已损坏或校验失败",
+      "archiveMismatch": "数据包与提供的原登录账号不匹配",
+      "archiveUnsupportedVersion": "数据包版本不受支持"
+    },
     "submitLogin": "登录",
     "submitRegister": "注册并登录",
     "submitting": "请稍候…",
@@ -82,6 +189,7 @@
       "accountRequired": "请输入登录账号",
       "accountInvalid": "登录账号需为 3–32 位字母、数字、下划线、点或短横线",
       "accountTaken": "该登录账号已被使用",
+      "accountCancelled": "该账号已注销，无法登录",
       "nicknameRequired": "请输入昵称",
       "nicknameTooLong": "昵称不能超过 32 个字符",
       "passwordRequired": "请输入密码",

@@ -19,6 +19,10 @@ export function useVisualViewport() {
         "--mf-viewport-offset-top",
         `${viewport.offsetTop}px`,
       );
+      root.style.setProperty(
+        "--mf-viewport-center-y",
+        `${viewport.offsetTop + viewport.height / 2}px`,
+      );
     };
 
     update();
@@ -30,6 +34,7 @@ export function useVisualViewport() {
       viewport.removeEventListener("scroll", update);
       root.style.removeProperty("--mf-viewport-height");
       root.style.removeProperty("--mf-viewport-offset-top");
+      root.style.removeProperty("--mf-viewport-center-y");
     };
   }, []);
 }
