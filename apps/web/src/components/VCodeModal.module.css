@@ -11,6 +11,15 @@
   animation: vcode-overlay-in 160ms var(--mf-ease) both;
 }
 
+.overlay[data-closing="true"] {
+  pointer-events: none;
+  animation: vcode-overlay-out 160ms var(--mf-ease) both;
+}
+
+.overlay[data-closing="true"] .panel {
+  animation: vcode-panel-out 160ms var(--mf-ease) both;
+}
+
 .panel {
   position: relative;
   width: min(336px, 100%);
@@ -188,6 +197,15 @@
   }
 }
 
+@keyframes vcode-overlay-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
 @keyframes vcode-panel-in {
   from {
     opacity: 0;
@@ -196,6 +214,17 @@
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes vcode-panel-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
   }
 }
 

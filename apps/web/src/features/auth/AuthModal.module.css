@@ -10,6 +10,15 @@
   animation: overlay-in 180ms var(--mf-ease) both;
 }
 
+.overlay[data-closing="true"] {
+  pointer-events: none;
+  animation: overlay-out 160ms var(--mf-ease) both;
+}
+
+.overlay[data-closing="true"] .panel {
+  animation: panel-out 160ms var(--mf-ease) both;
+}
+
 .panel {
   width: min(440px, 100%);
   max-height: calc(100dvh - 48px);
@@ -419,6 +428,15 @@
   }
 }
 
+@keyframes overlay-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
 @keyframes panel-in {
   from {
     opacity: 0;
@@ -427,6 +445,17 @@
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes panel-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
   }
 }
 
@@ -463,6 +492,10 @@
     border-radius: var(--mf-radius-pill);
     background: var(--mf-border-strong);
     content: "";
+  }
+
+  .overlay[data-closing="true"] .panel {
+    animation: sheet-out 180ms var(--mf-ease) both;
   }
 
   .closeButton {
@@ -578,5 +611,16 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes sheet-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(100%);
   }
 }

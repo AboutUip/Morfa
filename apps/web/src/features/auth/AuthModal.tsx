@@ -14,6 +14,8 @@ import { BrandMark } from "../../components/BrandMark";
 import { VCodeModal } from "../../components/VCodeModal";
 import { CheckIcon, CloseIcon, UploadIcon } from "../../components/icons";
 import { apiErrorMessage } from "../../lib/apiErrors";
+import { lockBackground } from "../../lib/backgroundLock";
+import { useAnimatedClose } from "../../lib/useAnimatedClose";
 import { useAuth } from "./AuthProvider";
 import styles from "./AuthModal.module.css";
 
@@ -65,6 +67,7 @@ interface AuthModalProps {
 export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
   const { t } = useTranslation();
   const { login, register } = useAuth();
+  const { closing, beginClose } = useAnimatedClose(onClose);
 
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [loginAccount, setLoginAccount] = useState("");
@@ -117,13 +120,10 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
       document.activeElement instanceof HTMLElement
         ? document.activeElement
         : null;
-    const root = document.getElementById("root");
-    const wasInert = root?.inert ?? false;
-
-    if (root) root.inert = true;
+    const releaseBackground = lockBackground();
 
     return () => {
-      if (root) root.inert = wasInert;
+      releaseBackground();
       if (trigger?.isConnected) {
         trigger.focus();
       } else {
@@ -139,7 +139,7 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
       if (event.key === "Escape") {
         if (busy) return;
         event.preventDefault();
-        onClose();
+        beginClose();
         return;
       }
 
@@ -173,7 +173,7 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
 
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [busy, onClose, vcodeOpen]);
+  }, [busy, beginClose, vcodeOpen]);
 
   useEffect(() => {
     if (!avatarFile) {
@@ -447,7 +447,7 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
       if (mode === "login") {
         const outcome = await login(loginAccount.trim(), password);
         if (outcome === "vcodeSetupRequired") {
-          onClose();
+          beginClose();
           return;
         }
       } else {
@@ -469,7 +469,7 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
         await register(formData);
       }
 
-      onClose();
+      beginClose();
     } catch (error) {
       setFormError(apiErrorMessage(t, error, "auth.errors.unknown"));
     } finally {
@@ -478,7 +478,7 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
   };
 
   return createPortal(
-    <div className={styles.overlay}>
+    <div className={styles.overlay} data-closing={closing}>
       <section
         ref={panelRef}
         className={styles.panel}
@@ -487,7 +487,7 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
         aria-labelledby="auth-title"
         aria-describedby="auth-description"
         tabIndex={-1}
-        inert={vcodeOpen}
+        inert={vcodeOpen || closing}
       >
         <header className={styles.header}>
           <div className={styles.brand}>
@@ -502,7 +502,7 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
             type="button"
             aria-label={t("auth.close")}
             title={t("auth.close")}
-            onClick={onClose}
+            onClick={beginClose}
             disabled={busy}
           >
             <CloseIcon size={16} />
@@ -871,7 +871,6 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
           onComplete={async (code) => {
             setVcode(code);
             clearFieldError("vcode");
-            setVcodeOpen(false);
           }}
           onClose={() => setVcodeOpen(false)}
         />

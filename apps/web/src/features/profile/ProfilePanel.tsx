@@ -17,6 +17,8 @@ import {
   UserIcon,
 } from "../../components/icons";
 import { profileApi, type VCodePurpose } from "../../lib/api";
+import { lockBackground } from "../../lib/backgroundLock";
+import { useAnimatedClose } from "../../lib/useAnimatedClose";
 import { useAuth } from "../auth/AuthProvider";
 import { AccountTab } from "./AccountTab";
 import { ProfileTab } from "./ProfileTab";
@@ -73,6 +75,9 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
   );
   const [passwordRequest, setPasswordRequest] =
     useState<PasswordRequest | null>(null);
+  const [pendingVCodeStep, setPendingVCodeStep] =
+    useState<VCodeStep | null>(null);
+  const { closing, beginClose } = useAnimatedClose(onClose);
 
   const panelRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Record<ProfileTabId, HTMLButtonElement | null>>({
@@ -85,19 +90,18 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
   }, [activeTab]);
 
   useLayoutEffect(() => {
-    const root = document.getElementById("root");
-    const wasInert = root?.inert ?? false;
+    const releaseBackground = lockBackground();
     const trigger =
       document.activeElement instanceof HTMLElement
         ? document.activeElement
         : null;
 
-    if (root) root.inert = true;
-
     return () => {
-      if (root) root.inert = wasInert;
+      releaseBackground();
       if (trigger?.isConnected) {
         trigger.focus();
+      } else {
+        document.getElementById("workspace-main")?.focus();
       }
     };
   }, []);
@@ -109,6 +113,12 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
     if (!panel) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        beginClose();
+        return;
+      }
+
       if (event.key !== "Tab") return;
 
       const focusables = Array.from(
@@ -143,7 +153,7 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
 
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [vcodeRequest, passwordRequest]);
+  }, [vcodeRequest, passwordRequest, beginClose]);
 
   if (!user) return null;
 
@@ -193,13 +203,20 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
     if (!passwordRequest) return;
 
     const next = await passwordRequest.onVerified(password);
+    if (next?.kind === "vcode") {
+      setPendingVCodeStep(next);
+    }
+  };
+
+  const handlePasswordClose = () => {
     setPasswordRequest(null);
 
-    if (next?.kind === "vcode") {
+    if (pendingVCodeStep) {
       setVcodeRequest({
-        purpose: next.purpose,
-        onVerified: next.onVerified,
+        purpose: pendingVCodeStep.purpose,
+        onVerified: pendingVCodeStep.onVerified,
       });
+      setPendingVCodeStep(null);
     }
   };
 
@@ -212,7 +229,6 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
     );
 
     const request = vcodeRequest;
-    setVcodeRequest(null);
     await request.onVerified(ticket);
   };
 
@@ -234,7 +250,8 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
       <div
         className={styles.backdrop}
         data-profile-backdrop="true"
-        onClick={onClose}
+        data-closing={closing}
+        onClick={beginClose}
         aria-hidden="true"
       />
 
@@ -246,14 +263,15 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
         aria-modal="true"
         aria-label={t("profile.panelTitle")}
         tabIndex={-1}
-        inert={Boolean(vcodeRequest || passwordRequest)}
+        data-closing={closing}
+        inert={closing || Boolean(vcodeRequest || passwordRequest)}
       >
         <button
           className={styles.closeButton}
           type="button"
           title={t("profile.close")}
           aria-label={t("profile.close")}
-          onClick={onClose}
+          onClick={beginClose}
         >
           <CloseIcon size={16} />
         </button>
@@ -331,7 +349,7 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
           title={t("passwordModal.title")}
           description={t(passwordRequest.descriptionKey)}
           onVerify={handlePasswordComplete}
-          onClose={() => setPasswordRequest(null)}
+          onClose={handlePasswordClose}
         />
       ) : vcodeRequest ? (
         <VCodeModal

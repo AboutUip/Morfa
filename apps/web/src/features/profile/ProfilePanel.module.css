@@ -7,6 +7,16 @@
   animation: backdrop-in 160ms var(--mf-ease) both;
 }
 
+.backdrop[data-closing="true"] {
+  pointer-events: none;
+  animation: backdrop-out 160ms var(--mf-ease) both;
+}
+
+.panel[data-closing="true"] {
+  pointer-events: none;
+  animation: profile-out 160ms var(--mf-ease) both;
+}
+
 .panel {
   position: fixed;
   top: 50%;
@@ -509,6 +519,15 @@
   }
 }
 
+@keyframes backdrop-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
 @keyframes profile-in {
   from {
     opacity: 0;
@@ -517,6 +536,17 @@
   to {
     opacity: 1;
     transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes profile-out {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 8px)) scale(0.99);
   }
 }
 

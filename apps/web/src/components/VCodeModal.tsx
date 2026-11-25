@@ -9,6 +9,8 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import { apiErrorMessage } from "../lib/apiErrors";
+import { lockBackground } from "../lib/backgroundLock";
+import { useAnimatedClose } from "../lib/useAnimatedClose";
 import { BackspaceIcon, CloseIcon, LockIcon } from "./icons";
 import styles from "./VCodeModal.module.css";
 
@@ -45,6 +47,7 @@ export function VCodeModal({
   const [digits, setDigits] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { closing, beginClose } = useAnimatedClose(onClose);
 
   const titleId = useId();
   const descriptionId = useId();
@@ -53,7 +56,6 @@ export function VCodeModal({
   const submittingRef = useRef(false);
   const busyRef = useRef(false);
   const canCloseRef = useRef(canClose);
-  const onCloseRef = useRef(onClose);
 
   useEffect(() => {
     busyRef.current = busy;
@@ -63,15 +65,8 @@ export function VCodeModal({
     canCloseRef.current = canClose;
   }, [canClose]);
 
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  }, [onClose]);
-
   useLayoutEffect(() => {
-    const root = document.getElementById("root");
-    const wasInert = root?.inert ?? false;
-    if (root) root.inert = true;
-
+    const releaseBackground = lockBackground();
     const trigger =
       document.activeElement instanceof HTMLElement
         ? document.activeElement
@@ -81,11 +76,13 @@ export function VCodeModal({
 
     return () => {
       cancelAnimationFrame(frame);
-      if (root) root.inert = wasInert;
+      releaseBackground();
       if (trigger?.isConnected) {
         requestAnimationFrame(() => {
           if (trigger.isConnected) trigger.focus();
         });
+      } else {
+        document.getElementById("workspace-main")?.focus();
       }
     };
   }, []);
@@ -100,6 +97,7 @@ export function VCodeModal({
     onComplete(digits)
       .then(() => {
         setDigits("");
+        beginClose();
       })
       .catch((submitError: unknown) => {
         setError(apiErrorMessage(t, submitError, "vcode.errors.failed"));
@@ -110,7 +108,7 @@ export function VCodeModal({
         submittingRef.current = false;
         setBusy(false);
       });
-  }, [digits, onComplete, t]);
+  }, [digits, onComplete, t, beginClose]);
 
   const appendDigit = (digit: string) => {
     if (busyRef.current) return;
@@ -128,7 +126,7 @@ export function VCodeModal({
 
   const requestClose = () => {
     if (!canCloseRef.current || busyRef.current) return;
-    onCloseRef.current();
+    beginClose();
   };
 
   useEffect(() => {
@@ -221,6 +219,7 @@ export function VCodeModal({
     <div
       className={styles.overlay}
       data-vcode-modal="true"
+      data-closing={closing}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) event.preventDefault();
       }}
@@ -233,6 +232,7 @@ export function VCodeModal({
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
+        inert={closing}
       >
         <div className={styles.heading}>
           <span className={styles.lock} data-mode={mode} aria-hidden="true">

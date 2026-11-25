@@ -10,6 +10,8 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import { apiErrorMessage } from "../lib/apiErrors";
+import { lockBackground } from "../lib/backgroundLock";
+import { useAnimatedClose } from "../lib/useAnimatedClose";
 import { CloseIcon, LockIcon } from "./icons";
 import styles from "./PasswordModal.module.css";
 
@@ -36,6 +38,7 @@ export function PasswordModal({
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { closing, beginClose } = useAnimatedClose(onClose);
 
   const titleId = useId();
   const descriptionId = useId();
@@ -43,42 +46,36 @@ export function PasswordModal({
   const panelRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const busyRef = useRef(false);
-  const onCloseRef = useRef(onClose);
 
   useEffect(() => {
     busyRef.current = busy;
   }, [busy]);
 
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  }, [onClose]);
-
   useLayoutEffect(() => {
-    const root = document.getElementById("root");
-    const wasInert = root?.inert ?? false;
+    const releaseBackground = lockBackground();
     const trigger =
       document.activeElement instanceof HTMLElement
         ? document.activeElement
         : null;
 
-    if (root) root.inert = true;
-
     const frame = requestAnimationFrame(() => inputRef.current?.focus());
 
     return () => {
       cancelAnimationFrame(frame);
-      if (root) root.inert = wasInert;
+      releaseBackground();
       if (trigger?.isConnected) {
         requestAnimationFrame(() => {
           if (trigger.isConnected) trigger.focus();
         });
+      } else {
+        document.getElementById("workspace-main")?.focus();
       }
     };
   }, []);
 
   const requestClose = () => {
     if (busyRef.current) return;
-    onCloseRef.current();
+    beginClose();
   };
 
   useEffect(() => {
@@ -140,6 +137,7 @@ export function PasswordModal({
     try {
       await onVerify(password);
       setPassword("");
+      beginClose();
     } catch (verifyError) {
       setError(
         apiErrorMessage(t, verifyError, "passwordModal.failed"),
@@ -155,6 +153,7 @@ export function PasswordModal({
     <div
       className={styles.overlay}
       data-password-modal="true"
+      data-closing={closing}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) event.preventDefault();
       }}
@@ -167,6 +166,7 @@ export function PasswordModal({
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
         tabIndex={-1}
+        inert={closing}
       >
         <div className={styles.heading}>
           <span className={styles.lock} aria-hidden="true">

@@ -56,7 +56,6 @@ export function ProjectTopBar({
   const languageButtonRef = useRef<HTMLButtonElement>(null);
   const languageMenuRef = useRef<HTMLDivElement>(null);
   const languageFocusTargetRef = useRef<"first" | "last">("first");
-  const profileAreaRef = useRef<HTMLDivElement>(null);
   const profileButtonRef = useRef<HTMLButtonElement>(null);
   const tabRefs = useRef<Record<WorkspaceTab, HTMLButtonElement | null>>({
     projects: null,
@@ -103,49 +102,6 @@ export function ProjectTopBar({
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [languageOpen]);
-
-  useEffect(() => {
-    if (!profileOpen) return;
-
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (
-        target instanceof Element &&
-        (target.closest('[data-vcode-modal="true"]') ||
-          target.closest('[data-password-modal="true"]') ||
-          target.closest("#profile-panel") ||
-          target.closest("[data-profile-backdrop]"))
-      ) {
-        return;
-      }
-
-      if (!profileAreaRef.current?.contains(event.target as Node)) {
-        setProfileOpen(false);
-      }
-    };
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        if (
-          document.querySelector(
-            '[data-vcode-modal="true"], [data-password-modal="true"]',
-          )
-        ) {
-          return;
-        }
-        event.preventDefault();
-        setProfileOpen(false);
-        profileButtonRef.current?.focus();
-      }
-    };
-
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [profileOpen]);
 
   useEffect(() => {
     if (!user) setProfileOpen(false);
@@ -398,7 +354,7 @@ export function ProjectTopBar({
         {status === "loading" ? (
           <span className={styles.authSkeleton} aria-hidden="true" />
         ) : user ? (
-          <div className={styles.profileArea} ref={profileAreaRef}>
+          <div className={styles.profileArea}>
             <button
               ref={profileButtonRef}
               className={styles.userButton}

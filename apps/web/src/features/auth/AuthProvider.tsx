@@ -103,7 +103,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setUser(nextUser);
       setStatus("ready");
-      setPendingVCodeSetup(null);
     },
     [pendingVCodeSetup],
   );
