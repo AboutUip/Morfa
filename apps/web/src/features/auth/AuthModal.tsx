@@ -89,7 +89,11 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
 
   const accountRef = useRef<HTMLInputElement>(null);
   const nicknameRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const confirmPasswordRef = useRef<HTMLInputElement>(null);
+  const avatarPickerRef = useRef<HTMLButtonElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const formErrorRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLElement>(null);
   const loginTabRef = useRef<HTMLButtonElement>(null);
   const registerTabRef = useRef<HTMLButtonElement>(null);
@@ -101,9 +105,13 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
   useEffect(() => {
     const target =
       initialMode === "register" ? nicknameRef.current : accountRef.current;
-    const timer = window.setTimeout(() => target?.focus(), 60);
-    return () => window.clearTimeout(timer);
+    const frame = requestAnimationFrame(() => target?.focus());
+    return () => cancelAnimationFrame(frame);
   }, [initialMode]);
+
+  useEffect(() => {
+    if (formError) formErrorRef.current?.focus();
+  }, [formError]);
 
   useEffect(() => {
     const trigger =
@@ -299,6 +307,26 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
     setAvatarFile(file);
   };
 
+  const focusField = (field: FieldName) => {
+    switch (field) {
+      case "avatar":
+        avatarPickerRef.current?.focus();
+        break;
+      case "nickname":
+        nicknameRef.current?.focus();
+        break;
+      case "loginAccount":
+        accountRef.current?.focus();
+        break;
+      case "password":
+        passwordRef.current?.focus();
+        break;
+      case "confirmPassword":
+        confirmPasswordRef.current?.focus();
+        break;
+    }
+  };
+
   const validate = (): FieldErrors => {
     const errors: FieldErrors = {};
     const account = loginAccount.trim();
@@ -345,6 +373,20 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       setFormError(null);
+
+      const firstError = (
+        [
+          "avatar",
+          "nickname",
+          "loginAccount",
+          "password",
+          "confirmPassword",
+        ] as FieldName[]
+      ).find((field) => errors[field]);
+
+      if (firstError) {
+        requestAnimationFrame(() => focusField(firstError));
+      }
       return;
     }
 
@@ -422,7 +464,6 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
             className={styles.tab}
             type="button"
             role="tab"
-            tabIndex={mode === "login" ? 0 : -1}
             aria-selected={mode === "login"}
             aria-controls="auth-panel"
             data-active={mode === "login"}
@@ -437,7 +478,6 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
             className={styles.tab}
             type="button"
             role="tab"
-            tabIndex={mode === "register" ? 0 : -1}
             aria-selected={mode === "register"}
             aria-controls="auth-panel"
             data-active={mode === "register"}
@@ -475,6 +515,7 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
           {mode === "register" ? (
             <div className={styles.avatarRow}>
               <button
+                ref={avatarPickerRef}
                 className={styles.avatarPicker}
                 type="button"
                 onClick={() => avatarInputRef.current?.click()}
@@ -562,6 +603,7 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
           <label className={styles.field}>
             <span className={styles.label}>{t("auth.password")}</span>
             <input
+              ref={passwordRef}
               className={styles.input}
               type="password"
               value={password}
@@ -586,6 +628,7 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
             <label className={styles.field}>
               <span className={styles.label}>{t("auth.confirmPassword")}</span>
               <input
+                ref={confirmPasswordRef}
                 className={styles.input}
                 type="password"
                 value={confirmPassword}
@@ -608,7 +651,12 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
           ) : null}
 
           {formError ? (
-            <div className={styles.formError} role="alert">
+            <div
+              ref={formErrorRef}
+              className={styles.formError}
+              role="alert"
+              tabIndex={-1}
+            >
               {t(formError)}
             </div>
           ) : null}

@@ -262,7 +262,6 @@ export function ProjectTopBar({
               className={styles.navTab}
               type="button"
               role="tab"
-              tabIndex={activeTab === tab.id ? 0 : -1}
               aria-selected={activeTab === tab.id}
               aria-controls={`panel-${tab.id}`}
               data-active={activeTab === tab.id}
@@ -330,7 +329,6 @@ export function ProjectTopBar({
                   className={styles.languageItem}
                   type="button"
                   role="menuitemradio"
-                  tabIndex={-1}
                   aria-checked={locale === currentLocale}
                   data-active={locale === currentLocale}
                   onClick={() => selectLanguage(locale)}

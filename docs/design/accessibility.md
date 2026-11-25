@@ -16,7 +16,7 @@
 4. 当前面板内的主要操作（如登录 / 注册）。
 5. 浏览器默认焦点循环。
 
-顶栏 Tab 使用 roving tabindex：只有当前 Tab 在 Tab 序列中，左右方向键切换并移动焦点；这样不会让三个 Tab 占用三次 Tab 按键。
+顶栏 Tab、弹窗内的登录 / 注册 Tab 与语言菜单选项均保留在 Tab 序列中，确保紧凑键盘或没有方向键的键盘也能完整操作；左右方向键作为快速切换方式，不替代 Tab 可达性。
 
 ## 键盘操作
 
@@ -43,7 +43,9 @@
 - 焦点陷阱拦截 `Tab` / `Shift+Tab`，在弹窗首尾循环。
 - 点击蒙版**不关闭**，避免误触；只能通过关闭按钮或 `Esc` 退出。
 - 关闭后移除 `inert`，焦点回到触发按钮；若触发按钮已因登录成功被替换，则聚焦主内容区域。
-- 弹窗 Tabs 使用 `role="tablist"`、`role="tab"`、`role="tabpanel"`，并同步 `aria-selected`、`tabIndex` 与 `aria-labelledby`。
+- 弹窗 Tabs 使用 `role="tablist"`、`role="tab"`、`role="tabpanel"`，并同步 `aria-selected` 与 `aria-labelledby`。
+- 校验失败时自动聚焦第一个错误字段；服务端错误出现时聚焦错误提示（`tabIndex={-1}`）。
+- 移动端软键盘弹出时，通过 `visualViewport` 同步 `--mf-viewport-height` 与 `--mf-viewport-offset-top`，底部弹窗保持在可视区域内并允许内部滚动。
 
 ## 语义与状态
 
@@ -57,13 +59,14 @@
 ## 已验证
 
 - 首个 `Tab` 命中跳过链接，回车后焦点进入主内容。
-- 顶栏 Tab 的方向键、`Home`、`End` 切换正常，焦点跟随。
-- 语言菜单方向键、回车选择、Esc、焦点返回正常。
+- 顶栏 Tab 全部可通过 Tab 到达，方向键、`Home`、`End` 切换正常，焦点跟随。
+- 语言菜单全部选项可通过 Tab 到达，方向键、回车选择、Esc、焦点返回正常。
 - 弹窗打开后焦点进入账号输入框，背景 `inert` 生效。
 - 连续 `Tab` 只在弹窗内部循环，未逃逸到背景。
 - 登录 / 注册 Tab 的方向键切换与后续 Tab 顺序正常。
 - `Esc` 关闭弹窗后焦点回到登录按钮。
 - 桌面与移动端键盘操作一致。
+- 移动端软键盘适配通过 `visualViewport` 实现；真实 iOS / Android 设备仍需回归验证。
 
 ## 后续
 

@@ -24,4 +24,7 @@
   --mf-safe-right: env(safe-area-inset-right, 0px);
   --mf-safe-bottom: env(safe-area-inset-bottom, 0px);
   --mf-safe-left: env(safe-area-inset-left, 0px);
+
+  --mf-viewport-height: 100dvh;
+  --mf-viewport-offset-top: 0px;
 }
