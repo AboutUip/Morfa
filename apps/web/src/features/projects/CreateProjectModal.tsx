@@ -82,11 +82,15 @@ export function CreateProjectModal({
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [panelHeight, setPanelHeight] = useState<number | null>(null);
+  const [heightReady, setHeightReady] = useState(false);
   const [controller] = useState(() =>
     createLoadingProgressController(),
   );
 
   const panelRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const busyRef = useRef(false);
@@ -129,6 +133,31 @@ export function CreateProjectModal({
   useEffect(() => {
     if (step === 1) nameRef.current?.focus();
   }, [step]);
+
+  useLayoutEffect(() => {
+    const content = contentRef.current;
+    if (!content) return;
+
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+
+    const frame = requestAnimationFrame(() => {
+      setPanelHeight(content.offsetHeight + 2);
+      setHeightReady(true);
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [step, error, iconError, iconName, type]);
+
+  useEffect(() => {
+    const content = contentRef.current;
+    if (!content) return;
+
+    const observer = new ResizeObserver(() => {
+      setPanelHeight(content.offsetHeight + 2);
+    });
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, []);
 
   const requestClose = () => {
     if (busyRef.current) return;
@@ -307,7 +336,9 @@ export function CreateProjectModal({
     >
       <div
         ref={panelRef}
-        className={styles.panel}
+        className={`${styles.panel} ${styles.dynamicPanel}`}
+        style={panelHeight ? { height: `${panelHeight}px` } : undefined}
+        data-ready={heightReady}
         role="dialog"
         aria-modal="true"
         aria-labelledby="create-project-title"
@@ -315,276 +346,280 @@ export function CreateProjectModal({
         inert={closing}
         onClick={(event) => event.stopPropagation()}
       >
-        <header className={styles.header}>
-          <div>
-            <p className={styles.eyebrow}>{t("projects.create.eyebrow")}</p>
-            <h2 id="create-project-title">{t("projects.create.title")}</h2>
-          </div>
-          <button
-            className={styles.closeButton}
-            type="button"
-            onClick={requestClose}
-            disabled={creating}
-            aria-label={t("projects.create.close")}
-          >
-            <CloseIcon size={16} />
-          </button>
-        </header>
-
-        <div className={styles.stepDots} aria-hidden="true">
-          {[0, 1, 2].map((index) => (
-            <span
-              key={index}
-              className={styles.stepDot}
-              data-active={step >= index}
-            />
-          ))}
-        </div>
-
-        <div className={styles.body}>
-          {step === 0 ? (
-            <section className={styles.section}>
-              <h3>{t("projects.create.typeTitle")}</h3>
-              <p className={styles.sectionHint}>
-                {t("projects.create.typeHint")}
-              </p>
-              <div className={styles.typeGrid}>
-                <button
-                  className={styles.typeCard}
-                  type="button"
-                  data-selected={type === "software"}
-                  onClick={() => {
-                    setType("software");
-                    resetRequestId();
-                    setError(null);
-                  }}
-                >
-                  <span className={styles.typeIcon}>
-                    <MonitorIcon size={22} />
-                  </span>
-                  <strong>{t("projects.types.software")}</strong>
-                  <span>{t("projects.create.softwareHint")}</span>
-                </button>
-                <button
-                  className={styles.typeCard}
-                  type="button"
-                  data-selected={type === "website"}
-                  onClick={() => {
-                    setType("website");
-                    resetRequestId();
-                    setError(null);
-                  }}
-                >
-                  <span className={styles.typeIcon}>
-                    <GlobeIcon size={22} />
-                  </span>
-                  <strong>{t("projects.types.website")}</strong>
-                  <span>{t("projects.create.websiteHint")}</span>
-                </button>
+        <div ref={scrollRef} className={styles.panelScroll}>
+          <div ref={contentRef} className={styles.panelContent}>
+            <header className={styles.header}>
+              <div>
+                <p className={styles.eyebrow}>{t("projects.create.eyebrow")}</p>
+                <h2 id="create-project-title">{t("projects.create.title")}</h2>
               </div>
-            </section>
-          ) : step === 1 ? (
-            <section className={styles.section}>
-              <h3>{t("projects.create.detailsTitle")}</h3>
-              <p className={styles.sectionHint}>
-                {t("projects.create.detailsHint")}
-              </p>
+              <button
+                className={styles.closeButton}
+                type="button"
+                onClick={requestClose}
+                disabled={creating}
+                aria-label={t("projects.create.close")}
+              >
+                <CloseIcon size={16} />
+              </button>
+            </header>
 
-              <label className={styles.field}>
-                <span>{t("projects.create.name")}</span>
-                <input
-                  ref={nameRef}
-                  className={styles.input}
-                  value={name}
-                  maxLength={80}
-                  onChange={(event) => {
-                    setName(event.target.value);
-                    resetRequestId();
-                    setError(null);
-                  }}
-                  placeholder={t("projects.create.namePlaceholder")}
+            <div className={styles.stepDots} aria-hidden="true">
+              {[0, 1, 2].map((index) => (
+                <span
+                  key={index}
+                  className={styles.stepDot}
+                  data-active={step >= index}
                 />
-              </label>
+              ))}
+            </div>
 
-              <label className={styles.field}>
-                <span>{t("projects.create.description")}</span>
-                <textarea
-                  className={styles.textarea}
-                  value={description}
-                  maxLength={500}
-                  onChange={(event) => {
-                    setDescription(event.target.value);
-                    resetRequestId();
-                    setError(null);
-                  }}
-                  placeholder={t("projects.create.descriptionPlaceholder")}
-                />
-              </label>
-
-              <fieldset className={styles.fieldset}>
-                <legend>{t("projects.create.visibility")}</legend>
-                <div className={styles.visibilityGrid}>
-                  {(
-                    ["public", "private", "shared"] as ProjectVisibility[]
-                  ).map((option) => (
+            <div key={step} className={`${styles.body} ${styles.stepBody}`}>
+              {step === 0 ? (
+                <section className={styles.section}>
+                  <h3>{t("projects.create.typeTitle")}</h3>
+                  <p className={styles.sectionHint}>
+                    {t("projects.create.typeHint")}
+                  </p>
+                  <div className={styles.typeGrid}>
                     <button
-                      key={option}
-                      className={styles.visibilityOption}
+                      className={styles.typeCard}
                       type="button"
-                      data-selected={visibility === option}
+                      data-selected={type === "software"}
                       onClick={() => {
-                        setVisibility(option);
+                        setType("software");
                         resetRequestId();
                         setError(null);
                       }}
                     >
-                      <strong>{t(`projects.visibility.${option}`)}</strong>
-                      <span>
-                        {t(
-                          `projects.create.visibilityHints.${option}`,
-                        )}
+                      <span className={styles.typeIcon}>
+                        <MonitorIcon size={22} />
                       </span>
+                      <strong>{t("projects.types.software")}</strong>
+                      <span>{t("projects.create.softwareHint")}</span>
                     </button>
-                  ))}
-                </div>
-              </fieldset>
-            </section>
-          ) : (
-            <section className={styles.section}>
-              <h3>
-                {type === "website"
-                  ? t("projects.create.websiteIconTitle")
-                  : t("projects.create.softwareIconTitle")}
-              </h3>
-              <p className={styles.sectionHint}>
-                {t("projects.create.iconHint")}
-              </p>
+                    <button
+                      className={styles.typeCard}
+                      type="button"
+                      data-selected={type === "website"}
+                      onClick={() => {
+                        setType("website");
+                        resetRequestId();
+                        setError(null);
+                      }}
+                    >
+                      <span className={styles.typeIcon}>
+                        <GlobeIcon size={22} />
+                      </span>
+                      <strong>{t("projects.types.website")}</strong>
+                      <span>{t("projects.create.websiteHint")}</span>
+                    </button>
+                  </div>
+                </section>
+              ) : step === 1 ? (
+                <section className={styles.section}>
+                  <h3>{t("projects.create.detailsTitle")}</h3>
+                  <p className={styles.sectionHint}>
+                    {t("projects.create.detailsHint")}
+                  </p>
 
-              <button
-                className={styles.dropzone}
-                type="button"
-                data-active={dragActive}
-                onClick={() => fileInputRef.current?.click()}
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  setDragActive(true);
-                }}
-                onDragLeave={() => setDragActive(false)}
-                onDrop={handleDrop}
-              >
-                <span className={styles.dropPreview}>
-                  {iconDataUrl ? (
-                    <img src={iconDataUrl} alt="" />
-                  ) : (
-                    <BrandMark size={42} />
-                  )}
-                </span>
-                <span className={styles.dropCopy}>
-                  <strong>
-                    {dragActive
-                      ? t("projects.create.dropActive")
-                      : t("projects.create.dropHint")}
-                  </strong>
-                  <span>{t("projects.create.iconTypes")}</span>
-                  {iconName ? <code>{iconName}</code> : null}
-                </span>
-                <span className={styles.uploadGlyph}>
-                  <UploadIcon size={18} />
-                </span>
-              </button>
-              <input
-                ref={fileInputRef}
-                className={styles.fileInput}
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) void useFile(file);
-                  event.target.value = "";
-                }}
-              />
+                  <label className={styles.field}>
+                    <span>{t("projects.create.name")}</span>
+                    <input
+                      ref={nameRef}
+                      className={styles.input}
+                      value={name}
+                      maxLength={80}
+                      onChange={(event) => {
+                        setName(event.target.value);
+                        resetRequestId();
+                        setError(null);
+                      }}
+                      placeholder={t("projects.create.namePlaceholder")}
+                    />
+                  </label>
 
-              <div className={styles.dropActions}>
-                <button
-                  className={styles.textButton}
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  {t("projects.create.chooseFile")}
-                </button>
-                {iconDataUrl ? (
+                  <label className={styles.field}>
+                    <span>{t("projects.create.description")}</span>
+                    <textarea
+                      className={styles.textarea}
+                      value={description}
+                      maxLength={500}
+                      onChange={(event) => {
+                        setDescription(event.target.value);
+                        resetRequestId();
+                        setError(null);
+                      }}
+                      placeholder={t("projects.create.descriptionPlaceholder")}
+                    />
+                  </label>
+
+                  <fieldset className={styles.fieldset}>
+                    <legend>{t("projects.create.visibility")}</legend>
+                    <div className={styles.visibilityGrid}>
+                      {(
+                        ["public", "private", "shared"] as ProjectVisibility[]
+                      ).map((option) => (
+                        <button
+                          key={option}
+                          className={styles.visibilityOption}
+                          type="button"
+                          data-selected={visibility === option}
+                          onClick={() => {
+                            setVisibility(option);
+                            resetRequestId();
+                            setError(null);
+                          }}
+                        >
+                          <strong>{t(`projects.visibility.${option}`)}</strong>
+                          <span>
+                            {t(
+                              `projects.create.visibilityHints.${option}`,
+                            )}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </fieldset>
+                </section>
+              ) : (
+                <section className={styles.section}>
+                  <h3>
+                    {type === "website"
+                      ? t("projects.create.websiteIconTitle")
+                      : t("projects.create.softwareIconTitle")}
+                  </h3>
+                  <p className={styles.sectionHint}>
+                    {t("projects.create.iconHint")}
+                  </p>
+
                   <button
-                    className={styles.textButton}
+                    className={styles.dropzone}
+                    type="button"
+                    data-active={dragActive}
+                    onClick={() => fileInputRef.current?.click()}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      setDragActive(true);
+                    }}
+                    onDragLeave={() => setDragActive(false)}
+                    onDrop={handleDrop}
+                  >
+                    <span className={styles.dropPreview}>
+                      {iconDataUrl ? (
+                        <img src={iconDataUrl} alt="" />
+                      ) : (
+                        <BrandMark size={42} />
+                      )}
+                    </span>
+                    <span className={styles.dropCopy}>
+                      <strong>
+                        {dragActive
+                          ? t("projects.create.dropActive")
+                          : t("projects.create.dropHint")}
+                      </strong>
+                      <span>{t("projects.create.iconTypes")}</span>
+                      {iconName ? <code>{iconName}</code> : null}
+                    </span>
+                    <span className={styles.uploadGlyph}>
+                      <UploadIcon size={18} />
+                    </span>
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    className={styles.fileInput}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) void useFile(file);
+                      event.target.value = "";
+                    }}
+                  />
+
+                  <div className={styles.dropActions}>
+                    <button
+                      className={styles.textButton}
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      {t("projects.create.chooseFile")}
+                    </button>
+                    {iconDataUrl ? (
+                      <button
+                        className={styles.textButton}
+                        type="button"
+                        onClick={() => {
+                          setIconDataUrl(null);
+                          setIconName(null);
+                          setIconError(null);
+                          resetRequestId();
+                        }}
+                      >
+                        {t("projects.create.removeIcon")}
+                      </button>
+                    ) : (
+                      <span>{t("projects.create.defaultIcon")}</span>
+                    )}
+                  </div>
+                  {iconError ? (
+                    <p className={styles.error} role="alert">
+                      {iconError}
+                    </p>
+                  ) : null}
+                </section>
+              )}
+            </div>
+
+            {error ? (
+              <p className={styles.error} role="alert">
+                {error}
+              </p>
+            ) : null}
+
+            <footer className={styles.footer}>
+              <div>
+                {step > 0 ? (
+                  <button
+                    className={styles.secondary}
                     type="button"
                     onClick={() => {
-                      setIconDataUrl(null);
-                      setIconName(null);
-                      setIconError(null);
-                      resetRequestId();
+                      setError(null);
+                      setStep((current) => (current - 1) as 0 | 1);
                     }}
                   >
-                    {t("projects.create.removeIcon")}
+                    {t("projects.create.back")}
                   </button>
                 ) : (
-                  <span>{t("projects.create.defaultIcon")}</span>
+                  <button
+                    className={styles.secondary}
+                    type="button"
+                    onClick={requestClose}
+                  >
+                    {t("projects.create.cancel")}
+                  </button>
                 )}
               </div>
-              {iconError ? (
-                <p className={styles.error} role="alert">
-                  {iconError}
-                </p>
-              ) : null}
-            </section>
-          )}
-        </div>
-
-        {error ? (
-          <p className={styles.error} role="alert">
-            {error}
-          </p>
-        ) : null}
-
-        <footer className={styles.footer}>
-          <div>
-            {step > 0 ? (
               <button
-                className={styles.secondary}
+                className={styles.primary}
                 type="button"
+                disabled={!canContinue}
                 onClick={() => {
+                  if (step === 2) {
+                    void handleCreate();
+                    return;
+                  }
                   setError(null);
-                  setStep((current) => (current - 1) as 0 | 1);
+                  setStep((current) => (current + 1) as 1 | 2);
                 }}
               >
-                {t("projects.create.back")}
+                {step === 2
+                  ? t("projects.create.submit")
+                  : t("projects.create.next")}
               </button>
-            ) : (
-              <button
-                className={styles.secondary}
-                type="button"
-                onClick={requestClose}
-              >
-                {t("projects.create.cancel")}
-              </button>
-            )}
+            </footer>
           </div>
-          <button
-            className={styles.primary}
-            type="button"
-            disabled={!canContinue}
-            onClick={() => {
-              if (step === 2) {
-                void handleCreate();
-                return;
-              }
-              setError(null);
-              setStep((current) => (current + 1) as 1 | 2);
-            }}
-          >
-            {step === 2
-              ? t("projects.create.submit")
-              : t("projects.create.next")}
-          </button>
-        </footer>
+        </div>
       </div>
     </div>,
     document.body,
