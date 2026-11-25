@@ -15,10 +15,16 @@ import {
 } from "../../lib/api";
 import { apiErrorMessage } from "../../lib/apiErrors";
 import styles from "./ProfilePanel.module.css";
-import type { RequestVCode } from "./types";
+import type {
+  RequestModelEdit,
+  RequestModelTest,
+  RequestVCode,
+} from "./types";
 
 interface ModelTabProps {
   requestVCode: RequestVCode;
+  onEditModel: RequestModelEdit;
+  onTestModel: RequestModelTest;
 }
 
 type ProviderBusy = "sync" | "delete" | "reveal";
@@ -38,7 +44,11 @@ function providerHost(baseUrl: string): string {
   }
 }
 
-export function ModelTab({ requestVCode }: ModelTabProps) {
+export function ModelTab({
+  requestVCode,
+  onEditModel,
+  onTestModel,
+}: ModelTabProps) {
   const { t, i18n } = useTranslation();
   const locale = i18n.resolvedLanguage === "en-US" ? "en-US" : "zh-CN";
   const dateFormatter = useMemo(
@@ -592,11 +602,67 @@ export function ModelTab({ requestVCode }: ModelTabProps) {
                               key={model.id}
                               className={styles.providerModelItem}
                             >
-                              <span>{label}</span>
-                              {model.displayName &&
-                              model.displayName !== model.id ? (
-                                <code>{model.id}</code>
-                              ) : null}
+                              <div className={styles.providerModelInfo}>
+                                <span>{label}</span>
+                                {model.displayName &&
+                                model.displayName !== model.id ? (
+                                  <code>{model.id}</code>
+                                ) : null}
+                                <div className={styles.modelTags}>
+                                  {model.supportsStreaming ? (
+                                    <span>
+                                      {t("profile.models.tags.streaming")}
+                                    </span>
+                                  ) : null}
+                                  {model.supportsThinking ? (
+                                    <span>
+                                      {t("profile.models.tags.thinking")}
+                                    </span>
+                                  ) : null}
+                                  {model.supportsMultimodal ? (
+                                    <span>
+                                      {t("profile.models.tags.multimodal")}
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </div>
+                              <div className={styles.providerModelActions}>
+                                <button
+                                  className={styles.modelAction}
+                                  type="button"
+                                  onClick={() =>
+                                    onTestModel({
+                                      providerId: provider.id,
+                                      providerName: provider.name,
+                                      model,
+                                    })
+                                  }
+                                >
+                                  {t("profile.models.test.action")}
+                                </button>
+                                <button
+                                  className={styles.modelAction}
+                                  type="button"
+                                  onClick={() =>
+                                    onEditModel({
+                                      providerId: provider.id,
+                                      providerName: provider.name,
+                                      model,
+                                      onSaved: (updatedProvider) => {
+                                        setProviders((current) =>
+                                          current.map((item) =>
+                                            item.id === updatedProvider.id
+                                              ? updatedProvider
+                                              : item,
+                                          ),
+                                        );
+                                      },
+                                    })
+                                  }
+                                >
+                                  {t("profile.models.test.edit")}
+                                </button>
+                              </div>
                             </li>
                           );
                         })}

@@ -195,7 +195,55 @@
         "createFailed": "Could not add the provider",
         "deleteFailed": "Could not delete the provider",
         "syncFailed": "Could not refresh models",
-        "revealFailed": "Could not reveal the API key"
+        "revealFailed": "Could not reveal the API key",
+        "modelNotFound": "Model not found or already deleted",
+        "thinkingUnsupported": "Thinking is not enabled for this model",
+        "testFailed": "Model test failed",
+        "emptyResponse": "The model returned no content, so availability cannot be confirmed",
+        "streamInvalid": "The model test stream was interrupted or invalid",
+        "saveFailed": "Could not save model capabilities"
+      },
+      "tags": {
+        "streaming": "Streaming",
+        "thinking": "Thinking",
+        "multimodal": "Multimodal"
+      },
+      "test": {
+        "action": "Test",
+        "edit": "Edit",
+        "title": "Test model",
+        "streaming": "Streaming",
+        "nonStreaming": "Non-streaming",
+        "thinking": "Enable thinking",
+        "thinkingHint": "This test requests reasoning output from the model",
+        "thinkingUnsupported": "Thinking is not enabled for this model",
+        "tokenNote": "This test makes a real model call and consumes a small number of tokens.",
+        "preparing": "Preparing test…",
+        "running": "Calling the model…",
+        "success": "Model is available",
+        "successWithTime": "Model is available · {{duration}}",
+        "reasoning": "Reasoning",
+        "response": "Model response",
+        "waiting": "Waiting for the model…",
+        "emptyOutput": "No output yet",
+        "stop": "Stop",
+        "retry": "Test again",
+        "close": "Close",
+        "stopped": "Test stopped"
+      },
+      "capabilities": {
+        "title": "Edit model capabilities",
+        "streaming": "Streaming output",
+        "streamingHint": "Supports incremental streamed output",
+        "thinking": "Thinking mode",
+        "thinkingHint": "Supports reasoning / thinking",
+        "multimodal": "Multimodal",
+        "multimodalHint": "Supports images or other non-text input",
+        "note": "Configure capabilities that cannot be detected reliably. Saved values are used by later model tests.",
+        "cancel": "Cancel",
+        "save": "Save",
+        "saving": "Saving…",
+        "close": "Close"
       }
     }
   },

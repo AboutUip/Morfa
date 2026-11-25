@@ -2,7 +2,7 @@
 
 Morfa 的 Node.js 后端：HTTP API、账号认证、VCode 验证、SQLite 数据访问、加密数据导出与头像文件存储。
 
-> 状态：M1 认证、VCode、账号、导出与模型供应商 API 已实现；编辑器与项目接口待接入。
+> 状态：M1 认证、VCode、账号、导出、模型供应商与模型可用性测试 API 已实现；编辑器与项目接口待接入。
 
 ## 技术栈
 
@@ -19,7 +19,7 @@ Morfa 的 Node.js 后端：HTTP API、账号认证、VCode 验证、SQLite 数�
 ```text
 src/
 ├─ api/         认证、账号、导出与头像路由
-├─ services/    认证、VCode、个人资料、数据导出 / 导入、头像业务
+├─ services/    认证、VCode、个人资料、数据导出 / 导入、模型供应商与模型测试
 ├─ db/          连接、迁移、用户 / 会话 / 票据 / 导出 / 项目仓储
 ├─ lib/         Cookie、错误处理、密钥派生与加密辅助
 └─ index.ts     Fastify 启动入口
@@ -50,6 +50,8 @@ data/           本地 SQLite、头像、导出文件与主密钥（不提交）
 | `GET` | `/api/me/model-providers` | 读取模型供应商与已拉取模型 |
 | `POST` | `/api/me/model-providers` | 创建 OpenAI / Anthropic 供应商并拉取模型 |
 | `POST` | `/api/me/model-providers/:id/sync` | 重新拉取供应商模型 |
+| `PATCH` | `/api/me/model-providers/:id/models` | 更新单个模型的流式 / 思考 / 多模态能力 |
+| `POST` | `/api/me/model-providers/:id/test` | 真实调用模型，以 NDJSON 流返回测试过程与结果 |
 | `DELETE` | `/api/me/model-providers/:id` | 删除供应商 |
 | `POST` | `/api/me/model-providers/:id/reveal-key` | 消费 VCode ticket 后查看 API Key |
 | `GET` | `/uploads/avatars/:filename` | 读取头像文件 |
@@ -67,6 +69,9 @@ data/           本地 SQLite、头像、导出文件与主密钥（不提交）
 - setup token 10 分钟有效；VCode 敏感操作 ticket 5 分钟有效且只能消费一次。
 - 模型供应商 API Key 使用服务器主密钥 AES-256-GCM 加密存储；列表接口不返回 Key，查看 Key 需要 `reveal_api_key` ticket。
 - 模型列表由服务端请求供应商，限制 HTTP / HTTPS 与 15 秒超时；自托管部署应评估可访问的出站地址范围，避免 SSRF 风险。
+- 每个模型保存 `supports_streaming`、`supports_thinking`、`supports_multimodal` 三项能力。拉取时能从供应商元数据稳定识别的能力直接采用；无法判断的默认「支持流式、不支持思考、不支持多模态」，用户可在模型编辑弹窗中调整，重新同步会保留手动配置。
+- `POST /api/me/model-providers/:id/test` 使用存储的 API Key 发起真实请求，固定提示模型返回 `MORFA`；模型支持流式时使用流式协议。响应为 `application/x-ndjson`，事件类型包括 `start`、`reasoning`、`delta`、`done`、`error`；空返回、鉴权失败、超时与中断分别映射为稳定错误码。
+- 模型测试会真实消耗供应商 token，单次最长 60 秒；测试响应不缓存，API Key 与模型正文不写入日志。
 - 同一用户只保留一个有效导出包；新导出使旧包失效，导入成功后吊销数据包。
 
 ## 导出安全

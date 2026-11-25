@@ -195,7 +195,55 @@
         "createFailed": "添加供应商失败",
         "deleteFailed": "删除供应商失败",
         "syncFailed": "刷新模型失败",
-        "revealFailed": "查看 API Key 失败"
+        "revealFailed": "查看 API Key 失败",
+        "modelNotFound": "模型不存在或已被删除",
+        "thinkingUnsupported": "该模型未启用思考能力",
+        "testFailed": "模型测试失败",
+        "emptyResponse": "模型没有返回内容，无法确认可用性",
+        "streamInvalid": "模型测试流已中断或格式不正确",
+        "saveFailed": "保存模型能力失败"
+      },
+      "tags": {
+        "streaming": "流式",
+        "thinking": "思考",
+        "multimodal": "多模态"
+      },
+      "test": {
+        "action": "测试",
+        "edit": "编辑",
+        "title": "测试模型",
+        "streaming": "流式",
+        "nonStreaming": "非流式",
+        "thinking": "启用思考",
+        "thinkingHint": "本次测试会请求模型输出思考过程",
+        "thinkingUnsupported": "该模型未配置思考能力",
+        "tokenNote": "测试会真实调用模型并产生少量 token 消耗。",
+        "preparing": "准备测试…",
+        "running": "正在真实调用模型…",
+        "success": "模型可用",
+        "successWithTime": "模型可用 · {{duration}}",
+        "reasoning": "思考过程",
+        "response": "模型返回",
+        "waiting": "等待模型返回…",
+        "emptyOutput": "暂无返回内容",
+        "stop": "停止",
+        "retry": "重新测试",
+        "close": "关闭",
+        "stopped": "测试已停止"
+      },
+      "capabilities": {
+        "title": "编辑模型能力",
+        "streaming": "流式输出",
+        "streamingHint": "支持流式增量输出",
+        "thinking": "思考模式",
+        "thinkingHint": "支持推理 / 思考过程",
+        "multimodal": "多模态",
+        "multimodalHint": "支持图片等非文本输入",
+        "note": "无法稳定自动识别的能力可在此手动配置；保存后会用于后续模型测试。",
+        "cancel": "取消",
+        "save": "保存",
+        "saving": "正在保存…",
+        "close": "关闭"
       }
     }
   },

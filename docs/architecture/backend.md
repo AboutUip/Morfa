@@ -1,6 +1,6 @@
 # 后端架构
 
-> 状态：M1 认证、VCode、账号、导出与模型供应商 API 已实现 · 最后更新：2026-11-26
+> 状态：M1 认证、VCode、账号、导出、模型供应商与模型测试 API 已实现 · 最后更新：2026-11-26
 
 ## 职责
 
@@ -64,7 +64,9 @@ apps/server/
 - `POST /api/me/cancel`：校验当前密码并消费 `cancel` ticket，软删除账号、清除密码与 VCode、吊销全部会话。
 - `GET /api/me/model-providers`：读取当前用户的模型供应商与已拉取模型。
 - `POST /api/me/model-providers`：创建 OpenAI / Anthropic 供应商；服务端请求模型列表，成功后才保存供应商。
-- `POST /api/me/model-providers/:id/sync`：使用存储的 API Key 重新拉取模型列表。
+- `POST /api/me/model-providers/:id/sync`：使用存储的 API Key 重新拉取模型列表；已有模型的手动能力配置会保留。
+- `PATCH /api/me/model-providers/:id/models`：按 `modelId` 更新 `supportsStreaming`、`supportsThinking`、`supportsMultimodal`，返回更新后的供应商。
+- `POST /api/me/model-providers/:id/test`：真实调用模型，以 `application/x-ndjson` 流返回 `start`、`reasoning`、`delta`、`done`、`error` 事件；支持根据模型能力自动选择流式 / 非流式，并在开启思考时发送供应商对应的推理参数。
 - `DELETE /api/me/model-providers/:id`：删除供应商并级联删除模型。
 - `POST /api/me/model-providers/:id/reveal-key`：消费 `reveal_api_key` ticket 后返回解密后的 API Key。
 - `GET /uploads/avatars/:filename`：读取头像。
@@ -74,6 +76,8 @@ apps/server/
 - 导出包使用随机数据密钥 AES-256-GCM 加密，数据密钥再由服务器主密钥包裹；主密钥来自 `MORFA_EXPORT_MASTER_KEY` 或本地 `data/export-master.key`。
 - 模型供应商 API Key 使用同一服务器主密钥做 AES-256-GCM 加密后存储；列表接口不返回 Key，只有消费 `reveal_api_key` ticket 后才能解密查看。
 - 模型列表由服务端请求供应商，限制为 HTTP / HTTPS、15 秒超时，并且不记录 API Key 或响应正文；自托管部署应结合出站网络策略评估 Base URL 的 SSRF 风险。
+- 模型能力随模型一起存储。拉取模型列表时从 `capabilities`、`supported_parameters`、`architecture` 等元数据识别流式 / 思考 / 多模态能力；无法稳定识别的采用最小默认值（流式开启、思考与多模态关闭），并提供 `PATCH` 接口供用户手动修正。
+- 模型测试使用固定提示词验证模型确实返回内容；OpenAI 协议发送 `reasoning_effort`，Anthropic 协议发送 `thinking` 与对应 token 预算。流式请求按 SSE 增量解析，客户端断开时中止上游请求，单次测试最长 60 秒。空响应、鉴权失败、超时、流格式错误与上游错误分别返回稳定错误码。
 - 头像文件写入 `apps/server/data/uploads/avatars/`，数据库仅保存 `uploads/avatars/<uuid>.<ext>` 相对路径，限制 PNG / JPG / WebP 2 MB。
 - 详细取舍见 [ADR 0005](../decisions/0005-auth-and-avatar.md)。
 

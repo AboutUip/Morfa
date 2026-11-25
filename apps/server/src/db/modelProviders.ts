@@ -18,6 +18,9 @@ export interface ProviderModelRow {
   model_id: string;
   display_name: string | null;
   created_at: number | null;
+  supports_streaming: boolean;
+  supports_thinking: boolean;
+  supports_multimodal: boolean;
 }
 
 export interface ProviderWithModels {
@@ -29,6 +32,9 @@ interface JoinedRow extends ProviderRow {
   model_id: string | null;
   display_name: string | null;
   model_created_at: number | null;
+  supports_streaming: number | null;
+  supports_thinking: number | null;
+  supports_multimodal: number | null;
 }
 
 const PROVIDER_COLUMNS = `
@@ -64,6 +70,9 @@ function groupRows(rows: JoinedRow[]): ProviderWithModels[] {
         model_id: row.model_id,
         display_name: row.display_name,
         created_at: row.model_created_at,
+        supports_streaming: row.supports_streaming !== 0,
+        supports_thinking: row.supports_thinking === 1,
+        supports_multimodal: row.supports_multimodal === 1,
       });
     }
   }
@@ -78,7 +87,9 @@ export function listProvidersWithModels(
     .prepare(
       `SELECT ${PROVIDER_COLUMNS},
               m.model_id, m.display_name,
-              m.created_at AS model_created_at
+              m.created_at AS model_created_at,
+              m.supports_streaming, m.supports_thinking,
+              m.supports_multimodal
        FROM model_providers p
        LEFT JOIN model_provider_models m ON m.provider_id = p.id
        WHERE p.user_id = ?
@@ -97,7 +108,9 @@ export function findProviderWithModels(
     .prepare(
       `SELECT ${PROVIDER_COLUMNS},
               m.model_id, m.display_name,
-              m.created_at AS model_created_at
+              m.created_at AS model_created_at,
+              m.supports_streaming, m.supports_thinking,
+              m.supports_multimodal
        FROM model_providers p
        LEFT JOIN model_provider_models m ON m.provider_id = p.id
        WHERE p.user_id = ? AND p.id = ?
@@ -155,12 +168,16 @@ export function insertProviderModels(
     modelId: string;
     displayName: string | null;
     createdAt: number | null;
+    supportsStreaming: boolean;
+    supportsThinking: boolean;
+    supportsMultimodal: boolean;
   }>,
 ) {
   const statement = db.prepare(
     `INSERT INTO model_provider_models
-      (provider_id, model_id, display_name, created_at)
-     VALUES (?, ?, ?, ?)`,
+      (provider_id, model_id, display_name, created_at,
+       supports_streaming, supports_thinking, supports_multimodal)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
   );
 
   for (const model of models) {
@@ -169,6 +186,9 @@ export function insertProviderModels(
       model.modelId,
       model.displayName,
       model.createdAt,
+      model.supportsStreaming ? 1 : 0,
+      model.supportsThinking ? 1 : 0,
+      model.supportsMultimodal ? 1 : 0,
     );
   }
 }
@@ -188,6 +208,37 @@ export function updateProviderSynced(
      SET updated_at = ?, last_synced_at = ?
      WHERE id = ?`,
   ).run(now, now, providerId);
+}
+
+export function updateProviderModelCapabilities(input: {
+  providerId: string;
+  modelId: string;
+  supportsStreaming: boolean;
+  supportsThinking: boolean;
+  supportsMultimodal: boolean;
+}): boolean {
+  const result = db
+    .prepare(
+      `UPDATE model_provider_models
+       SET supports_streaming = ?, supports_thinking = ?,
+           supports_multimodal = ?
+       WHERE provider_id = ? AND model_id = ?`,
+    )
+    .run(
+      input.supportsStreaming ? 1 : 0,
+      input.supportsThinking ? 1 : 0,
+      input.supportsMultimodal ? 1 : 0,
+      input.providerId,
+      input.modelId,
+    );
+
+  return Number(result.changes) === 1;
+}
+
+export function touchProvider(providerId: string, now: number) {
+  db.prepare(
+    "UPDATE model_providers SET updated_at = ? WHERE id = ?",
+  ).run(now, providerId);
 }
 
 export function deleteProviderRecord(

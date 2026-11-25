@@ -42,7 +42,7 @@ PRAGMA synchronous = NORMAL;
 
 ## 已实现表（认证、VCode、导出、模型供应商）
 
-迁移文件：`apps/server/migrations/0001_auth.sql`、`apps/server/migrations/0002_vcode_account.sql`、`apps/server/migrations/0003_model_providers.sql`。
+迁移文件：`apps/server/migrations/0001_auth.sql`、`apps/server/migrations/0002_vcode_account.sql`、`apps/server/migrations/0003_model_providers.sql`、`apps/server/migrations/0004_model_capabilities.sql`。
 
 ```text
 users
@@ -111,10 +111,13 @@ model_providers
   last_synced_at  INTEGER
 
 model_provider_models
-  provider_id   TEXT NOT NULL REFERENCES model_providers(id) ON DELETE CASCADE
-  model_id      TEXT NOT NULL
-  display_name  TEXT
-  created_at    INTEGER
+  provider_id          TEXT NOT NULL REFERENCES model_providers(id) ON DELETE CASCADE
+  model_id             TEXT NOT NULL
+  display_name         TEXT
+  created_at           INTEGER
+  supports_streaming   INTEGER NOT NULL DEFAULT 1
+  supports_thinking    INTEGER NOT NULL DEFAULT 0
+  supports_multimodal  INTEGER NOT NULL DEFAULT 0
   PRIMARY KEY (provider_id, model_id)
 ```
 
@@ -128,6 +131,7 @@ model_provider_models
 - 会话保留 30 天，过期后在启动或查询时清理；setup token 10 分钟、敏感操作 ticket 5 分钟。
 - 模型供应商的 API Key 只保存 AES-256-GCM 密文；`reveal_api_key` ticket 消费后才由服务端解密返回。
 - 模型列表与供应商分离存储，删除供应商时级联删除模型；重新同步时在事务内替换模型列表。
+- 模型能力以三项布尔值随模型保存；可自动识别的能力在拉取时写入，无法稳定识别的采用最小默认值（流式开启、思考与多模态关闭），用户手动修改后在同步时保留。
 - 索引：`sessions(user_id)`、`sessions(expires_at)`、`vcode_setup_tokens(user_id)`、`sensitive_tickets(user_id, purpose)`、`exports(original_login_account)`、`projects(user_id)`、`model_providers(user_id, created_at)`、`model_provider_models(provider_id)`。
 
 ## 规划表（草案）

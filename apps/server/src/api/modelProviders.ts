@@ -1,3 +1,5 @@
+import { Readable } from "node:stream";
+
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
 import { readSessionToken } from "../lib/cookies.js";
@@ -8,7 +10,12 @@ import {
   removeModelProvider,
   revealModelProviderKey,
   syncModelProvider,
+  updateModelCapabilities,
 } from "../services/modelProviders.js";
+import {
+  prepareModelTest,
+  streamModelTest,
+} from "../services/modelTest.js";
 
 function readBody(request: FastifyRequest): Record<string, unknown> {
   return request.body && typeof request.body === "object"
@@ -58,6 +65,64 @@ export function registerModelProviderRoutes(app: FastifyInstance) {
       const session = requireActiveUser(readSessionToken(request));
       removeModelProvider(session.row, request.params.id);
       return reply.code(204).send();
+    },
+  );
+
+  app.patch<{ Params: { id: string } }>(
+    "/api/me/model-providers/:id/models",
+    async (request) => {
+      const session = requireActiveUser(readSessionToken(request));
+      const body = readBody(request);
+
+      const provider = updateModelCapabilities(
+        session.row,
+        request.params.id,
+        readString(body.modelId),
+        {
+          supportsStreaming: body.supportsStreaming === true,
+          supportsThinking: body.supportsThinking === true,
+          supportsMultimodal: body.supportsMultimodal === true,
+        },
+      );
+
+      return { provider };
+    },
+  );
+
+  app.post<{ Params: { id: string } }>(
+    "/api/me/model-providers/:id/test",
+    async (request, reply) => {
+      const session = requireActiveUser(readSessionToken(request));
+      const body = readBody(request);
+
+      const context = prepareModelTest(
+        session.row,
+        request.params.id,
+        readString(body.modelId),
+        body.thinking === true,
+      );
+
+      const controller = new AbortController();
+      reply.raw.on("close", () => {
+        if (!reply.raw.writableEnded) controller.abort();
+      });
+
+      const stream = Readable.from(
+        (async function* () {
+          for await (const event of streamModelTest(
+            context,
+            controller.signal,
+          )) {
+            yield `${JSON.stringify(event)}\n`;
+          }
+        })(),
+      );
+
+      return reply
+        .type("application/x-ndjson; charset=utf-8")
+        .header("cache-control", "no-store")
+        .header("x-accel-buffering", "no")
+        .send(stream);
     },
   );
 

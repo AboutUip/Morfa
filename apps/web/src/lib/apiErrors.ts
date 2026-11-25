@@ -53,6 +53,14 @@ const API_ERROR_KEYS: Record<string, string> = {
   PROVIDER_FETCH_FAILED: "profile.models.errors.fetchFailed",
   PROVIDER_RESPONSE_INVALID: "profile.models.errors.responseInvalid",
   SECRET_CORRUPT: "profile.models.errors.keyCorrupt",
+  MODEL_NOT_FOUND: "profile.models.errors.modelNotFound",
+  MODEL_THINKING_UNSUPPORTED: "profile.models.errors.thinkingUnsupported",
+  MODEL_AUTH_FAILED: "profile.models.errors.authFailed",
+  MODEL_TIMEOUT: "profile.models.errors.timeout",
+  MODEL_REQUEST_FAILED: "profile.models.errors.testFailed",
+  MODEL_EMPTY_RESPONSE: "profile.models.errors.emptyResponse",
+  MODEL_STREAM_INVALID: "profile.models.errors.streamInvalid",
+  MODEL_UNREACHABLE: "profile.models.errors.unreachable",
 };
 
 export function apiErrorKey(error: unknown, fallbackKey: string): string {

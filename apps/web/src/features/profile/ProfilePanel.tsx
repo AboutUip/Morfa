@@ -9,6 +9,8 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import { VCodeModal } from "../../components/VCodeModal";
+import { ModelEditModal } from "../../components/ModelEditModal";
+import { ModelTestModal } from "../../components/ModelTestModal";
 import { PasswordModal } from "../../components/PasswordModal";
 import {
   CloseIcon,
@@ -17,7 +19,7 @@ import {
   SparkIcon,
   UserIcon,
 } from "../../components/icons";
-import { profileApi, type VCodePurpose } from "../../lib/api";
+import { profileApi, type VCodePurpose, modelProviderApi } from "../../lib/api";
 import { lockBackground } from "../../lib/backgroundLock";
 import { useAnimatedClose } from "../../lib/useAnimatedClose";
 import { useMediaQuery } from "../../lib/useMediaQuery";
@@ -27,6 +29,10 @@ import { ModelTab } from "./ModelTab";
 import { ProfileTab } from "./ProfileTab";
 import styles from "./ProfilePanel.module.css";
 import type {
+  ModelEditRequest,
+  ModelTestRequest,
+  RequestModelEdit,
+  RequestModelTest,
   RequestPassword,
   RequestVCode,
   VCodeStep,
@@ -82,6 +88,10 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
     useState<PasswordRequest | null>(null);
   const [pendingVCodeStep, setPendingVCodeStep] =
     useState<VCodeStep | null>(null);
+  const [modelEditRequest, setModelEditRequest] =
+    useState<ModelEditRequest | null>(null);
+  const [modelTestRequest, setModelTestRequest] =
+    useState<ModelTestRequest | null>(null);
   const { closing, beginClose } = useAnimatedClose(onClose);
 
   const panelRef = useRef<HTMLDivElement>(null);
@@ -112,8 +122,15 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
     };
   }, []);
 
+  const modalOpen = Boolean(
+    vcodeRequest ||
+      passwordRequest ||
+      modelEditRequest ||
+      modelTestRequest,
+  );
+
   useEffect(() => {
-    if (vcodeRequest || passwordRequest) return;
+    if (modalOpen) return;
 
     const panel = panelRef.current;
     if (!panel) return;
@@ -159,7 +176,7 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
 
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [vcodeRequest, passwordRequest, beginClose]);
+  }, [modalOpen, beginClose]);
 
   if (!user) return null;
 
@@ -196,6 +213,32 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
 
   const requestVCode: RequestVCode = (purpose, onVerified) => {
     setVcodeRequest({ purpose, onVerified });
+  };
+
+  const requestModelEdit: RequestModelEdit = (request) => {
+    setModelEditRequest(request);
+  };
+
+  const requestModelTest: RequestModelTest = (request) => {
+    setModelTestRequest(request);
+  };
+
+  const handleModelCapabilitiesSave = async (
+    capabilities: {
+      supportsStreaming: boolean;
+      supportsThinking: boolean;
+      supportsMultimodal: boolean;
+    },
+  ) => {
+    if (!modelEditRequest) return;
+
+    const { provider } = await modelProviderApi.updateModelCapabilities(
+      modelEditRequest.providerId,
+      modelEditRequest.model.id,
+      capabilities,
+    );
+
+    modelEditRequest.onSaved(provider);
   };
 
   const requestPassword: RequestPassword = (
@@ -270,7 +313,7 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
         aria-label={t("profile.panelTitle")}
         tabIndex={-1}
         data-closing={closing}
-        inert={closing || Boolean(vcodeRequest || passwordRequest)}
+        inert={closing || modalOpen}
       >
         <button
           className={styles.closeButton}
@@ -347,7 +390,11 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
               onClose={onClose}
             />
           ) : (
-            <ModelTab requestVCode={requestVCode} />
+            <ModelTab
+              requestVCode={requestVCode}
+              onEditModel={requestModelEdit}
+              onTestModel={requestModelTest}
+            />
           )}
         </section>
       </div>
@@ -367,6 +414,20 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
           closeLabel={t("vcode.close")}
           onComplete={handleVCodeComplete}
           onClose={() => setVcodeRequest(null)}
+        />
+      ) : modelEditRequest ? (
+        <ModelEditModal
+          providerName={modelEditRequest.providerName}
+          model={modelEditRequest.model}
+          onSave={handleModelCapabilitiesSave}
+          onClose={() => setModelEditRequest(null)}
+        />
+      ) : modelTestRequest ? (
+        <ModelTestModal
+          providerId={modelTestRequest.providerId}
+          providerName={modelTestRequest.providerName}
+          model={modelTestRequest.model}
+          onClose={() => setModelTestRequest(null)}
         />
       ) : null}
     </>,

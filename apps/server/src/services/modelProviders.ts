@@ -8,6 +8,8 @@ import {
   insertProvider,
   insertProviderModels,
   listProvidersWithModels,
+  touchProvider,
+  updateProviderModelCapabilities,
   updateProviderSynced,
   type ProviderProtocol,
   type ProviderWithModels,
@@ -30,6 +32,11 @@ interface RemoteModel {
   id: string;
   displayName: string | null;
   createdAt: number | null;
+  capabilities: {
+    streaming?: boolean;
+    thinking?: boolean;
+    multimodal?: boolean;
+  };
 }
 
 export interface ModelProviderDto {
@@ -41,6 +48,9 @@ export interface ModelProviderDto {
     id: string;
     displayName: string | null;
     createdAt: number | null;
+    supportsStreaming: boolean;
+    supportsThinking: boolean;
+    supportsMultimodal: boolean;
   }>;
   createdAt: number;
   updatedAt: number;
@@ -137,17 +147,21 @@ function validateApiKey(value: string): string {
   return apiKey;
 }
 
-function buildModelsUrl(
-  protocol: ProviderProtocol,
+function buildModelsUrl(baseUrl: string): string {
+  return buildProviderEndpoint(baseUrl, "/models");
+}
+
+export function buildProviderEndpoint(
   baseUrl: string,
+  suffix: string,
 ): string {
   const url = new URL(baseUrl);
   let pathname = url.pathname.replace(/\/+$/, "");
 
   if (!pathname || pathname === "/") {
-    pathname = "/v1/models";
-  } else if (!pathname.endsWith("/models")) {
-    pathname = `${pathname}/models`;
+    pathname = `/v1${suffix}`;
+  } else if (!pathname.endsWith(suffix)) {
+    pathname = `${pathname}${suffix}`;
   }
 
   url.pathname = pathname;
@@ -165,6 +179,141 @@ function toTimestamp(value: unknown): number | null {
   }
 
   return null;
+}
+
+function parseBoolean(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
+}
+
+function detectCapabilities(record: Record<string, unknown>): {
+  streaming?: boolean;
+  thinking?: boolean;
+  multimodal?: boolean;
+} {
+  const capabilities: {
+    streaming?: boolean;
+    thinking?: boolean;
+    multimodal?: boolean;
+  } = {};
+
+  const supported = record.supported_parameters;
+  if (Array.isArray(supported)) {
+    const values = supported.filter(
+      (value): value is string => typeof value === "string",
+    );
+    if (
+      values.some((value) =>
+        ["reasoning", "reasoning_effort", "include_reasoning"].includes(
+          value,
+        ),
+      )
+    ) {
+      capabilities.thinking = true;
+    }
+    if (values.includes("stream")) capabilities.streaming = true;
+  }
+
+  const architecture = record.architecture;
+  if (architecture && typeof architecture === "object") {
+    const architectureRecord = architecture as Record<string, unknown>;
+    const modality = architectureRecord.modality;
+    if (
+      typeof modality === "string" &&
+      /image|vision|multimodal/i.test(modality)
+    ) {
+      capabilities.multimodal = true;
+    }
+
+    const inputModalities = architectureRecord.input_modalities;
+    if (Array.isArray(inputModalities)) {
+      if (
+        inputModalities.some(
+          (value) =>
+            typeof value === "string" &&
+            /image|vision|multimodal/i.test(value),
+        )
+      ) {
+        capabilities.multimodal = true;
+      }
+    }
+  }
+
+  const remoteCapabilities = record.capabilities;
+  if (remoteCapabilities && typeof remoteCapabilities === "object") {
+    const capabilityRecord = remoteCapabilities as Record<string, unknown>;
+
+    const direct = {
+      streaming: parseBoolean(capabilityRecord.streaming),
+      thinking: parseBoolean(capabilityRecord.thinking),
+      multimodal:
+        parseBoolean(capabilityRecord.vision) ??
+        parseBoolean(capabilityRecord.multimodal),
+    };
+    if (direct.streaming !== undefined) {
+      capabilities.streaming = direct.streaming;
+    }
+    if (direct.thinking !== undefined) {
+      capabilities.thinking = direct.thinking;
+    }
+    if (direct.multimodal !== undefined) {
+      capabilities.multimodal = direct.multimodal;
+    }
+
+    const imageInput = capabilityRecord.image_input;
+    if (imageInput && typeof imageInput === "object") {
+      const supportedValue = parseBoolean(
+        (imageInput as Record<string, unknown>).supported,
+      );
+      if (supportedValue !== undefined) {
+        capabilities.multimodal = supportedValue;
+      }
+    }
+
+    const thinking = capabilityRecord.thinking;
+    if (thinking && typeof thinking === "object") {
+      const supportedValue = parseBoolean(
+        (thinking as Record<string, unknown>).supported,
+      );
+      if (supportedValue !== undefined) {
+        capabilities.thinking = supportedValue;
+      }
+    }
+
+    const streaming = capabilityRecord.streaming;
+    if (streaming && typeof streaming === "object") {
+      const supportedValue = parseBoolean(
+        (streaming as Record<string, unknown>).supported,
+      );
+      if (supportedValue !== undefined) {
+        capabilities.streaming = supportedValue;
+      }
+    }
+  }
+
+  const directStreaming =
+    parseBoolean(record.supports_streaming) ??
+    parseBoolean(record.supportsStreaming);
+  if (directStreaming !== undefined) {
+    capabilities.streaming = directStreaming;
+  }
+
+  const directThinking =
+    parseBoolean(record.supports_thinking) ??
+    parseBoolean(record.supportsThinking) ??
+    parseBoolean(record.supports_reasoning);
+  if (directThinking !== undefined) {
+    capabilities.thinking = directThinking;
+  }
+
+  const directMultimodal =
+    parseBoolean(record.supports_multimodal) ??
+    parseBoolean(record.supportsMultimodal) ??
+    parseBoolean(record.supports_vision);
+  if (directMultimodal !== undefined) {
+    capabilities.multimodal = directMultimodal;
+  }
+
+  return capabilities;
 }
 
 function parseModels(payload: unknown): RemoteModel[] {
@@ -214,7 +363,12 @@ function parseModels(payload: unknown): RemoteModel[] {
       toTimestamp(record.created_at) ?? toTimestamp(record.created);
 
     if (!models.has(id)) {
-      models.set(id, { id, displayName, createdAt });
+      models.set(id, {
+        id,
+        displayName,
+        createdAt,
+        capabilities: detectCapabilities(record),
+      });
     }
 
     if (models.size >= MAX_MODELS) break;
@@ -232,7 +386,7 @@ async function fetchRemoteModels(
   baseUrl: string,
   apiKey: string,
 ): Promise<RemoteModel[]> {
-  const modelsUrl = buildModelsUrl(protocol, baseUrl);
+  const modelsUrl = buildModelsUrl(baseUrl);
   const headers: Record<string, string> = {
     accept: "application/json",
   };
@@ -311,6 +465,9 @@ function toDto(entry: ProviderWithModels): ModelProviderDto {
       id: model.model_id,
       displayName: model.display_name,
       createdAt: model.created_at,
+      supportsStreaming: model.supports_streaming,
+      supportsThinking: model.supports_thinking,
+      supportsMultimodal: model.supports_multimodal,
     })),
     createdAt: entry.provider.created_at,
     updatedAt: entry.provider.updated_at,
@@ -353,6 +510,9 @@ export async function createModelProvider(
         modelId: model.id,
         displayName: model.displayName,
         createdAt: model.createdAt,
+        supportsStreaming: model.capabilities.streaming ?? true,
+        supportsThinking: model.capabilities.thinking ?? false,
+        supportsMultimodal: model.capabilities.multimodal ?? false,
       })),
     );
   });
@@ -373,11 +533,15 @@ export async function syncModelProvider(
   user: UserRow,
   providerId: string,
 ): Promise<ModelProviderDto> {
-  const provider = findProviderForUser(user.id, providerId);
-  if (!provider) {
+  const existing = findProviderWithModels(user.id, providerId);
+  if (!existing) {
     throw new ApiError(404, "PROVIDER_NOT_FOUND", "供应商不存在");
   }
 
+  const provider = existing.provider;
+  const previousCapabilities = new Map(
+    existing.models.map((model) => [model.model_id, model]),
+  );
   const apiKey = decryptSecret(provider.api_key_cipher);
   const remoteModels = await fetchRemoteModels(
     provider.protocol,
@@ -390,11 +554,26 @@ export async function syncModelProvider(
     deleteProviderModels(provider.id);
     insertProviderModels(
       provider.id,
-      remoteModels.map((model) => ({
-        modelId: model.id,
-        displayName: model.displayName,
-        createdAt: model.createdAt,
-      })),
+      remoteModels.map((model) => {
+        const previous = previousCapabilities.get(model.id);
+        return {
+          modelId: model.id,
+          displayName: model.displayName,
+          createdAt: model.createdAt,
+          supportsStreaming:
+            previous?.supports_streaming ??
+            model.capabilities.streaming ??
+            true,
+          supportsThinking:
+            previous?.supports_thinking ??
+            model.capabilities.thinking ??
+            false,
+          supportsMultimodal:
+            previous?.supports_multimodal ??
+            model.capabilities.multimodal ??
+            false,
+        };
+      }),
     );
     updateProviderSynced(provider.id, now);
   });
@@ -405,6 +584,51 @@ export async function syncModelProvider(
   }
 
   return toDto(updated);
+}
+
+export function updateModelCapabilities(
+  user: UserRow,
+  providerId: string,
+  modelId: string,
+  capabilities: {
+    supportsStreaming: boolean;
+    supportsThinking: boolean;
+    supportsMultimodal: boolean;
+  },
+): ModelProviderDto {
+  const existing = findProviderWithModels(user.id, providerId);
+  if (!existing) {
+    throw new ApiError(404, "PROVIDER_NOT_FOUND", "供应商不存在");
+  }
+
+  if (!existing.models.some((model) => model.model_id === modelId)) {
+    throw new ApiError(404, "MODEL_NOT_FOUND", "模型不存在");
+  }
+
+  const now = Date.now();
+
+  transaction(() => {
+    const updated = updateProviderModelCapabilities({
+      providerId,
+      modelId,
+      supportsStreaming: capabilities.supportsStreaming,
+      supportsThinking: capabilities.supportsThinking,
+      supportsMultimodal: capabilities.supportsMultimodal,
+    });
+
+    if (!updated) {
+      throw new ApiError(404, "MODEL_NOT_FOUND", "模型不存在");
+    }
+
+    touchProvider(providerId, now);
+  });
+
+  const updatedProvider = findProviderWithModels(user.id, providerId);
+  if (!updatedProvider) {
+    throw new ApiError(404, "PROVIDER_NOT_FOUND", "供应商不存在");
+  }
+
+  return toDto(updatedProvider);
 }
 
 export function removeModelProvider(

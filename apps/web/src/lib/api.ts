@@ -38,6 +38,9 @@ export interface ModelProviderModel {
   id: string;
   displayName: string | null;
   createdAt: number | null;
+  supportsStreaming: boolean;
+  supportsThinking: boolean;
+  supportsMultimodal: boolean;
 }
 
 export type ModelProviderProtocol = "openai" | "anthropic";
@@ -249,4 +252,46 @@ export const modelProviderApi = {
         body: JSON.stringify({ ticket }),
       },
     ),
+
+  updateModelCapabilities: (
+    providerId: string,
+    modelId: string,
+    capabilities: {
+      supportsStreaming: boolean;
+      supportsThinking: boolean;
+      supportsMultimodal: boolean;
+    },
+  ) =>
+    request<{ provider: ModelProvider }>(
+      `/api/me/model-providers/${encodeURIComponent(
+        providerId,
+      )}/models`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ modelId, ...capabilities }),
+      },
+    ),
+
+  testStream: async (
+    providerId: string,
+    modelId: string,
+    thinking: boolean,
+    signal: AbortSignal,
+  ): Promise<Response> => {
+    try {
+      return await fetch(
+        `/api/me/model-providers/${encodeURIComponent(providerId)}/test`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ modelId, thinking }),
+          signal,
+        },
+      );
+    } catch {
+      throw new ApiError(0, "NETWORK_ERROR", "Cannot reach the Morfa API");
+    }
+  },
 };

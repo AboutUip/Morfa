@@ -41,14 +41,14 @@ apps/web/
 features/
 ├─ bootstrap/              # 启动任务、加载界面、进度汇总（已实现）
 ├─ auth/                   # AuthProvider、登录 / 注册与 VCode 设置门（已实现）
-├─ profile/                # 个人面板、资料编辑、模型供应商、导出与注销（已实现）
+├─ profile/                # 个人面板、资料编辑、模型供应商、模型测试、导出与注销（已实现）
 ├─ projects/               # 项目主页与顶栏（已实现）
 ├─ editor/                 # 画布、图层、属性面板、快捷键（规划）
 ├─ agent/                  # 对话、运行状态、变更预览（规划）
 └─ settings/               # 主题、语言、账户设置（规划）
 ```
 
-当前 `App` 在启动加载结束后渲染 `projects/ProjectsPage`；账号状态由 `auth/AuthProvider` 在应用启动时通过 `/api/auth/me` 恢复。跨功能复用的 `components/VCodeModal` 提供 3×4 数字键盘、6 位自动确认、物理键盘输入、焦点陷阱与焦点恢复；`components/PasswordModal` 提供当前密码验证、串行操作与同样的焦点管理。个人面板通过 `features/profile` 组织资料、导出与注销流程。
+当前 `App` 在启动加载结束后渲染 `projects/ProjectsPage`；账号状态由 `auth/AuthProvider` 在应用启动时通过 `/api/auth/me` 恢复。跨功能复用的 `components/VCodeModal` 提供 3×4 数字键盘、6 位自动确认、物理键盘输入、焦点陷阱与焦点恢复；`components/PasswordModal` 提供当前密码验证、串行操作与同样的焦点管理；`components/ModelTestModal` 与 `components/ModelEditModal` 分别承载模型真实调用测试与能力配置，沿用相同的进入 / 退出动画和焦点管理。个人面板通过 `features/profile` 组织资料、导出与注销流程。
 
 规则：
 
