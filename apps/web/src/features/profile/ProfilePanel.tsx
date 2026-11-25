@@ -19,6 +19,7 @@ import {
 import { profileApi, type VCodePurpose } from "../../lib/api";
 import { lockBackground } from "../../lib/backgroundLock";
 import { useAnimatedClose } from "../../lib/useAnimatedClose";
+import { useMediaQuery } from "../../lib/useMediaQuery";
 import { useAuth } from "../auth/AuthProvider";
 import { AccountTab } from "./AccountTab";
 import { ProfileTab } from "./ProfileTab";
@@ -68,6 +69,7 @@ interface ProfilePanelProps {
 export function ProfilePanel({ onClose }: ProfilePanelProps) {
   const { t } = useTranslation();
   const { user, logout } = useAuth();
+  const isCompact = useMediaQuery("(max-width: 640px)");
   const [activeTab, setActiveTab] = useState<ProfileTabId>("profile");
   const [loggingOut, setLoggingOut] = useState(false);
   const [vcodeRequest, setVcodeRequest] = useState<VCodeRequest | null>(
@@ -280,7 +282,7 @@ export function ProfilePanel({ onClose }: ProfilePanelProps) {
           <nav
             className={styles.tabs}
             role="tablist"
-            aria-orientation="vertical"
+            aria-orientation={isCompact ? "horizontal" : "vertical"}
             aria-label={t("profile.panelTitle")}
             onKeyDown={handleTabKeyDown}
           >
