@@ -35,16 +35,19 @@ apps/web/
 └─ README.md
 ```
 
-### 功能模块（规划）
+### 功能模块
 
 ```text
 features/
-├─ editor/                 # 画布、图层、属性面板、快捷键
-├─ agent/                  # 对话、运行状态、变更预览
-├─ projects/               # 项目列表、创建、打开
-├─ settings/               # 主题、语言、账户设置
-└─ auth/                   # 登录与注册（形态待定）
+├─ bootstrap/              # 启动任务、加载界面、进度汇总（已实现）
+├─ auth/                   # AuthProvider 与登录 / 注册弹窗（已实现）
+├─ projects/               # 项目主页与顶栏（已实现）
+├─ editor/                 # 画布、图层、属性面板、快捷键（规划）
+├─ agent/                  # 对话、运行状态、变更预览（规划）
+└─ settings/               # 主题、语言、账户设置（规划）
 ```
+
+当前 `App` 在启动加载结束后渲染 `projects/ProjectsPage`；账号状态由 `auth/AuthProvider` 在应用启动时通过 `/api/auth/me` 恢复。
 
 规则：
 

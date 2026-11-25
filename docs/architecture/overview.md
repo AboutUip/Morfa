@@ -1,6 +1,6 @@
 # 架构总览
 
-> 状态：草案 · 最后更新：2026-11-25
+> 状态：M1 部分实现 · 最后更新：2026-11-25
 
 ## 目标与约束
 
@@ -43,12 +43,12 @@ flowchart LR
 | 组件 | 职责 | 现状 |
 | --- | --- | --- |
 | Web 客户端 | 编辑器 UI、画布渲染、状态管理、i18n、主题 | 待搭建 |
-| API 服务 | REST/SSE 接口、鉴权、校验、限流、日志 | 待搭建 |
+| API 服务 | REST/SSE 接口、鉴权、校验、限流、日志 | 认证 API 已实现 |
 | 设计文档服务 | 读取 / 写入结构化文档、版本与补丁 | 待搭建 |
 | Agent 编排器 | 规划、工具调用、流式事件、运行记录 | 待搭建 |
 | XAIOP SDK | 结构化数据的流式编解码（Node / browser / core） | 已 vendored |
-| SQLite | 用户、项目、设计文档、Agent 运行记录、资源元数据 | 待搭建 |
-| 文件存储 | 上传图片、导出文件；开发期落本地磁盘 | 待搭建 |
+| SQLite | 用户、会话、项目、设计文档、Agent 运行记录 | 用户 / 会话已接入 |
+| 文件存储 | 上传图片、导出文件；开发期落本地磁盘 | 头像已接入 |
 
 ## 关键数据流
 
@@ -90,6 +90,7 @@ flowchart LR
 - [ADR 0002：仓库结构](../decisions/0002-monorepo.md)
 - [ADR 0003：主题与 i18n 作为一等能力](../decisions/0003-theming-and-i18n.md)
 - [ADR 0004：以 vendored 源码集成 XAIOP](../decisions/0004-xaiop-integration.md) · [集成文档](../integrations/xaiop.md)
+- [ADR 0005：账号认证与头像存储](../decisions/0005-auth-and-avatar.md)
 
 ## 待确认问题
 

@@ -2,7 +2,7 @@
 
 Morfa is an AI-powered, cross-platform online UI design platform. Agents operate on structured, editable design documents, while users retain control through preview, apply, and undo.
 
-> Status: M1 in progress. The web workspace is runnable and includes a 3-second bootstrap screen with an extensible progress API, a Figma-like shell, light/dark themes, and Chinese/English switching. Backend and editor capabilities are still pending.
+> Status: M1 in progress. The project page, 3-second bootstrap screen, account registration / login modal, and authentication API are runnable. Projects, editor, and Agent capabilities are still pending.
 >
 > Chinese is the primary language of this project. The Chinese documentation under `docs/` is authoritative; this page provides an English overview.
 
@@ -17,15 +17,17 @@ Morfa is an AI-powered, cross-platform online UI design platform. Agents operate
 
 ```bash
 npm install
-npm run dev     # http://127.0.0.1:5173
+npm run dev     # web http://127.0.0.1:5173 + API http://127.0.0.1:3001
 npm run build
 ```
+
+Accounts support avatar upload (only the relative file path is stored), nickname, unique login account, password confirmation, and automatic sign-in after sign-up. The login/register modal does not close when the backdrop is clicked.
 
 ## Repository layout
 
 ```text
-apps/web        React workspace shell, bootstrap flow, theme and i18n
-apps/server     Node.js API, SQLite, Agent orchestration
+apps/web        React project page, bootstrap flow, auth modal, theme and i18n
+apps/server     Fastify API, SQLite auth, avatar storage, Agent orchestration
 packages/shared Shared types, schemas, and contracts
 branding/       Logo, badge, favicon and app icons
 docs/           Product, architecture, design, Agent, guides, ADRs

@@ -1,6 +1,6 @@
 # 后端架构
 
-> 状态：草案 · 最后更新：2026-11-25
+> 状态：M1 认证 API 已实现 · 最后更新：2026-11-25
 
 ## 职责
 
@@ -10,12 +10,12 @@ Node.js 服务负责鉴权、项目与设计文档的持久化、资源管理、
 
 | 项 | 选择 | 状态 |
 | --- | --- | --- |
-| 运行时 | Node.js >= 22（LTS） | 建议 |
-| 语言 | TypeScript（strict） | 已选定 |
-| HTTP 框架 | Fastify | 建议，待实现确认 |
-| 校验 | Zod（与共享 schema 复用） | 建议 |
-| 数据库 | SQLite（WAL） | 已选定 |
-| 数据访问 | Drizzle ORM + better-sqlite3 | 建议 |
+| 运行时 | Node.js >= 22（LTS） | 已接入 |
+| 语言 | TypeScript（strict） | 已接入 |
+| HTTP 框架 | Fastify 5 | 已接入（认证 API） |
+| 校验 | Zod（与共享 schema 复用） | 建议，当前为手写校验 |
+| 数据库 | SQLite（WAL） | 已接入（认证） |
+| 数据访问 | `node:sqlite`（原生） | 已接入；ORM 评估中 |
 | Agent 流式协议 | XAIOP Node SDK | 已 vendored，详见 [XAIOP 集成](../integrations/xaiop.md) |
 | 日志 | Pino（结构化 JSON） | 建议 |
 | 测试 | Vitest + Supertest / Fastify inject | 建议 |
@@ -44,9 +44,22 @@ apps/server/
 - `db` 封装 SQL 与事务，不依赖 HTTP 类型。
 - `agent` 通过服务接口读写设计文档，不直接拼 SQL。
 
+## 已实现：认证 API
+
+- `GET /api/health`：健康检查。
+- `GET /api/auth/me`：读取当前会话用户；未登录返回 `{ user: null }`。
+- `POST /api/auth/login`：JSON 登录，成功后写入 `morfa_session` Cookie。
+- `POST /api/auth/register`：`multipart/form-data`，字段为 `avatar`、`nickname`、`loginAccount`、`password`、`confirmPassword`；成功后创建会话并自动登录。
+- `POST /api/auth/logout`：删除会话并清除 Cookie。
+- `GET /uploads/avatars/:filename`：读取头像。
+- 登录账号写入前转小写，数据库使用 `COLLATE NOCASE UNIQUE` 去重。
+- 密码使用 `scrypt` + 随机盐哈希；会话令牌只保存 SHA-256 哈希。
+- 头像文件写入 `apps/server/data/uploads/avatars/`，数据库仅保存 `uploads/avatars/<uuid>.<ext>` 相对路径，限制 PNG / JPG / WebP 2 MB。
+- 详细取舍见 [ADR 0005](../decisions/0005-auth-and-avatar.md)。
+
 ## API 约定
 
-- 前缀：`/api/v1`，破坏性变更通过版本升级。
+- 现有认证接口位于 `/api/auth/*`；版本化前缀 `/api/v1` 在项目 / 设计文档 API 落地时统一评估。
 - 格式：JSON；上传使用 `multipart/form-data`。
 - 鉴权：Cookie Session 或 Bearer Token（待定），写操作统一校验权限。
 - 错误响应：
@@ -87,6 +100,8 @@ apps/server/
 ## 安全
 
 - 所有输入使用 schema 校验；SQL 只通过参数化查询或 ORM 执行。
+- 认证：密码 scrypt 哈希；会话令牌随机生成、数据库仅保存哈希；Cookie 为 `HttpOnly; SameSite=Lax`。
+- 上传：头像限制 MIME、文件签名与 2 MB 大小；文件名由服务端生成，禁止路径穿越。
 - 登录、生成与上传接口限流；敏感操作记录审计日志。
 - 上传文件校验 MIME、扩展名与大小，存储在非公开目录，通过受控接口读取。
 - Agent 工具按最小权限执行，模型输出不得直接拼接为 SQL、shell 或文件路径。

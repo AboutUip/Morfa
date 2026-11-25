@@ -1,6 +1,6 @@
 # 数据库设计
 
-> 状态：草案 · 最后更新：2026-11-25
+> 状态：M1 认证表已实现 · 最后更新：2026-11-25
 
 ## 为什么选择 SQLite
 
@@ -40,30 +40,37 @@ PRAGMA synchronous = NORMAL;
 - 部署前先备份数据库；迁移脚本需在接近生产的数据量上验证耗时。
 - 迁移与代码同时提交，CI 中执行「空库迁移 + 冒烟查询」。
 
-## 表结构草案
+## 已实现表（认证）
 
-> 以下为规划草案，字段会在 M1 / M2 实现时随用例调整。
-
-### 用户与会话
+迁移文件：`apps/server/migrations/0001_auth.sql`。
 
 ```text
 users
-  id            TEXT PK
-  email         TEXT UNIQUE NOT NULL
-  display_name  TEXT NOT NULL
-  password_hash TEXT
-  locale        TEXT NOT NULL DEFAULT 'zh-CN'
-  theme         TEXT NOT NULL DEFAULT 'system'
+  id            TEXT PK                 -- UUID
+  nickname      TEXT NOT NULL
+  login_account TEXT NOT NULL COLLATE NOCASE UNIQUE
+  password_hash TEXT NOT NULL           -- scrypt$salt$hash
+  avatar_path   TEXT NOT NULL           -- uploads/avatars/<uuid>.<ext>
   created_at    INTEGER NOT NULL
   updated_at    INTEGER NOT NULL
 
 sessions
-  id            TEXT PK
+  token_hash    TEXT PK                 -- SHA-256(token)
   user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE
-  token_hash    TEXT NOT NULL UNIQUE
   expires_at    INTEGER NOT NULL
   created_at    INTEGER NOT NULL
 ```
+
+约定：
+
+- 登录账号写入前统一转小写，唯一约束大小写不敏感。
+- 头像文件落在 `data/uploads/avatars/`，数据库仅保存相对路径。
+- 会话保留 30 天，过期后在登录或查询时清理。
+- 索引：`sessions(user_id)`、`sessions(expires_at)`。
+
+## 规划表（草案）
+
+> 以下为项目、设计文档与 Agent 的规划草案，字段会随用例调整。
 
 ### 项目与设计文档
 

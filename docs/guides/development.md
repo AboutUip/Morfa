@@ -6,7 +6,7 @@
 
 | 工具 | 版本 | 说明 |
 | --- | --- | --- |
-| Node.js | >= 22（建议当前 LTS） | 使用 `node --version` 检查 |
+| Node.js | >= 22.12（建议当前 LTS） | 使用 `node --version` 检查 |
 | npm | >= 10 | 随 Node.js 安装，项目使用 npm workspaces |
 | Git | 最新稳定版 | 提交前确认换行符配置 |
 | SQLite | 由依赖内置 | 无需单独安装命令行工具 |
@@ -15,18 +15,19 @@
 
 ## 当前状态
 
-仓库处于 M1：Web 工作区已可启动，包含 3 秒启动加载、Figma 风格工作区骨架、主题与中英文切换；后端与编辑器能力仍待接入。
+仓库处于 M1：Web 项目页、3 秒启动加载、账号注册 / 登录与认证 API 已可用；项目创建、编辑器与 Agent 能力仍待接入。
 
 ### 已可用命令
 
 | 命令 | 作用 |
 | --- | --- |
 | `npm install` | 安装所有 workspace 依赖（含 vendored XAIOP） |
-| `npm run dev` | 启动 Web 开发服务器（`http://127.0.0.1:5173`） |
-| `npm run dev:web` | 同上，仅启动前端 |
-| `npm run build` | 类型检查并构建 Web 产物 |
-| `npm run preview` | 预览生产构建 |
-| `npm run typecheck` | 仅执行 TypeScript 类型检查 |
+| `npm run dev` | 并行启动 Web 与 API（`5173` / `3001`） |
+| `npm run dev:web` | 仅启动前端 |
+| `npm run dev:server` | 仅启动后端（`tsx watch`） |
+| `npm run build` | Web 构建 + 服务端类型检查 |
+| `npm run preview` | 预览 Web 生产构建 |
+| `npm run typecheck` | Web 与服务端 TypeScript 检查 |
 | `npm run xaiop:build` | 编译 XAIOP SDK 到 `vendor/xaiop/.../dist` |
 | `npm run xaiop:test` | 编译并运行 XAIOP 上游完整测试 |
 | `npm run xaiop:check` | 校验 Node / browser / core 入口与夹具解析 |
@@ -35,12 +36,11 @@
 
 | 命令 | 作用 |
 | --- | --- |
-| `npm run dev:server` | 启动后端 |
 | `npm run lint` | 代码检查 |
 | `npm run format` | 格式化 |
 | `npm run test` | 单元与集成测试 |
 | `npm run test:e2e` | Playwright 端到端测试 |
-| `npm run db:migrate` | 执行数据库迁移 |
+| `npm run db:migrate` | 独立的迁移命令（当前服务启动时自动迁移） |
 
 命令落地后，本表与根 `package.json` 必须保持一致。
 
@@ -50,20 +50,14 @@
 git clone https://github.com/AboutUip/Morfa.git Morfa
 cd Morfa
 npm install
-npm run xaiop:check
 npm run dev
 ```
 
-打开 <http://127.0.0.1:5173>，应看到 3 秒启动加载后进入工作区。
+打开 <http://127.0.0.1:5173>，应看到 3 秒启动加载后进入项目页。API 默认运行在 `127.0.0.1:3001`。
 
-后端接入后还需复制 `.env.example` 并执行数据库迁移：
-
-```bash
-cp .env.example .env        # 待后端提供
-npm run db:migrate
-```
-
-Windows PowerShell 中复制环境变量文件使用 `Copy-Item .env.example .env`。
+- SQLite 数据库位于 `apps/server/data/morfa.sqlite`（不提交），服务启动时自动执行迁移。
+- 头像文件位于 `apps/server/data/uploads/avatars/`，数据库只保存相对路径。
+- 当前无需 `.env`；需要覆盖端口或数据目录时可设置 `PORT`、`HOST`、`DATA_DIR`、`DATABASE_PATH`。
 
 ## 启动与加载流程
 
@@ -73,7 +67,7 @@ Web 端启动流程位于 `apps/web/src/features/bootstrap/`：
 - `useBootstrap.ts`：负责 React 生命周期、取消、错误状态与重试。
 - `LoadingScreen.tsx`：显示进度、当前任务文案、百分比与错误界面。
 
-接入真实网络初始化时，将 `workspaceBootstrapTasks` 替换为会话、项目、设计文档等任务即可，加载界面与汇总逻辑无需修改。当前占位任务固定 3 秒后完成，便于验证加载动画与工作区切换。
+接入真实网络初始化时，将 `workspaceBootstrapTasks` 替换为会话、项目、设计文档等任务即可，加载界面与汇总逻辑无需修改。当前占位任务固定 3 秒后完成，随后进入项目页。
 
 ## XAIOP SDK
 

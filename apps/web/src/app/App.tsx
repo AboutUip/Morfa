@@ -1,12 +1,12 @@
 import { LoadingScreen } from "../features/bootstrap/LoadingScreen";
 import { useBootstrap } from "../features/bootstrap/useBootstrap";
-import { WorkspaceShell } from "../features/workspace/WorkspaceShell";
+import { ProjectsPage } from "../features/projects/ProjectsPage";
 
 export default function App() {
   const { status, progress, taskLabelKey, error, retry } = useBootstrap();
 
   if (status === "ready") {
-    return <WorkspaceShell />;
+    return <ProjectsPage />;
   }
 
   return (

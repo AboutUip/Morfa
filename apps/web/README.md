@@ -2,12 +2,15 @@
 
 Morfa 的 React 前端：在线设计编辑器、Agent 对话面板与设置界面。
 
-> 状态：M1 工作区骨架已实现，可通过 `npm run dev` 启动。
+> 状态：M1 项目页与认证弹窗已实现，可通过 `npm run dev` 启动。
 
 ## 已实现
 
 - **启动加载**：固定 3 秒占位，进度由可组合的 bootstrap 任务驱动；后续替换为网络初始化任务即可展示真实进度。
-- **工作区骨架**：顶栏 `logo | Morfa`、页面 / 图层侧栏、画布与属性面板，布局参考 Figma。
+- **项目主页**：顶栏 `logo | Morfa`，项目区域默认空状态，右上角提供登录入口。
+- **登录 / 注册弹窗**：支持登录与注册切换；点击蒙版不关闭，只通过右上角关闭按钮退出。
+- **注册**：头像、昵称、登录账号、密码、确认密码；注册成功后自动登录。
+- **登录态**：会话恢复、顶栏头像 / 昵称展示与退出登录。
 - **主题**：`system / light / dark`，首屏内联初始化，无闪烁；顶栏支持浅色 / 深色切换。
 - **国际化**：`zh-CN` 默认、`en-US` 辅助，运行时切换并持久化。
 - **资源策略**：使用系统字体栈，不依赖外部字体；标志按主题选择并按需请求。
@@ -28,7 +31,8 @@ src/
 ├─ components/  BrandMark、图标等展示组件
 ├─ features/
 │  ├─ bootstrap/  启动任务、进度 hook 与加载界面
-│  └─ workspace/  顶栏、侧栏、画布与属性面板
+│  ├─ auth/       AuthProvider 与登录 / 注册弹窗
+│  └─ projects/   项目主页与顶栏
 ├─ lib/         theme Provider、i18n 初始化
 ├─ locales/     zh-CN / en-US 文案资源
 ├─ styles/      设计令牌、主题与全局样式
@@ -41,10 +45,10 @@ public/         favicon、apple-touch-icon、PWA 图标与 manifest
 在仓库根目录执行：
 
 ```bash
-npm run dev        # Vite 开发服务器 http://127.0.0.1:5173
-npm run build      # tsc --noEmit + vite build
+npm run dev        # 根目录：同时启动 Web 与 API（5173 / 3001）
+npm run build      # tsc --noEmit + vite build + 服务端类型检查
 npm run preview    # 预览生产构建
-npm run typecheck  # 仅类型检查
+npm run typecheck  # 类型检查
 ```
 
 ## 启动流程与扩展
@@ -68,10 +72,14 @@ npm run typecheck  # 仅类型检查
 - 设计文档与 API 类型从 `@morfa/shared` 导入。
 - 功能模块通过公开入口互相引用，禁止深层跨模块导入。
 
+## 认证接口
+
+前端通过 Vite proxy 调用 `/api` 与 `/uploads`（开发环境指向 `127.0.0.1:3001`）。`AuthProvider` 在应用启动时请求 `/api/auth/me` 恢复会话；登录与注册成功后更新用户状态，注册由服务端直接写入会话 Cookie。
+
 ## 后续工作
 
 1. 增加路由与错误边界，拆分项目列表与编辑器页面。
-2. 接入后端 API 与项目 / 设计文档状态。
+2. 项目 / 设计文档状态与创建流程。
 3. 将固定占位任务替换为真实网络初始化任务。
 4. 搭建编辑器画布与 Agent 面板。
 5. 补充 Vitest / Playwright 测试。

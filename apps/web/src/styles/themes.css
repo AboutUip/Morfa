@@ -21,6 +21,8 @@
   --mf-accent-soft: rgba(91, 91, 214, 0.12);
   --mf-accent-contrast: #ffffff;
   --mf-success: #17996a;
+  --mf-danger: #c63c3c;
+  --mf-danger-soft: rgba(198, 60, 60, 0.09);
 
   --mf-canvas-dot: rgba(24, 24, 31, 0.16);
   --mf-artboard: #ffffff;
@@ -56,6 +58,8 @@
   --mf-accent-soft: rgba(165, 161, 255, 0.14);
   --mf-accent-contrast: #0b0f14;
   --mf-success: #4ade9f;
+  --mf-danger: #ff8a8a;
+  --mf-danger-soft: rgba(255, 138, 138, 0.12);
 
   --mf-canvas-dot: rgba(255, 255, 255, 0.14);
   --mf-artboard: #151b23;

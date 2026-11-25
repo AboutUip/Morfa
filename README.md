@@ -13,7 +13,7 @@ Morfa 是一个 AI 原生的在线 UI 设计工具。它把自然语言意图与
 
 > 仓库：<https://github.com/AboutUip/Morfa> · XAIOP 上游：<https://github.com/AboutUip/XAIOP>
 >
-> 当前阶段：**M1 进行中**。Web 工作区已可启动：包含 3 秒启动加载（进度接口可扩展）、Figma 风格工作区骨架、深色 / 浅色主题与中英文切换。后端与编辑器能力待后续里程碑接入。
+> 当前阶段：**M1 进行中**。已可启动 Web + API：3 秒启动加载（进度接口可扩展）、项目主页、账号注册 / 登录（头像、昵称、账号去重）、深色 / 浅色主题与中英文切换。编辑器与项目创建能力待后续里程碑接入。
 
 ## 核心方向
 
@@ -28,7 +28,9 @@ Morfa 是一个 AI 原生的在线 UI 设计工具。它把自然语言意图与
 ## 当前实现
 
 - **启动加载**：固定 3 秒占位，进度由可组合的 bootstrap 任务驱动；后续替换为网络初始化任务即可展示真实进度。
-- **工作区骨架**：顶栏 `logo | Morfa`、页面 / 图层侧栏、画布与属性面板，布局参考 Figma。
+- **项目主页**：顶栏 `logo | Morfa`，下方项目区域默认空状态；右上角提供登录入口。
+- **账号系统**：登录 / 注册弹窗（仅关闭按钮退出，点击蒙版不关闭），支持头像、昵称、登录账号、密码与确认密码；注册后自动登录。
+- **存储与安全**：SQLite 保存用户与会话；登录账号唯一且大小写不敏感；密码使用 scrypt 哈希；头像文件写入磁盘，数据库只保存相对路径。
 - **主题**：`system / light / dark` 三态，首屏无闪烁，顶栏可切换。
 - **国际化**：默认简体中文，支持英文切换，界面文案全部来自资源文件。
 
@@ -38,8 +40,8 @@ Morfa 是一个 AI 原生的在线 UI 设计工具。它把自然语言意图与
 | --- | --- | --- |
 | 前端 | React + TypeScript | 已搭建 |
 | 前端构建 | Vite | 已接入 |
-| 后端 | Node.js + TypeScript | 已选定 |
-| 数据库 | SQLite（WAL 模式） | 已选定 |
+| 后端 | Node.js + TypeScript + Fastify | 已搭建（认证 API） |
+| 数据库 | SQLite（WAL 模式，node:sqlite） | 已接入（认证） |
 | Agent 流式协议 | XAIOP SDK `0.16.0`（vendored 源码） | 已集成 |
 | 仓库组织 | npm workspaces（monorepo） | 已采用 |
 | 测试 | Vitest + Playwright | 建议方案 |
@@ -51,8 +53,8 @@ Web 依赖版本已写入 `apps/web/package.json` 与根锁文件；其余依赖
 ```text
 Morfa/
 ├─ apps/
-│  ├─ web/                 # React 前端应用（加载流程 + 工作区骨架）
-│  └─ server/              # Node.js API 与 SQLite（待搭建）
+│  ├─ web/                 # React 前端（项目页 + 账号弹窗）
+│  └─ server/              # Fastify API、SQLite 认证与头像存储
 ├─ packages/
 │  └─ shared/              # 跨端共享的类型、契约与常量
 ├─ branding/               # 标志、徽标与 favicon / app icons
@@ -78,13 +80,13 @@ Morfa/
 
 ```bash
 npm install          # 安装所有 workspace 依赖（含 vendored XAIOP）
-npm run dev          # 启动 Web 工作区：http://127.0.0.1:5173
+npm run dev          # 启动 Web + API：http://127.0.0.1:5173（API: 3001）
 npm run build        # 类型检查 + 构建 Web 产物
 npm run preview      # 预览生产构建
 npm run xaiop:check  # 校验 XAIOP Node / browser / core 入口
 ```
 
-环境要求：Node.js >= 22、npm >= 10、Git。更多说明见 [开发指南](docs/guides/development.md) 与 [XAIOP 集成文档](docs/integrations/xaiop.md)。
+环境要求：Node.js >= 22.12、npm >= 10、Git。更多说明见 [开发指南](docs/guides/development.md) 与 [XAIOP 集成文档](docs/integrations/xaiop.md)。
 
 ## 文档
 
