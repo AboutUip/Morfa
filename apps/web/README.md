@@ -23,6 +23,7 @@ Morfa 的 React 前端：在线设计编辑器、Agent 对话面板与设置界�
 - Vite 8 + `@vitejs/plugin-react`
 - i18next + react-i18next
 - CSS Modules + CSS Variables
+- Maple Mono CN 等宽中英文字体（WOFF2 子集，OFL-1.1）
 - XAIOP Vite 插件（按需编译 vendor SDK）
 
 ## 目录

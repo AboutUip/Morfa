@@ -32,6 +32,7 @@ Morfa 是一个 AI 原生的在线 UI 设计工具。它把自然语言意图与
 - **账号系统**：登录 / 注册弹窗（仅关闭按钮退出，点击蒙版不关闭），支持头像、昵称、登录账号、密码与确认密码；注册后自动登录。
 - **存储与安全**：SQLite 保存用户与会话；登录账号唯一且大小写不敏感；密码使用 scrypt 哈希；头像文件写入磁盘，数据库只保存相对路径。
 - **移动端 / 桌面端**：同一套 React 应用响应式适配；安全区、`100dvh`、移动端底部抽屉、16px 表单输入与 44px 触控目标；提供 PWA manifest 与图标。
+- **字体**：Maple Mono CN，等宽、中英文覆盖、无衬线、圆角柔和；使用 GB2312 一级字与 UI 字符子集，附带 OFL 许可证。
 - **主题**：`system / light / dark` 三态，首屏无闪烁，顶栏可切换。
 - **国际化**：默认简体中文，顶栏通过「地球图标 + 当前语言」下拉切换英文，界面文案全部来自资源文件。
 
@@ -103,6 +104,7 @@ npm run xaiop:check  # 校验 XAIOP Node / browser / core 入口
 | [主题规范](docs/design/theming.md) | 深色 / 浅色主题与设计令牌 |
 | [国际化规范](docs/design/i18n.md) | 语言策略、文案组织与格式化 |
 | [品牌规范](docs/design/branding.md) | 标志含义、背景使用、留白与资产清单 |
+| [字体规范](docs/design/typography.md) | Maple Mono CN 的选型、子集与使用规则 |
 | [Agent 设计](docs/agent/overview.md) | Agent 运行机制、工具与安全边界 |
 | [XAIOP 集成](docs/integrations/xaiop.md) | SDK 来源、编译方式与 Vite 按需构建 |
 | [开发指南](docs/guides/development.md) | 环境、命令、分支与提交规范 |
@@ -129,6 +131,7 @@ npm run xaiop:check  # 校验 XAIOP Node / browser / core 入口
 | 组件 | 用途 | 来源 | 集成方式 |
 | --- | --- | --- | --- |
 | XAIOP SDK `0.16.0` | Agent 结构化流式协议（Node / 浏览器） | <https://github.com/AboutUip/XAIOP>（提交 `83dea5a`，MIT） | 源码位于 `vendor/xaiop/`，`dist` 由 Vite 插件按需编译 |
+| Maple Mono CN `7.9` | 中英文等宽界面字体 | <https://github.com/subframe7536/maple-font>（OFL-1.1） | 子集 WOFF2 位于 `apps/web/src/assets/fonts/maple-mono/`，附 `OFL.txt` |
 
 XAIOP 的源码与许可证保留在 `vendor/xaiop/`，编译产物不提交。详见 [XAIOP 集成](docs/integrations/xaiop.md) 与 [ADR 0004](docs/decisions/0004-xaiop-integration.md)。
 

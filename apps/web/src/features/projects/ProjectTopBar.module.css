@@ -335,6 +335,20 @@
   }
 }
 
+@media (max-width: 340px) {
+  .divider {
+    display: none;
+  }
+
+  .brandGroup {
+    gap: 5px;
+  }
+
+  .loginButton {
+    padding: 0 8px;
+  }
+}
+
 @media (pointer: coarse) and (min-width: 641px) {
   .iconButton {
     width: 40px;
