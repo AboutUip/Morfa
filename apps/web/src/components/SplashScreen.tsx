@@ -10,11 +10,11 @@ import { useTranslation } from "react-i18next";
 import { BrandMark } from "./BrandMark";
 import styles from "./SplashScreen.module.css";
 
-const AUDIO_SRC = "/audio/splash-metal.wav";
-const LOGO_APPEAR_MS = 220;
-const MOTION_MS = 700;
-const HOLD_MS = 260;
-const FADE_MS = 460;
+const AUDIO_SRC = "/audio/splash-metal.mp3";
+const LOGO_APPEAR_MS = 180;
+const MOTION_MS = 900;
+const HOLD_MS = 160;
+const FADE_MS = 420;
 
 interface SplashScreenProps {
   onComplete: () => void;
@@ -63,6 +63,7 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
     const timers: number[] = [];
     const audio = audioRef.current;
     let motionStarted = false;
+    let finishStarted = false;
     let gestureHandling = false;
     let gestureAttached = false;
     let initialPlaySettled = false;
@@ -71,17 +72,44 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
       timers.push(window.setTimeout(callback, delay));
     };
 
-    const startMotion = () => {
+    const finishSequence = () => {
+      if (cancelled || finishStarted) return;
+      finishStarted = true;
+      schedule(() => setFinishing(true), HOLD_MS);
+      schedule(
+        () => onCompleteRef.current(),
+        HOLD_MS + FADE_MS,
+      );
+    };
+
+    const startMotion = (audioPlaying: boolean) => {
       if (cancelled || motionStarted) return;
       motionStarted = true;
       setWaitingForGesture(false);
       setMoving(true);
-      schedule(() => setFinishing(true), MOTION_MS + HOLD_MS);
-      schedule(
-        () => onCompleteRef.current(),
-        MOTION_MS + HOLD_MS + FADE_MS,
-      );
+
+      if (audioPlaying) {
+        const duration =
+          Number.isFinite(audio?.duration) && (audio?.duration ?? 0) > 0
+            ? (audio?.duration as number)
+            : 1.9;
+        const remaining = Math.max(
+          0,
+          duration - (audio?.currentTime ?? 0),
+        );
+        // 正常情况由 ended 事件收尾；此定时器只防止音频事件丢失。
+        schedule(finishSequence, remaining * 1000 + 800);
+        return;
+      }
+
+      schedule(finishSequence, MOTION_MS + HOLD_MS);
     };
+
+    const onAudioEnded = () => {
+      if (!cancelled && motionStarted) finishSequence();
+    };
+
+    audio?.addEventListener("ended", onAudioEnded);
 
     const playAudio = async (): Promise<boolean> => {
       if (!audio) return false;
@@ -101,10 +129,7 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
 
       const played = await playAudio();
       if (cancelled) return;
-      if (!played) {
-        // 用户已经交互仍无法播放时，不再阻塞开屏
-      }
-      startMotion();
+      startMotion(played);
     };
 
     const attachGesture = () => {
@@ -128,7 +153,7 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
       if (cancelled) return;
 
       if (played) {
-        startMotion();
+        startMotion(true);
         return;
       }
 
@@ -155,6 +180,7 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
       gestureHandlerRef.current = () => {};
       for (const timer of timers) window.clearTimeout(timer);
       detachGesture();
+      audio?.removeEventListener("ended", onAudioEnded);
       audio?.pause();
     };
   }, [measured]);

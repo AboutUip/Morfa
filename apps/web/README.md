@@ -6,7 +6,7 @@ Morfa 的 React 前端：在线设计编辑器、Agent 对话面板与设置界�
 
 ## 已实现
 
-- **开屏动画**：`components/SplashScreen` 在进入页面时让 Logo 居中快速出现，播放本地合成的金属音效，随后 Logo 左移并展开 `| Morfa` 字标，完成后面板淡出，露出已经渲染好的项目主页。若浏览器阻止有声自动播放，会在 Logo 下方提示点击任意处开始，首次交互后再播放并进入动画。可复用的 `LoadingScreen` / `LoadingOverlay` 与 `LoadingProgressController` 保留给其他异步流程。
+- **开屏动画**：`components/SplashScreen` 在进入页面时让 Logo 居中快速出现，播放本地金属打击音效，随后 Logo 左移并展开 `| Morfa` 字标，完成后面板淡出，露出已经渲染好的项目主页。若浏览器阻止有声自动播放，会在 Logo 下方提示点击任意处开始，首次交互后再播放并进入动画。可复用的 `LoadingScreen` / `LoadingOverlay` 与 `LoadingProgressController` 保留给其他异步流程。
 - **项目主页**：桌面上顶栏保留「项目 | 组件 | 设置」水平 Tab；移动端将其收纳到左上角 `logo | Morfa` 按钮，点击展开带图标与选中标记的页面菜单，箭头随展开旋转；项目区域默认空状态，右上角提供登录入口。
 - **组件 / 设置**：当前为占位页，后续接入组件库与完整设置。
 - **登录 / 注册弹窗**：支持登录与注册切换；点击蒙版不关闭，只通过右上角关闭按钮退出。
@@ -65,7 +65,7 @@ npm run typecheck  # 类型检查
 - `src/lib/loading/`：`LoadingProgressController`、`createLoadingProgressController` 与 `useLoadingProgress` 订阅 hook，供其他异步流程复用。
 - `src/components/LoadingScreen.tsx`：纯展示加载界面，可独立传入进度、任务文案、底部文案与错误重试。
 - `src/components/LoadingOverlay.tsx`：订阅任意进度源的可复用加载层。
-- `public/audio/splash-metal.wav`：由 `npm run audio:splash` 生成的本地开屏音效。
+- `public/audio/splash-metal.mp3`：开屏金属打击音效，播放结束后再淡出开屏。
 
 其他业务流程可以创建独立的 `LoadingProgressController`，在异步任务中 `start / report / finish`，再挂载 `LoadingOverlay` 复用同一套加载体验。开屏不依赖这些异步流程；项目主页会在开屏背后同步渲染。
 

@@ -38,7 +38,7 @@
 
 .splash[data-moving="true"] .lockup {
   transform: translateX(0);
-  transition: transform 700ms var(--mf-ease-out);
+  transition: transform 900ms var(--mf-ease-out);
 }
 
 .logo {
@@ -63,8 +63,8 @@
   opacity: 0;
   transform: scaleY(0.45);
   transition:
-    opacity 240ms var(--mf-ease-out) 110ms,
-    transform 420ms var(--mf-ease-out) 110ms;
+    opacity 260ms var(--mf-ease-out) 120ms,
+    transform 500ms var(--mf-ease-out) 120ms;
 }
 
 .splash[data-moving="true"] .pipe {
@@ -82,9 +82,9 @@
   transform: translateX(-12px);
   clip-path: inset(0 100% 0 0);
   transition:
-    opacity 300ms var(--mf-ease-out) 160ms,
-    transform 520ms var(--mf-ease-out) 160ms,
-    clip-path 520ms var(--mf-ease-out) 160ms;
+    opacity 340ms var(--mf-ease-out) 160ms,
+    transform 640ms var(--mf-ease-out) 160ms,
+    clip-path 640ms var(--mf-ease-out) 160ms;
   will-change: opacity, transform, clip-path;
 }
 
