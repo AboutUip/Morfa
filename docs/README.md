@@ -19,11 +19,11 @@
 | [product/vision.md](product/vision.md) | 产品定位、目标用户、核心价值与产品原则 | 草案 |
 | [product/roadmap.md](product/roadmap.md) | 里程碑划分与验收标准 | 草案 |
 | [architecture/overview.md](architecture/overview.md) | 系统上下文、组件划分、数据流与跨平台策略 | 草案 |
-| [architecture/frontend.md](architecture/frontend.md) | React 前端结构、状态管理、样式与模块边界 | 草案 |
+| [architecture/frontend.md](architecture/frontend.md) | React 前端结构、启动加载、状态与样式 | 部分实现 |
 | [architecture/backend.md](architecture/backend.md) | Node.js 服务、API 约定、模块与安全 | 草案 |
 | [architecture/database.md](architecture/database.md) | SQLite 使用约定、迁移流程与表结构草案 | 草案 |
-| [design/theming.md](design/theming.md) | 深色 / 浅色主题、设计令牌与持久化 | 草案 |
-| [design/i18n.md](design/i18n.md) | 语言策略、资源组织与格式化 | 草案 |
+| [design/theming.md](design/theming.md) | 深色 / 浅色主题、设计令牌与持久化 | 已实现基础 |
+| [design/i18n.md](design/i18n.md) | 语言策略、资源组织与格式化 | 已实现基础 |
 | [design/branding.md](design/branding.md) | 标志构成、背景要求、留白与资产清单 | 已建立 |
 | [agent/overview.md](agent/overview.md) | Agent 定位、运行生命周期、工具与安全 | 草案 |
 | [integrations/xaiop.md](integrations/xaiop.md) | XAIOP SDK 的来源、编译、Vite 集成与验证 | 已集成 |

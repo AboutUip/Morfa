@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Morfa — AI 驱动的在线 UI 设计平台" />
+    <meta name="theme-color" content="#080b10" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <title>Morfa</title>
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("morfa.theme");
+          var mode = stored === "light" || stored === "dark" ? stored : "system";
+          var dark =
+            mode === "dark" ||
+            (mode === "system" &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.dataset.theme = dark ? "dark" : "light";
+          document.documentElement.dataset.themeMode = mode;
+          document.documentElement.style.colorScheme = dark ? "dark" : "light";
+          var locale = localStorage.getItem("morfa.locale");
+          if (locale === "zh-CN" || locale === "en-US") {
+            document.documentElement.lang = locale;
+          }
+        } catch (error) {
+          /* 首屏主题初始化失败时使用样式表默认值 */
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

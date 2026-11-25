@@ -1,0 +1,131 @@
+.sidebar {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: var(--mf-sidebar-width);
+  min-height: 0;
+  border-right: 1px solid var(--mf-border);
+  background: var(--mf-bg-panel);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 14px 8px;
+  color: var(--mf-text-tertiary);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.count {
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.pageList {
+  padding: 0 8px;
+}
+
+.pageItem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: var(--mf-radius-sm);
+  color: var(--mf-text-secondary);
+  font-size: 12px;
+}
+
+.pageItemActive {
+  background: var(--mf-bg-selected);
+  color: var(--mf-text-primary);
+}
+
+.pageItemActive::before {
+  position: absolute;
+  top: 7px;
+  bottom: 7px;
+  left: 0;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--mf-accent);
+  content: "";
+}
+
+.separator {
+  height: 1px;
+  margin: 12px 14px 0;
+  background: var(--mf-border);
+}
+
+.layersArea {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 16px 28px;
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 180px;
+  text-align: center;
+}
+
+.emptyIcon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  margin-bottom: 12px;
+  place-items: center;
+  border: 1px dashed var(--mf-border-strong);
+  border-radius: var(--mf-radius-md);
+  color: var(--mf-text-tertiary);
+}
+
+.emptyTitle {
+  color: var(--mf-text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.emptyHint {
+  margin-top: 4px;
+  color: var(--mf-text-tertiary);
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.footer {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--mf-border);
+  color: var(--mf-text-tertiary);
+  font-size: 10px;
+}
+
+.footerDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--mf-success);
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    display: none;
+  }
+}

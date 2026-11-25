@@ -1,0 +1,37 @@
+{
+  "loading": {
+    "title": "Preparing your workspace",
+    "description": "Setting up design documents and local workspace",
+    "tasks": {
+      "workspace": "Preparing workspace"
+    },
+    "errorTitle": "Initialization failed",
+    "errorHint": "Check your connection or the console, then try again.",
+    "retry": "Try again"
+  },
+  "workspace": {
+    "projectName": "Morfa",
+    "pages": "Pages",
+    "pageCount": "1 page",
+    "page1": "Page 1",
+    "layers": "Layers",
+    "layersEmpty": "No layers yet",
+    "layersEmptyHint": "Layers will appear here once you create a canvas",
+    "design": "Design",
+    "noSelection": "Nothing selected",
+    "noSelectionHint": "Select a layer on the canvas to inspect its properties",
+    "canvas": "Canvas",
+    "canvasName": "Canvas 1",
+    "canvasSize": "Responsive",
+    "canvasEmptyTitle": "Blank canvas",
+    "canvasEmptyHint": "The design canvas and Agent arrive in the next milestone",
+    "background": "Background",
+    "default": "Default",
+    "grid": "Grid",
+    "gridValue": "24 px",
+    "ready": "Workspace ready",
+    "theme": "Toggle theme",
+    "language": "Switch language",
+    "zoom": "Zoom"
+  }
+}

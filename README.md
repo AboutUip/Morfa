@@ -13,7 +13,7 @@ Morfa 是一个 AI 原生的在线 UI 设计工具。它把自然语言意图与
 
 > 仓库：<https://github.com/AboutUip/Morfa> · XAIOP 上游：<https://github.com/AboutUip/XAIOP>
 >
-> 当前阶段：**项目初始化（M0）**。本仓库已完成目录规划、技术选型记录、XAIOP SDK 集成与文档骨架，应用代码将在后续里程碑中搭建。
+> 当前阶段：**M1 进行中**。Web 工作区已可启动：包含 3 秒启动加载（进度接口可扩展）、Figma 风格工作区骨架、深色 / 浅色主题与中英文切换。后端与编辑器能力待后续里程碑接入。
 
 ## 核心方向
 
@@ -25,26 +25,33 @@ Morfa 是一个 AI 原生的在线 UI 设计工具。它把自然语言意图与
 - **自托管友好**：以 SQLite 作为嵌入式数据库，降低本地开发与小型部署的门槛。
 - **Agent 流式协议**：集成 [XAIOP](https://github.com/AboutUip/XAIOP) SDK（Node / 浏览器），为结构化增量输出与断线恢复提供基础。
 
+## 当前实现
+
+- **启动加载**：固定 3 秒占位，进度由可组合的 bootstrap 任务驱动；后续替换为网络初始化任务即可展示真实进度。
+- **工作区骨架**：顶栏 `logo | Morfa`、页面 / 图层侧栏、画布与属性面板，布局参考 Figma。
+- **主题**：`system / light / dark` 三态，首屏无闪烁，顶栏可切换。
+- **国际化**：默认简体中文，支持英文切换，界面文案全部来自资源文件。
+
 ## 技术栈
 
 | 层次 | 技术选型 | 状态 |
 | --- | --- | --- |
-| 前端 | React + TypeScript | 已选定 |
-| 前端构建 | Vite | 建议方案，实现阶段确认 |
+| 前端 | React + TypeScript | 已搭建 |
+| 前端构建 | Vite | 已接入 |
 | 后端 | Node.js + TypeScript | 已选定 |
 | 数据库 | SQLite（WAL 模式） | 已选定 |
 | Agent 流式协议 | XAIOP SDK `0.16.0`（vendored 源码） | 已集成 |
 | 仓库组织 | npm workspaces（monorepo） | 已采用 |
 | 测试 | Vitest + Playwright | 建议方案 |
 
-具体版本与依赖将在搭建应用时锁定，并记录到 [技术栈决策](docs/decisions/0001-tech-stack.md)。
+Web 依赖版本已写入 `apps/web/package.json` 与根锁文件；其余依赖将在后续搭建时锁定，并记录到 [技术栈决策](docs/decisions/0001-tech-stack.md)。
 
 ## 目录结构
 
 ```text
 Morfa/
 ├─ apps/
-│  ├─ web/                 # React 前端应用（待搭建）
+│  ├─ web/                 # React 前端应用（加载流程 + 工作区骨架）
 │  └─ server/              # Node.js API 与 SQLite（待搭建）
 ├─ packages/
 │  └─ shared/              # 跨端共享的类型、契约与常量
@@ -69,14 +76,12 @@ Morfa/
 
 ## 快速开始
 
-应用代码尚未落地，当前仓库只包含目录骨架与文档。后续会提供统一的 workspace 命令，例如：
-
 ```bash
 npm install          # 安装所有 workspace 依赖（含 vendored XAIOP）
-npm run xaiop:build  # 编译 XAIOP SDK 到 vendor/.../dist
-npm run xaiop:check  # 校验 Node / browser / core 入口
-npm run dev          # 同时启动 web 与 server（M1 后可用）
-npm run build        # 构建生产产物（M1 后可用）
+npm run dev          # 启动 Web 工作区：http://127.0.0.1:5173
+npm run build        # 类型检查 + 构建 Web 产物
+npm run preview      # 预览生产构建
+npm run xaiop:check  # 校验 XAIOP Node / browser / core 入口
 ```
 
 环境要求：Node.js >= 22、npm >= 10、Git。更多说明见 [开发指南](docs/guides/development.md) 与 [XAIOP 集成文档](docs/integrations/xaiop.md)。

@@ -1,0 +1,133 @@
+.canvas {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  overflow: hidden;
+  padding: 42px 48px 40px;
+  background-color: var(--mf-bg-canvas);
+  background-image: radial-gradient(var(--mf-canvas-dot) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.stage {
+  width: min(860px, 100%, calc((100dvh - 190px) * 1.6));
+  animation: stage-in 520ms var(--mf-ease-out) both;
+}
+
+.frameLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  color: var(--mf-text-tertiary);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.frameDot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--mf-accent);
+}
+
+.artboard {
+  display: grid;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  place-items: center;
+  border: 1px solid var(--mf-artboard-border);
+  border-radius: 6px;
+  background: var(--mf-artboard);
+  box-shadow: var(--mf-artboard-shadow);
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 280px;
+  padding: 32px;
+  text-align: center;
+}
+
+.spark {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 15px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--mf-accent-soft);
+  color: var(--mf-accent);
+}
+
+.emptyState h2 {
+  color: var(--mf-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.emptyState p {
+  margin-top: 5px;
+  color: var(--mf-text-tertiary);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.zoom {
+  position: absolute;
+  right: 16px;
+  bottom: 14px;
+  display: flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid var(--mf-border);
+  border-radius: var(--mf-radius-sm);
+  background: var(--mf-bg-surface);
+  box-shadow: 0 1px 2px rgba(15, 15, 20, 0.05);
+  color: var(--mf-text-tertiary);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 900px) {
+  .canvas {
+    padding: 32px 28px 36px;
+  }
+
+  .stage {
+    width: min(860px, 100%, calc((100dvh - 180px) * 1.6));
+  }
+}
+
+@media (max-width: 600px) {
+  .canvas {
+    padding: 24px 16px 32px;
+  }
+
+  .emptyState {
+    padding: 20px;
+  }
+
+  .emptyState p {
+    display: none;
+  }
+}
+
+@keyframes stage-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

@@ -1,0 +1,190 @@
+.screen {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 32px;
+  background: var(--mf-bg-app);
+}
+
+.glowA,
+.glowB {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle, var(--mf-loading-glow), transparent 68%);
+  filter: blur(12px);
+}
+
+.glowA {
+  width: 620px;
+  height: 620px;
+  top: -240px;
+  left: -180px;
+}
+
+.glowB {
+  width: 520px;
+  height: 520px;
+  right: -160px;
+  bottom: -220px;
+  opacity: 0.72;
+}
+
+.card {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: min(380px, 100%);
+  animation: rise 700ms var(--mf-ease-out) both;
+}
+
+.brandRow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.brandRow img {
+  animation: breathe 3.2s var(--mf-ease) infinite;
+}
+
+.pipe {
+  color: var(--mf-border-strong);
+  font-size: 24px;
+  font-weight: 300;
+  line-height: 1;
+  transform: translateY(-2px);
+}
+
+.wordmark {
+  font-size: 27px;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+}
+
+.statusBlock {
+  margin-top: 30px;
+  text-align: center;
+}
+
+.statusBlock h1 {
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.005em;
+}
+
+.statusBlock p {
+  margin-top: 6px;
+  color: var(--mf-text-secondary);
+  font-size: 12px;
+}
+
+.progressBlock {
+  width: 100%;
+  margin-top: 30px;
+}
+
+.track {
+  height: 3px;
+  overflow: hidden;
+  border-radius: var(--mf-radius-pill);
+  background: var(--mf-border);
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    var(--mf-text-tertiary),
+    var(--mf-text-primary)
+  );
+  transition: width 160ms linear;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 10px;
+  color: var(--mf-text-tertiary);
+  font-size: 11px;
+}
+
+.percent {
+  font-variant-numeric: tabular-nums;
+}
+
+.errorBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  margin-top: 26px;
+}
+
+.errorDetail {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 6px 10px;
+  border: 1px solid var(--mf-border);
+  border-radius: var(--mf-radius-sm);
+  color: var(--mf-text-secondary);
+  font-family: var(--mf-font-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.retry {
+  margin-top: 16px;
+  padding: 8px 18px;
+  border-radius: var(--mf-radius-pill);
+  background: var(--mf-text-primary);
+  color: var(--mf-bg-app);
+  font-size: 12px;
+  font-weight: 600;
+  transition: opacity var(--mf-transition);
+}
+
+.retry:hover {
+  opacity: 0.84;
+}
+
+.footer {
+  position: absolute;
+  bottom: 24px;
+  color: var(--mf-text-tertiary);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.9;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+}

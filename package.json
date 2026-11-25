@@ -17,6 +17,11 @@
     "node": ">=22"
   },
   "scripts": {
+    "dev": "npm run dev --workspace @morfa/web",
+    "dev:web": "npm run dev --workspace @morfa/web",
+    "build": "npm run build --workspace @morfa/web",
+    "preview": "npm run preview --workspace @morfa/web",
+    "typecheck": "npm run typecheck --workspace @morfa/web",
     "xaiop:build": "npm run build:ts --workspace @bylan280/xaiop",
     "xaiop:test": "npm test --workspace @bylan280/xaiop",
     "xaiop:check": "node scripts/xaiop-smoke.mjs"

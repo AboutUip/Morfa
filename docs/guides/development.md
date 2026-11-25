@@ -15,25 +15,27 @@
 
 ## 当前状态
 
-仓库处于 M0 与 M1 之间：目录、文档、根 workspace 配置与 XAIOP SDK 集成已就绪，前端与后端应用尚未搭建。可执行 `npm install` 及 XAIOP 相关命令，其余应用命令待 M1 提供。
+仓库处于 M1：Web 工作区已可启动，包含 3 秒启动加载、Figma 风格工作区骨架、主题与中英文切换；后端与编辑器能力仍待接入。
 
 ### 已可用命令
 
 | 命令 | 作用 |
 | --- | --- |
 | `npm install` | 安装所有 workspace 依赖（含 vendored XAIOP） |
+| `npm run dev` | 启动 Web 开发服务器（`http://127.0.0.1:5173`） |
+| `npm run dev:web` | 同上，仅启动前端 |
+| `npm run build` | 类型检查并构建 Web 产物 |
+| `npm run preview` | 预览生产构建 |
+| `npm run typecheck` | 仅执行 TypeScript 类型检查 |
 | `npm run xaiop:build` | 编译 XAIOP SDK 到 `vendor/xaiop/.../dist` |
 | `npm run xaiop:test` | 编译并运行 XAIOP 上游完整测试 |
 | `npm run xaiop:check` | 校验 Node / browser / core 入口与夹具解析 |
 
-### M1 后预计提供
+### M1 剩余命令
 
 | 命令 | 作用 |
 | --- | --- |
-| `npm run dev` | 并行启动 web 与 server |
-| `npm run dev:web` | 仅启动前端 |
-| `npm run dev:server` | 仅启动后端 |
-| `npm run build` | 构建全部应用 |
+| `npm run dev:server` | 启动后端 |
 | `npm run lint` | 代码检查 |
 | `npm run format` | 格式化 |
 | `npm run test` | 单元与集成测试 |
@@ -49,17 +51,29 @@ git clone https://github.com/AboutUip/Morfa.git Morfa
 cd Morfa
 npm install
 npm run xaiop:check
-```
-
-M1 完成后还需复制 `.env.example`、执行数据库迁移并启动开发服务器：
-
-```bash
-cp .env.example .env        # 待 M1 提供
-npm run db:migrate
 npm run dev
 ```
 
+打开 <http://127.0.0.1:5173>，应看到 3 秒启动加载后进入工作区。
+
+后端接入后还需复制 `.env.example` 并执行数据库迁移：
+
+```bash
+cp .env.example .env        # 待后端提供
+npm run db:migrate
+```
+
 Windows PowerShell 中复制环境变量文件使用 `Copy-Item .env.example .env`。
+
+## 启动与加载流程
+
+Web 端启动流程位于 `apps/web/src/features/bootstrap/`：
+
+- `bootstrap.ts`：定义 `BootstrapTask`，按权重汇总各任务的 `report(0..1)` 进度；当前只有一个 3 秒占位任务。
+- `useBootstrap.ts`：负责 React 生命周期、取消、错误状态与重试。
+- `LoadingScreen.tsx`：显示进度、当前任务文案、百分比与错误界面。
+
+接入真实网络初始化时，将 `workspaceBootstrapTasks` 替换为会话、项目、设计文档等任务即可，加载界面与汇总逻辑无需修改。当前占位任务固定 3 秒后完成，便于验证加载动画与工作区切换。
 
 ## XAIOP SDK
 

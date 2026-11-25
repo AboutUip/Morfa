@@ -1,19 +1,20 @@
 # 前端架构
 
-> 状态：草案 · 最后更新：2026-11-25
+> 状态：M1 部分实现 · 最后更新：2026-11-25
 
 ## 技术选型
 
 | 项 | 选择 | 状态 |
 | --- | --- | --- |
-| 框架 | React + TypeScript | 已选定 |
-| 构建 | Vite | 建议，待实现确认 |
+| 框架 | React 19 + TypeScript | 已接入 |
+| 构建 | Vite 8 | 已接入 |
 | 路由 | React Router | 建议 |
 | 服务端状态 | TanStack Query | 建议 |
 | 客户端状态 | Zustand（编辑器状态单独设计） | 建议 |
-| 样式 | CSS Modules + CSS Variables（设计令牌） | 建议 |
+| 样式 | CSS Modules + CSS Variables（设计令牌） | 已采用 |
 | 测试 | Vitest + Testing Library；Playwright 负责 E2E | 建议 |
-| i18n | i18next + react-i18next | 建议，详见 [i18n 规范](../design/i18n.md) |
+| i18n | i18next + react-i18next | 已接入，详见 [i18n 规范](../design/i18n.md) |
+| 启动加载 | 自研 bootstrap 任务与进度汇总 | 已实现（3 秒占位） |
 | Agent 流式协议 | XAIOP browser SDK | 已 vendored，详见 [XAIOP 集成](../integrations/xaiop.md) |
 
 依赖在 M1 搭建时锁定版本，并在 `apps/web/package.json` 中固定。
@@ -51,6 +52,17 @@ features/
 - `components/` 不依赖具体业务，可被任意 feature 使用。
 - `lib/` 不依赖 React 组件；纯函数优先，便于测试。
 - 设计文档 schema 与 API 类型从 `@morfa/shared` 导入，避免重复定义。
+
+## 启动与加载
+
+入口为 `src/main.tsx`，在渲染前初始化 i18n 与主题 Provider。`App` 通过 `useBootstrap` 维护启动状态：
+
+- `BootstrapTask` 提供 `labelKey`、`weight` 与 `run({ report, signal })`；
+- `runBootstrap` 按权重汇总各任务的真实进度，并保证总体进度单调递增；
+- 当前 `workspaceBootstrapTasks` 只有一个固定 3 秒的占位任务；
+- 加载界面显示任务文案、百分比与错误重试，不感知具体初始化内容。
+
+后续接入会话、项目与设计文档请求时，只需替换任务数组，在请求前后调用 `report(0..1)`。加载界面与状态机保持不变。
 
 ## 状态管理
 

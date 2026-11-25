@@ -21,13 +21,14 @@
 
 **目标**：跑通最小全栈闭环，并让主题与 i18n 从第一天可用。
 
-- npm workspaces、TypeScript、Lint / Format、测试基线
-- React 应用骨架：路由、布局、错误边界
-- Node.js API 骨架：健康检查、统一错误格式、日志
-- SQLite 接入：迁移机制、连接配置、开发数据目录
-- 主题系统：`system / light / dark` 三态、令牌、无闪烁初始化
-- i18n 基础：`zh-CN` 默认、`en-US`、语言切换与持久化
-- 一条端到端冒烟测试
+- [x] npm workspaces、TypeScript、Vite（Lint / Format / 测试基线待补）
+- [x] React 应用骨架：启动加载与 Figma 风格工作区（路由 / 错误边界待补）
+- [ ] Node.js API 骨架：健康检查、统一错误格式、日志
+- [ ] SQLite 接入：迁移机制、连接配置、开发数据目录
+- [x] 主题系统：`system / light / dark` 三态、令牌、无闪烁初始化
+- [x] i18n 基础：`zh-CN` 默认、`en-US`、语言切换与持久化
+- [x] 3 秒启动加载占位与可扩展进度接口
+- [ ] 一条端到端冒烟测试
 
 **退出标准**：单命令启动前后端；主题与语言切换可持久化；CI 可执行构建与测试。
 

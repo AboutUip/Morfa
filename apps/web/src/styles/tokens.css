@@ -1,0 +1,20 @@
+:root {
+  --mf-font-sans:
+    "Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --mf-font-mono: "SFMono-Regular", "JetBrains Mono", Consolas, monospace;
+
+  --mf-radius-xs: 4px;
+  --mf-radius-sm: 6px;
+  --mf-radius-md: 10px;
+  --mf-radius-lg: 14px;
+  --mf-radius-pill: 999px;
+
+  --mf-topbar-height: 52px;
+  --mf-sidebar-width: 240px;
+  --mf-inspector-width: 280px;
+
+  --mf-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --mf-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --mf-transition: 160ms var(--mf-ease);
+}
