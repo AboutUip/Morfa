@@ -46,6 +46,33 @@ export function PageIcon(props: IconProps) {
   );
 }
 
+export function PlusIcon(props: IconProps) {
+  return (
+    <svg {...iconProps(props)}>
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+export function MonitorIcon(props: IconProps) {
+  return (
+    <svg {...iconProps(props)}>
+      <rect x="3.5" y="4.5" width="17" height="11" rx="1.8" />
+      <path d="M9 20h6M12 15.5V20" />
+    </svg>
+  );
+}
+
+export function UsersIcon(props: IconProps) {
+  return (
+    <svg {...iconProps(props)}>
+      <circle cx="9" cy="8" r="3.2" />
+      <path d="M3.5 20c0-3.1 2.2-5.2 5.5-5.2s5.5 2.1 5.5 5.2" />
+      <path d="M15.5 5.2a3.2 3.2 0 0 1 0 5.9M17 14.9c2.2.5 3.5 2.2 3.5 5.1" />
+    </svg>
+  );
+}
+
 export function LayersIcon(props: IconProps) {
   return (
     <svg {...iconProps(props)}>

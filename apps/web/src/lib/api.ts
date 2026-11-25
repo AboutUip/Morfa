@@ -34,6 +34,33 @@ export type VCodePurpose =
   | "cancel"
   | "reveal_api_key";
 
+export type ProjectType = "software" | "website";
+export type ProjectVisibility = "public" | "private" | "shared";
+export type ProjectRole = "owner" | "member";
+
+export interface ProjectSummary {
+  id: string;
+  name: string;
+  description: string;
+  type: ProjectType;
+  visibility: ProjectVisibility;
+  iconUrl: string | null;
+  shareCode: string | null;
+  role: ProjectRole;
+  ownerName: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface CreateProjectInput {
+  type: ProjectType;
+  name: string;
+  description: string;
+  visibility: ProjectVisibility;
+  iconDataUrl?: string | null;
+  requestId?: string | null;
+}
+
 export interface ModelProviderModel {
   id: string;
   displayName: string | null;
@@ -213,6 +240,25 @@ export const authApi = {
   logout: () =>
     request<void>("/api/auth/logout", {
       method: "POST",
+    }),
+};
+
+export const projectApi = {
+  list: () =>
+    request<{ projects: ProjectSummary[] }>("/api/me/projects"),
+
+  create: (input: CreateProjectInput) =>
+    request<{ project: ProjectSummary }>("/api/me/projects", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+
+  join: (code: string) =>
+    request<{ project: ProjectSummary }>("/api/me/projects/join", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code }),
     }),
 };
 

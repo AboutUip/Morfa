@@ -12,6 +12,7 @@ export const DATABASE_PATH = process.env.DATABASE_PATH
   : path.join(DATA_DIR, "morfa.sqlite");
 export const UPLOADS_DIR = path.join(DATA_DIR, "uploads");
 export const AVATARS_DIR = path.join(UPLOADS_DIR, "avatars");
+export const PROJECT_ICONS_DIR = path.join(UPLOADS_DIR, "projects");
 export const EXPORTS_DIR = path.join(DATA_DIR, "exports");
 export const EXPORT_MASTER_KEY_FILE = path.join(DATA_DIR, "export-master.key");
 export const MIGRATIONS_DIR = path.join(SERVER_ROOT, "migrations");
@@ -27,6 +28,7 @@ export const AVATAR_MIME_TYPES = [
   "image/jpeg",
   "image/webp",
 ] as const;
+export const PROJECT_ICON_MAX_BYTES = 2 * 1024 * 1024;
 
 export const VCODE_SETUP_TTL_MS = 10 * 60 * 1000;
 export const SENSITIVE_TICKET_TTL_MS = 5 * 60 * 1000;

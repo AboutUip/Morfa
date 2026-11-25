@@ -1,4 +1,5 @@
-import { authApi, type AuthUser } from "../api";
+import { authApi, type AuthUser, type ProjectSummary } from "../api";
+import { projectsStore } from "../projects";
 import { preferencesRealtime, realtimeClient } from "../realtime";
 import { bootScheduler } from "./scheduler";
 
@@ -49,6 +50,19 @@ bootScheduler.register<boolean>({
   run: async () => {
     await realtimeClient.ensureConnected();
     return true;
+  },
+});
+
+// 项目首页数据与偏好、实时通道并行预取，开屏结束后直接渲染。
+bootScheduler.register<ProjectSummary[]>({
+  id: "projects",
+  dependsOn: ["session"],
+  priority: "high",
+  enabled: ({ get }) => Boolean(get<BootSession>("session")?.user),
+  run: ({ get }) => {
+    const user = get<BootSession>("session")?.user;
+    if (!user) return Promise.resolve([]);
+    return projectsStore.load(user.id);
   },
 });
 

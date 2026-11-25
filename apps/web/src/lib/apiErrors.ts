@@ -66,6 +66,21 @@ const API_ERROR_KEYS: Record<string, string> = {
   API_KEY_NOT_FOUND: "profile.api.errors.notFound",
   API_KEY_CREATE_FAILED: "profile.api.errors.createFailed",
   MCP_CAPABILITY_NOT_FOUND: "profile.api.errors.capabilityNotFound",
+  PROJECT_TYPE_INVALID: "projects.errors.typeInvalid",
+  PROJECT_VISIBILITY_INVALID: "projects.errors.visibilityInvalid",
+  PROJECT_NAME_REQUIRED: "projects.errors.nameRequired",
+  PROJECT_NAME_TOO_LONG: "projects.errors.nameTooLong",
+  PROJECT_DESCRIPTION_REQUIRED: "projects.errors.descriptionRequired",
+  PROJECT_DESCRIPTION_TOO_LONG: "projects.errors.descriptionTooLong",
+  PROJECT_ICON_INVALID: "projects.errors.iconInvalid",
+  PROJECT_ICON_TYPE: "projects.errors.iconType",
+  PROJECT_ICON_TOO_LARGE: "projects.errors.iconTooLarge",
+  PROJECT_LIMIT_REACHED: "projects.errors.limitReached",
+  PROJECT_NOT_FOUND: "projects.errors.notFound",
+  PROJECT_CREATE_FAILED: "projects.errors.createFailed",
+  PROJECT_CODE_REQUIRED: "projects.errors.codeRequired",
+  PROJECT_CODE_INVALID: "projects.errors.codeInvalid",
+  PROJECT_REQUEST_INVALID: "projects.errors.requestInvalid",
 };
 
 export function apiErrorKey(error: unknown, fallbackKey: string): string {

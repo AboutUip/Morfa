@@ -10,6 +10,7 @@ import { registerAuthRoutes } from "./api/auth.js";
 import { registerMcpRoutes } from "./api/mcp.js";
 import { registerModelProviderRoutes } from "./api/modelProviders.js";
 import { registerPreferencesRoutes } from "./api/preferences.js";
+import { registerProjectRoutes } from "./api/projects.js";
 import { registerRealtimeRoutes } from "./api/realtime.js";
 import { registerUploadRoutes } from "./api/uploads.js";
 import {
@@ -18,6 +19,7 @@ import {
   EXPORT_ARCHIVE_MAX_BYTES,
   HOST,
   PORT,
+  PROJECT_ICONS_DIR,
 } from "./config.js";
 import { db } from "./db/connection.js";
 import { migrate } from "./db/migrate.js";
@@ -38,6 +40,7 @@ import {
 } from "./realtime/index.js";
 
 fs.mkdirSync(AVATARS_DIR, { recursive: true });
+fs.mkdirSync(PROJECT_ICONS_DIR, { recursive: true });
 fs.mkdirSync(EXPORTS_DIR, { recursive: true });
 migrate();
 deleteExpiredSessions();
@@ -74,6 +77,7 @@ registerAccountRoutes(app);
 registerPreferencesRoutes(app);
 registerApiKeyRoutes(app);
 registerModelProviderRoutes(app);
+registerProjectRoutes(app);
 registerMcpRoutes(app, mcpController);
 registerRealtimeRoutes(app);
 registerUploadRoutes(app);
