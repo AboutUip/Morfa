@@ -184,24 +184,24 @@ export function ProjectsPage() {
                 <p className={styles.projectDescription}>
                   {project.description}
                 </p>
-
-                <div className={styles.projectMeta}>
-                  <span>
-                    {project.role === "owner"
-                      ? t("projects.ownerYou")
-                      : t("projects.owner", {
-                          name: project.ownerName,
-                        })}
-                  </span>
-                  <span>
-                    {t("projects.lastModified", {
-                      date: dateFormatter.format(project.updatedAt),
-                    })}
-                  </span>
-                </div>
               </div>
 
               <ProjectCover project={project} />
+
+              <div className={styles.projectMeta}>
+                <span>
+                  {project.role === "owner"
+                    ? t("projects.ownerYou")
+                    : t("projects.owner", {
+                        name: project.ownerName,
+                      })}
+                </span>
+                <span>
+                  {t("projects.lastModified", {
+                    date: dateFormatter.format(project.updatedAt),
+                  })}
+                </span>
+              </div>
             </article>
           ))}
         </div>

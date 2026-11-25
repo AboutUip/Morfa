@@ -210,14 +210,15 @@
 
 .projectGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(370px, 1fr));
   gap: 12px;
 }
 
 .projectCard {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(140px, 34%);
-  min-height: 196px;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 46%);
+  grid-template-rows: auto auto;
+  min-height: 200px;
   overflow: hidden;
   border: 1px solid var(--mf-border);
   border-radius: 16px;
@@ -232,8 +233,10 @@
 .projectBody {
   display: flex;
   min-width: 0;
+  grid-column: 1;
+  grid-row: 1;
   flex-direction: column;
-  padding: 16px;
+  padding: 16px 10px 14px 16px;
 }
 
 .projectBadges {
@@ -295,11 +298,14 @@
 .projectMeta {
   display: flex;
   flex-wrap: wrap;
+  grid-column: 1 / -1;
+  grid-row: 2;
   align-items: center;
   justify-content: space-between;
   gap: 6px 12px;
-  margin-top: auto;
-  padding-top: 14px;
+  margin-top: 12px;
+  padding: 11px 16px;
+  border-top: 1px solid var(--mf-border);
   color: var(--mf-text-tertiary);
   font-size: 9px;
 }
@@ -317,11 +323,17 @@
 
 .projectCover {
   display: grid;
-  min-height: 100%;
+  width: 100%;
+  grid-column: 2;
+  grid-row: 1;
+  align-self: start;
+  aspect-ratio: 4 / 3;
   place-items: center;
   overflow: hidden;
-  padding: 18px;
-  border-left: 1px solid var(--mf-border);
+  margin: 12px 12px 0 0;
+  padding: 14px;
+  border: 1px solid var(--mf-border);
+  border-radius: 12px;
   background: linear-gradient(
     135deg,
     var(--mf-bg-selected),
@@ -338,8 +350,8 @@
 }
 
 .projectCover > img {
-  max-width: 82%;
-  max-height: 82%;
+  max-width: 88%;
+  max-height: 88%;
   object-fit: contain;
   filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.22));
 }
@@ -359,20 +371,23 @@
   }
 
   .projectCard {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(120px, 44%);
     min-height: 0;
     padding: 0;
   }
 
   .projectBody {
-    padding: 14px;
+    padding: 14px 8px 12px 14px;
   }
 
   .projectCover {
-    min-height: 124px;
-    padding: 14px;
-    border-top: 1px solid var(--mf-border);
-    border-left: 0;
+    margin: 8px 8px 0 0;
+    padding: 10px;
+  }
+
+  .projectMeta {
+    margin-top: 8px;
+    padding: 9px 14px;
   }
 
   .projectsHeader {
