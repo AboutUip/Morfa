@@ -1,15 +1,19 @@
-import { LoadingOverlay } from "../components/LoadingOverlay";
-import { useBootstrap } from "../features/bootstrap/useBootstrap";
+import { useState } from "react";
+
+import { SplashScreen } from "../components/SplashScreen";
 import { ProjectsPage } from "../features/projects/ProjectsPage";
 import { useVisualViewport } from "../lib/useVisualViewport";
 
 export default function App() {
-  const { controller, status, retry } = useBootstrap();
+  const [splashVisible, setSplashVisible] = useState(true);
   useVisualViewport();
 
-  if (status === "success") {
-    return <ProjectsPage />;
-  }
-
-  return <LoadingOverlay controller={controller} onRetry={retry} />;
+  return (
+    <>
+      <ProjectsPage />
+      {splashVisible ? (
+        <SplashScreen onComplete={() => setSplashVisible(false)} />
+      ) : null}
+    </>
+  );
 }

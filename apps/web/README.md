@@ -6,7 +6,7 @@ Morfa 的 React 前端：在线设计编辑器、Agent 对话面板与设置界�
 
 ## 已实现
 
-- **启动加载**：`components/LoadingScreen` 负责展示，`components/LoadingOverlay` 订阅 `LoadingProgressController`；进度、任务文案与底部文案都支持实时订阅和更新。当前 bootstrap 仍使用 3 秒占位任务，后续替换为网络初始化任务即可复用同一套加载界面。
+- **开屏动画**：`components/SplashScreen` 在进入页面时让 Logo 居中快速出现，播放本地合成的金属音效，随后 Logo 左移并展开 `| Morfa` 字标，完成后面板淡出，露出已经渲染好的项目主页。可复用的 `LoadingScreen` / `LoadingOverlay` 与 `LoadingProgressController` 保留给其他异步流程。
 - **项目主页**：桌面上顶栏保留「项目 | 组件 | 设置」水平 Tab；移动端将其收纳到左上角 `logo | Morfa` 按钮，点击展开带图标与选中标记的页面菜单，箭头随展开旋转；项目区域默认空状态，右上角提供登录入口。
 - **组件 / 设置**：当前为占位页，后续接入组件库与完整设置。
 - **登录 / 注册弹窗**：支持登录与注册切换；点击蒙版不关闭，只通过右上角关闭按钮退出。
@@ -38,7 +38,6 @@ src/
 ├─ app/         入口组件与启动状态切换
 ├─ components/  BrandMark、图标等展示组件
 ├─ features/
-│  ├─ bootstrap/  启动任务、进度 hook 与加载界面
 │  ├─ auth/       AuthProvider 与登录 / 注册弹窗
 │  ├─ profile/    个人面板、模型、API Key / MCP
 │  └─ projects/   项目主页与顶栏
@@ -60,15 +59,15 @@ npm run preview    # 预览生产构建
 npm run typecheck  # 类型检查
 ```
 
-## 启动流程与扩展
+## 开屏与加载
 
-- `src/features/bootstrap/bootstrap.ts`：任务类型、加权进度汇总与当前 3 秒占位任务。
-- `src/features/bootstrap/useBootstrap.ts`：连接 bootstrap 任务与加载进度源，处理取消与重试。
-- `src/lib/loading/`：`LoadingProgressController`、`createLoadingProgressController` 与 `useLoadingProgress` 订阅 hook。
+- `src/components/SplashScreen.tsx`：开屏 Logo 居中、金属音效、Logo 左移、`| Morfa` 字标展开与淡出。
+- `src/lib/loading/`：`LoadingProgressController`、`createLoadingProgressController` 与 `useLoadingProgress` 订阅 hook，供其他异步流程复用。
 - `src/components/LoadingScreen.tsx`：纯展示加载界面，可独立传入进度、任务文案、底部文案与错误重试。
 - `src/components/LoadingOverlay.tsx`：订阅任意进度源的可复用加载层。
+- `public/audio/splash-metal.wav`：由 `npm run audio:splash` 生成的本地开屏音效。
 
-接入真实初始化时，将 `workspaceBootstrapTasks` 替换为会话、项目、设计文档等异步任务，并在任务内部调用 `report(0..1)`。其他业务流程也可以创建独立的 `LoadingProgressController`，在异步任务中 `start / report / finish`，再挂载 `LoadingOverlay` 复用同一套加载体验。
+其他业务流程可以创建独立的 `LoadingProgressController`，在异步任务中 `start / report / finish`，再挂载 `LoadingOverlay` 复用同一套加载体验。开屏不依赖这些异步流程；项目主页会在开屏背后同步渲染。
 
 ## 品牌资产
 
