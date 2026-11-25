@@ -17,6 +17,7 @@ import {
 import { transaction } from "../db/transaction.js";
 import { findUserByAccount, type UserRow } from "../db/users.js";
 import { ApiError } from "../lib/errors.js";
+import { publishRealtimeEvent } from "../realtime/events.js";
 import { consumeTicketOrThrow } from "./vcode.js";
 import {
   createExportFileName,
@@ -129,11 +130,20 @@ export async function createExportForUser(
 
   await Promise.all(oldRows.map((row) => deleteExportFile(row.file_name)));
 
-  return {
+  const summary = {
     createdAt,
     fileSize: fileBuffer.length,
     downloadUrl: EXPORT_DOWNLOAD_URL,
   };
+
+  publishRealtimeEvent({
+    userId: user.id,
+    module: "export",
+    event: "created",
+    payload: summary,
+  });
+
+  return summary;
 }
 
 function parseProject(

@@ -26,6 +26,10 @@ import {
   purgeExpiredSetupTokens,
   purgeExpiredTickets,
 } from "./db/vcode.js";
+import {
+  initializeAutomation,
+  stopAutomation,
+} from "./automation/index.js";
 import { ApiError } from "./lib/errors.js";
 import { mcpController } from "./mcp/runtime.js";
 import {
@@ -109,6 +113,7 @@ app.setErrorHandler((error, request, reply) => {
 });
 
 const close = async () => {
+  stopAutomation();
   realtimeGateway.closeAll();
   await app.close();
   db.close();
@@ -117,5 +122,6 @@ const close = async () => {
 process.once("SIGINT", () => void close().finally(() => process.exit(0)));
 process.once("SIGTERM", () => void close().finally(() => process.exit(0)));
 
+initializeAutomation();
 await app.listen({ host: HOST, port: PORT });
 app.log.info(`Morfa API listening on http://${HOST}:${PORT}`);

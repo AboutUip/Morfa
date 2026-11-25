@@ -9,7 +9,11 @@ import type { WebSocket } from "ws";
 
 import type { UserRow } from "../db/users.js";
 import { ApiError } from "../lib/errors.js";
-import { onRealtimeEvent, type RealtimeUserEvent } from "./events.js";
+import {
+  onRealtimeEvent,
+  publishRealtimeEvent,
+  type RealtimeUserEvent,
+} from "./events.js";
 import {
   realtimeOperations,
   type RealtimeOperationContext,
@@ -166,6 +170,13 @@ export class RealtimeGateway {
         protocolVersion: REALTIME_PROTOCOL_VERSION,
       },
     });
+
+    publishRealtimeEvent({
+      userId: connection.user.id,
+      module: "realtime",
+      event: "connected",
+      payload: { connectionId: connection.id },
+    });
   }
 
   closeUserConnections(
@@ -226,6 +237,13 @@ export class RealtimeGateway {
     if (userConnections?.size === 0) {
       this.connectionsByUser.delete(connection.user.id);
     }
+
+    publishRealtimeEvent({
+      userId: connection.user.id,
+      module: "realtime",
+      event: "disconnected",
+      payload: { connectionId },
+    });
   }
 
   private send(connection: RealtimeConnection, envelope: RealtimeEnvelope) {

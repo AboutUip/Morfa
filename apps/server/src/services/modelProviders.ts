@@ -19,6 +19,7 @@ import type { UserRow } from "../db/users.js";
 import { ApiError } from "../lib/errors.js";
 import { consumeTicketOrThrow } from "./vcode.js";
 import { decryptSecret, encryptSecret } from "./secretBox.js";
+import { publishRealtimeEvent } from "../realtime/events.js";
 
 const MAX_PROVIDER_NAME = 60;
 const MAX_BASE_URL = 2048;
@@ -526,6 +527,18 @@ export async function createModelProvider(
     );
   }
 
+  publishRealtimeEvent({
+    userId: user.id,
+    module: "model",
+    event: "provider.created",
+    payload: {
+      providerId: created.provider.id,
+      name: created.provider.name,
+      protocol: created.provider.protocol,
+      modelCount: created.models.length,
+    },
+  });
+
   return toDto(created);
 }
 
@@ -583,6 +596,16 @@ export async function syncModelProvider(
     throw new ApiError(500, "PROVIDER_NOT_FOUND", "供应商不存在");
   }
 
+  publishRealtimeEvent({
+    userId: user.id,
+    module: "model",
+    event: "provider.synced",
+    payload: {
+      providerId: updated.provider.id,
+      modelCount: updated.models.length,
+    },
+  });
+
   return toDto(updated);
 }
 
@@ -628,6 +651,13 @@ export function updateModelCapabilities(
     throw new ApiError(404, "PROVIDER_NOT_FOUND", "供应商不存在");
   }
 
+  publishRealtimeEvent({
+    userId: user.id,
+    module: "model",
+    event: "provider.updated",
+    payload: { providerId, modelId },
+  });
+
   return toDto(updatedProvider);
 }
 
@@ -635,10 +665,18 @@ export function removeModelProvider(
   user: UserRow,
   providerId: string,
 ) {
+  const provider = findProviderForUser(user.id, providerId);
   const deleted = deleteProviderRecord(user.id, providerId);
   if (!deleted) {
     throw new ApiError(404, "PROVIDER_NOT_FOUND", "供应商不存在");
   }
+
+  publishRealtimeEvent({
+    userId: user.id,
+    module: "model",
+    event: "provider.deleted",
+    payload: { providerId, name: provider?.name ?? null },
+  });
 }
 
 export function revealModelProviderKey(

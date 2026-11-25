@@ -14,6 +14,7 @@ import {
 import { findUserById, type UserRow } from "../db/users.js";
 import { ApiError } from "../lib/errors.js";
 import { hashToken, randomToken } from "../lib/secret.js";
+import { publishRealtimeEvent } from "../realtime/events.js";
 
 const MAX_API_KEYS = 20;
 const MAX_API_KEY_NAME = 60;
@@ -108,7 +109,20 @@ export function createApiKey(
     throw new ApiError(500, "API_KEY_CREATE_FAILED", "API Key 创建失败");
   }
 
-  return { key: toDto(row), token };
+  const key = toDto(row);
+  publishRealtimeEvent({
+    userId,
+    module: "mcp",
+    event: "api_key.created",
+    payload: {
+      id: key.id,
+      name: key.name,
+      allowVCode: key.allowVCode,
+      allowPassword: key.allowPassword,
+    },
+  });
+
+  return { key, token };
 }
 
 export function updateApiKey(
@@ -153,9 +167,20 @@ export function updateApiKey(
 }
 
 export function removeApiKey(userId: string, keyId: string) {
+  const existing = findApiKeyForUser(userId, keyId);
   if (!deleteApiKeyRecord(userId, keyId)) {
     throw new ApiError(404, "API_KEY_NOT_FOUND", "API Key 不存在");
   }
+
+  publishRealtimeEvent({
+    userId,
+    module: "mcp",
+    event: "api_key.revoked",
+    payload: {
+      id: keyId,
+      name: existing?.name ?? null,
+    },
+  });
 }
 
 export function authenticateApiKeyToken(
