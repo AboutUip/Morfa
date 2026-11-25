@@ -28,8 +28,14 @@ export function ProjectsPage() {
           </header>
 
           <section className={styles.empty}>
-            <div className={styles.emptyBrand}>
-              <BrandMark size={56} />
+            <div className={styles.emptyIdentity}>
+              <BrandMark size={44} />
+              <span className={styles.identityPipe} aria-hidden="true">
+                |
+              </span>
+              <span className={styles.identityName}>
+                {t("app.productName")}
+              </span>
             </div>
             <h2>{t("projects.emptyTitle")}</h2>
             <p>

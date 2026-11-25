@@ -71,29 +71,28 @@
   align-items: center;
   justify-content: center;
   padding: clamp(28px, 5vw, 48px) clamp(16px, 4vw, 24px);
-  border: 1px solid var(--mf-border);
-  border-radius: clamp(16px, 2vw, 20px);
-  background:
-    radial-gradient(
-      circle at 50% 0%,
-      var(--mf-accent-soft),
-      transparent 52%
-    ),
-    var(--mf-bg-surface);
-  box-shadow: 0 1px 2px rgba(15, 15, 20, 0.03);
   text-align: center;
 }
 
-.emptyBrand {
-  display: grid;
-  width: 84px;
-  height: 84px;
-  margin-bottom: 20px;
-  place-items: center;
-  border: 1px solid var(--mf-border);
-  border-radius: 24px;
-  background: var(--mf-bg-app);
-  box-shadow: 0 8px 24px rgba(15, 15, 20, 0.06);
+.emptyIdentity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.identityPipe {
+  color: var(--mf-border-strong);
+  font-size: 22px;
+  font-weight: 300;
+  line-height: 1;
+}
+
+.identityName {
+  color: var(--mf-text-primary);
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
 }
 
 .empty h2 {
@@ -166,11 +165,13 @@
     padding: 32px 18px;
   }
 
-  .emptyBrand {
-    width: 74px;
-    height: 74px;
-    margin-bottom: 16px;
-    border-radius: 20px;
+  .emptyIdentity {
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+
+  .identityName {
+    font-size: 19px;
   }
 
   .empty h2 {
