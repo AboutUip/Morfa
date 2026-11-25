@@ -6,6 +6,7 @@
   },
   "nav": {
     "primary": "Primary navigation",
+    "skipToContent": "Skip to content",
     "projects": "Projects",
     "components": "Components",
     "settings": "Settings"

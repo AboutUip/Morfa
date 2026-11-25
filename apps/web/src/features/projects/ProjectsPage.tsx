@@ -18,14 +18,19 @@ export function ProjectsPage() {
 
   return (
     <div className={styles.shell}>
+      <a className={styles.skipLink} href="#workspace-main">
+        {t("nav.skipToContent")}
+      </a>
+
       <ProjectTopBar
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onLogin={openAuth}
       />
 
-      <main className={styles.page}>
+      <main id="workspace-main" className={styles.page} tabIndex={-1}>
         <div className={styles.container}>
+          <h1 className={styles.srOnly}>{t(`nav.${activeTab}`)}</h1>
           {activeTab === "projects" ? (
             <section
               id="panel-projects"

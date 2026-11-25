@@ -25,6 +25,8 @@ Accounts support avatar upload (only the relative file path is stored), nickname
 
 The UI is responsive across mobile and desktop: safe-area insets, `100dvh`, a bottom-sheet auth modal on small screens, 16px form inputs to avoid iOS zoom, and larger touch targets. The top bar switches between Projects, Components, and Settings (the latter two are placeholders for now). A PWA manifest and icons are included; no Service Worker yet.
 
+Keyboard accessibility includes a skip link, arrow-key navigation for top-bar tabs and the language menu, a focus trap with an inert background for the auth dialog, Escape to close, and focus restoration to the trigger.
+
 **Typeface:** Maple Mono CN 7.9 (monospace, Latin + Simplified Chinese, rounded sans-serif) is self-hosted as subsetted WOFF2 files under `apps/web/src/assets/fonts/maple-mono/`, licensed under SIL OFL 1.1. UI strings use the font; rare characters fall back to system fonts.
 
 ## Repository layout

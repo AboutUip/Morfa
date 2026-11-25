@@ -5,6 +5,7 @@ import {
   useState,
   type ChangeEvent,
   type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -29,9 +30,26 @@ const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 const AVATAR_TYPES = ["image/png", "image/jpeg", "image/webp"];
 const HEIGHT_TRANSITION_MS = 320;
 const HEIGHT_TRANSITION_EASING = "cubic-bezier(0.16, 1, 0.3, 1)";
+const FOCUSABLE_SELECTOR = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  '[tabindex]:not([tabindex="-1"])',
+].join(",");
 
 function prefersReducedMotion() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function getFocusableElements(container: HTMLElement): HTMLElement[] {
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+  ).filter(
+    (element) =>
+      !element.hasAttribute("hidden") && element.getClientRects().length > 0,
+  );
 }
 
 const SERVER_ERROR_KEYS: Record<string, string> = {
@@ -73,16 +91,79 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
   const nicknameRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLElement>(null);
+  const loginTabRef = useRef<HTMLButtonElement>(null);
+  const registerTabRef = useRef<HTMLButtonElement>(null);
   const heightAnimationRef = useRef<{
     from: number;
     timer: number;
   } | null>(null);
 
   useEffect(() => {
-    const target = mode === "register" ? nicknameRef.current : accountRef.current;
+    const target =
+      initialMode === "register" ? nicknameRef.current : accountRef.current;
     const timer = window.setTimeout(() => target?.focus(), 60);
     return () => window.clearTimeout(timer);
-  }, [mode]);
+  }, [initialMode]);
+
+  useEffect(() => {
+    const trigger =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const root = document.getElementById("root");
+
+    if (root) root.inert = true;
+
+    return () => {
+      if (root) root.inert = false;
+      if (trigger?.isConnected) {
+        trigger.focus();
+      } else {
+        document.getElementById("workspace-main")?.focus();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        if (busy) return;
+        event.preventDefault();
+        onClose();
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const panel = panelRef.current;
+      if (!panel) return;
+
+      const focusables = getFocusableElements(panel);
+      if (focusables.length === 0) {
+        event.preventDefault();
+        panel.focus();
+        return;
+      }
+
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement;
+      const inside = active instanceof Node && panel.contains(active);
+
+      if (event.shiftKey) {
+        if (!inside || active === first) {
+          event.preventDefault();
+          last?.focus();
+        }
+      } else if (!inside || active === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [busy, onClose]);
 
   useEffect(() => {
     if (!avatarFile) {
@@ -136,6 +217,33 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
       const next = { ...current };
       delete next[field];
       return next;
+    });
+  };
+
+  const handleAuthTabKeyDown = (
+    event: ReactKeyboardEvent<HTMLDivElement>,
+  ) => {
+    if (busy) return;
+
+    let nextMode: AuthMode | null = null;
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      nextMode = mode === "login" ? "register" : "login";
+    } else if (event.key === "Home") {
+      nextMode = "login";
+    } else if (event.key === "End") {
+      nextMode = "register";
+    }
+
+    if (!nextMode) return;
+    event.preventDefault();
+
+    switchMode(nextMode);
+    requestAnimationFrame(() => {
+      if (nextMode === "login") {
+        loginTabRef.current?.focus();
+      } else {
+        registerTabRef.current?.focus();
+      }
     });
   };
 
@@ -279,6 +387,8 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="auth-title"
+        aria-describedby="auth-description"
+        tabIndex={-1}
       >
         <header className={styles.header}>
           <div className={styles.brand}>
@@ -300,12 +410,21 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
           </button>
         </header>
 
-        <div className={styles.tabs} role="tablist" aria-label={t("auth.loginCta")}>
+        <div
+          className={styles.tabs}
+          role="tablist"
+          aria-label={t("auth.loginCta")}
+          onKeyDown={handleAuthTabKeyDown}
+        >
           <button
+            ref={loginTabRef}
+            id="auth-tab-login"
             className={styles.tab}
             type="button"
             role="tab"
+            tabIndex={mode === "login" ? 0 : -1}
             aria-selected={mode === "login"}
+            aria-controls="auth-panel"
             data-active={mode === "login"}
             onClick={() => switchMode("login")}
             disabled={busy}
@@ -313,10 +432,14 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
             {t("auth.login")}
           </button>
           <button
+            ref={registerTabRef}
+            id="auth-tab-register"
             className={styles.tab}
             type="button"
             role="tab"
+            tabIndex={mode === "register" ? 0 : -1}
             aria-selected={mode === "register"}
+            aria-controls="auth-panel"
             data-active={mode === "register"}
             onClick={() => switchMode("register")}
             disabled={busy}
@@ -325,20 +448,30 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
           </button>
         </div>
 
-        <div className={styles.titleBlock}>
-          <h2 id="auth-title">
-            {mode === "login"
-              ? t("auth.loginTitle")
-              : t("auth.registerTitle")}
-          </h2>
-          <p>
-            {mode === "login"
-              ? t("auth.loginSubtitle")
-              : t("auth.registerSubtitle")}
-          </p>
-        </div>
+        <div
+          id="auth-panel"
+          role="tabpanel"
+          aria-labelledby={`auth-tab-${mode}`}
+        >
+          <div className={styles.titleBlock}>
+            <h2 id="auth-title">
+              {mode === "login"
+                ? t("auth.loginTitle")
+                : t("auth.registerTitle")}
+            </h2>
+            <p id="auth-description">
+              {mode === "login"
+                ? t("auth.loginSubtitle")
+                : t("auth.registerSubtitle")}
+            </p>
+          </div>
 
-        <form className={styles.form} onSubmit={handleSubmit} noValidate>
+          <form
+            className={styles.form}
+            onSubmit={handleSubmit}
+            noValidate
+            aria-busy={busy}
+          >
           {mode === "register" ? (
             <div className={styles.avatarRow}>
               <button
@@ -491,7 +624,8 @@ export function AuthModal({ initialMode = "login", onClose }: AuthModalProps) {
           {mode === "register" ? (
             <p className={styles.autoLoginNote}>{t("auth.autoLoginNote")}</p>
           ) : null}
-        </form>
+          </form>
+        </div>
       </section>
     </div>,
     document.body,

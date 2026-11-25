@@ -1,4 +1,11 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import {
+  Fragment,
+  useEffect,
+  useRef,
+  useState,
+  type FocusEvent as ReactFocusEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import { BrandMark } from "../../components/BrandMark";
@@ -47,9 +54,29 @@ export function ProjectTopBar({
 
   const languageAreaRef = useRef<HTMLDivElement>(null);
   const languageButtonRef = useRef<HTMLButtonElement>(null);
+  const languageMenuRef = useRef<HTMLDivElement>(null);
+  const languageFocusTargetRef = useRef<"first" | "last">("first");
+  const tabRefs = useRef<Record<WorkspaceTab, HTMLButtonElement | null>>({
+    projects: null,
+    components: null,
+    settings: null,
+  });
 
   const currentLocale: Locale =
     i18n.resolvedLanguage === "en-US" ? "en-US" : "zh-CN";
+
+  useEffect(() => {
+    if (!languageOpen) return;
+
+    const items = languageMenuRef.current?.querySelectorAll<HTMLButtonElement>(
+      '[role="menuitemradio"]',
+    );
+    if (!items?.length) return;
+
+    const index =
+      languageFocusTargetRef.current === "last" ? items.length - 1 : 0;
+    items[index]?.focus();
+  }, [languageOpen]);
 
   useEffect(() => {
     if (!languageOpen) return;
@@ -75,10 +102,121 @@ export function ProjectTopBar({
     };
   }, [languageOpen]);
 
+  const openLanguageMenu = (target: "first" | "last") => {
+    languageFocusTargetRef.current = target;
+    if (languageOpen) {
+      const items =
+        languageMenuRef.current?.querySelectorAll<HTMLButtonElement>(
+          '[role="menuitemradio"]',
+        );
+      if (items?.length) {
+        items[target === "last" ? items.length - 1 : 0]?.focus();
+      }
+      return;
+    }
+    setLanguageOpen(true);
+  };
+
+  const closeLanguageMenu = (restoreFocus = true) => {
+    setLanguageOpen(false);
+    if (restoreFocus) languageButtonRef.current?.focus();
+  };
+
+  const handleLanguageButtonKeyDown = (
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+  ) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      openLanguageMenu("first");
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      openLanguageMenu("last");
+    }
+  };
+
+  const handleLanguageMenuKeyDown = (
+    event: ReactKeyboardEvent<HTMLDivElement>,
+  ) => {
+    const items = Array.from(
+      languageMenuRef.current?.querySelectorAll<HTMLButtonElement>(
+        '[role="menuitemradio"]',
+      ) ?? [],
+    );
+    if (items.length === 0) return;
+
+    const currentIndex = items.indexOf(
+      document.activeElement as HTMLButtonElement,
+    );
+    let nextIndex: number | null = null;
+
+    switch (event.key) {
+      case "ArrowDown":
+        nextIndex = (currentIndex + 1) % items.length;
+        break;
+      case "ArrowUp":
+        nextIndex = (currentIndex - 1 + items.length) % items.length;
+        break;
+      case "Home":
+        nextIndex = 0;
+        break;
+      case "End":
+        nextIndex = items.length - 1;
+        break;
+      case "Escape":
+        event.preventDefault();
+        closeLanguageMenu();
+        return;
+      default:
+        return;
+    }
+
+    event.preventDefault();
+    items[nextIndex]?.focus();
+  };
+
+  const handleLanguageAreaBlur = (
+    event: ReactFocusEvent<HTMLDivElement>,
+  ) => {
+    const nextFocus = event.relatedTarget as Node | null;
+    if (!nextFocus || !event.currentTarget.contains(nextFocus)) {
+      setLanguageOpen(false);
+    }
+  };
+
+  const handleTabKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
+    const currentIndex = TABS.findIndex((tab) => tab.id === activeTab);
+    let nextIndex: number | null = null;
+
+    switch (event.key) {
+      case "ArrowRight":
+        nextIndex = (currentIndex + 1) % TABS.length;
+        break;
+      case "ArrowLeft":
+        nextIndex = (currentIndex - 1 + TABS.length) % TABS.length;
+        break;
+      case "Home":
+        nextIndex = 0;
+        break;
+      case "End":
+        nextIndex = TABS.length - 1;
+        break;
+      default:
+        return;
+    }
+
+    event.preventDefault();
+    const nextTab = TABS[nextIndex];
+    if (!nextTab) return;
+
+    if (nextTab.id !== activeTab) {
+      onTabChange(nextTab.id);
+    }
+    requestAnimationFrame(() => tabRefs.current[nextTab.id]?.focus());
+  };
+
   const selectLanguage = (locale: Locale) => {
     setLocale(locale);
-    setLanguageOpen(false);
-    languageButtonRef.current?.focus();
+    closeLanguageMenu();
   };
 
   const handleLogout = async () => {
@@ -103,7 +241,12 @@ export function ProjectTopBar({
         <span className={styles.productName}>{t("app.productName")}</span>
       </div>
 
-      <nav className={styles.nav} role="tablist" aria-label={t("nav.primary")}>
+      <nav
+        className={styles.nav}
+        role="tablist"
+        aria-label={t("nav.primary")}
+        onKeyDown={handleTabKeyDown}
+      >
         {TABS.map((tab, index) => (
           <Fragment key={tab.id}>
             {index > 0 ? (
@@ -112,10 +255,14 @@ export function ProjectTopBar({
               </span>
             ) : null}
             <button
+              ref={(element) => {
+                tabRefs.current[tab.id] = element;
+              }}
               id={`tab-${tab.id}`}
               className={styles.navTab}
               type="button"
               role="tab"
+              tabIndex={activeTab === tab.id ? 0 : -1}
               aria-selected={activeTab === tab.id}
               aria-controls={`panel-${tab.id}`}
               data-active={activeTab === tab.id}
@@ -138,7 +285,11 @@ export function ProjectTopBar({
           {resolved === "dark" ? <SunIcon size={15} /> : <MoonIcon size={15} />}
         </button>
 
-        <div className={styles.languageArea} ref={languageAreaRef}>
+        <div
+          className={styles.languageArea}
+          ref={languageAreaRef}
+          onBlur={handleLanguageAreaBlur}
+        >
           <button
             ref={languageButtonRef}
             className={styles.languageButton}
@@ -148,7 +299,14 @@ export function ProjectTopBar({
             aria-haspopup="menu"
             aria-expanded={languageOpen}
             aria-controls="language-menu"
-            onClick={() => setLanguageOpen((open) => !open)}
+            onClick={() => {
+              if (languageOpen) {
+                closeLanguageMenu();
+              } else {
+                openLanguageMenu("first");
+              }
+            }}
+            onKeyDown={handleLanguageButtonKeyDown}
           >
             <GlobeIcon size={14} />
             <span className={styles.languageLabel}>
@@ -159,10 +317,12 @@ export function ProjectTopBar({
 
           {languageOpen ? (
             <div
+              ref={languageMenuRef}
               id="language-menu"
               className={styles.languageMenu}
               role="menu"
               aria-label={t("app.switchLanguage")}
+              onKeyDown={handleLanguageMenuKeyDown}
             >
               {(Object.keys(LANGUAGE_LABELS) as Locale[]).map((locale) => (
                 <button
@@ -170,6 +330,7 @@ export function ProjectTopBar({
                   className={styles.languageItem}
                   type="button"
                   role="menuitemradio"
+                  tabIndex={-1}
                   aria-checked={locale === currentLocale}
                   data-active={locale === currentLocale}
                   onClick={() => selectLanguage(locale)}
