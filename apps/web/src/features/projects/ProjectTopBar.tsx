@@ -13,13 +13,13 @@ import {
   CheckIcon,
   ChevronDownIcon,
   GlobeIcon,
-  LogoutIcon,
   MoonIcon,
   SunIcon,
 } from "../../components/icons";
 import { setLocale, type Locale } from "../../lib/i18n";
 import { useTheme } from "../../lib/theme";
 import { useAuth } from "../auth/AuthProvider";
+import { ProfilePanel } from "../profile/ProfilePanel";
 import styles from "./ProjectTopBar.module.css";
 
 const LANGUAGE_LABELS: Record<Locale, string> = {
@@ -48,14 +48,16 @@ export function ProjectTopBar({
 }: ProjectTopBarProps) {
   const { t, i18n } = useTranslation();
   const { resolved, toggle } = useTheme();
-  const { user, status, logout } = useAuth();
-  const [loggingOut, setLoggingOut] = useState(false);
+  const { user, status } = useAuth();
   const [languageOpen, setLanguageOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   const languageAreaRef = useRef<HTMLDivElement>(null);
   const languageButtonRef = useRef<HTMLButtonElement>(null);
   const languageMenuRef = useRef<HTMLDivElement>(null);
   const languageFocusTargetRef = useRef<"first" | "last">("first");
+  const profileAreaRef = useRef<HTMLDivElement>(null);
+  const profileButtonRef = useRef<HTMLButtonElement>(null);
   const tabRefs = useRef<Record<WorkspaceTab, HTMLButtonElement | null>>({
     projects: null,
     components: null,
@@ -101,6 +103,35 @@ export function ProjectTopBar({
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [languageOpen]);
+
+  useEffect(() => {
+    if (!profileOpen) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (!profileAreaRef.current?.contains(event.target as Node)) {
+        setProfileOpen(false);
+      }
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setProfileOpen(false);
+        profileButtonRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [profileOpen]);
+
+  useEffect(() => {
+    if (!user) setProfileOpen(false);
+  }, [user]);
 
   const openLanguageMenu = (target: "first" | "last") => {
     languageFocusTargetRef.current = target;
@@ -219,16 +250,15 @@ export function ProjectTopBar({
     closeLanguageMenu();
   };
 
-  const handleLogout = async () => {
-    if (loggingOut) return;
-    setLoggingOut(true);
-    try {
-      await logout();
-    } catch (error) {
-      console.warn("[morfa] logout failed", error);
-    } finally {
-      setLoggingOut(false);
-    }
+  const closeProfile = () => {
+    setProfileOpen(false);
+    requestAnimationFrame(() => {
+      if (profileButtonRef.current?.isConnected) {
+        profileButtonRef.current.focus();
+      } else {
+        document.getElementById("workspace-main")?.focus();
+      }
+    });
   };
 
   return (
@@ -348,21 +378,31 @@ export function ProjectTopBar({
         {status === "loading" ? (
           <span className={styles.authSkeleton} aria-hidden="true" />
         ) : user ? (
-          <div className={styles.user}>
-            <span className={styles.avatar}>
-              <img src={user.avatarUrl} alt="" />
-            </span>
-            <span className={styles.nickname}>{user.nickname}</span>
+          <div className={styles.profileArea} ref={profileAreaRef}>
             <button
-              className={styles.logoutButton}
+              ref={profileButtonRef}
+              className={styles.userButton}
               type="button"
-              title={t("auth.logout")}
-              aria-label={t("auth.logout")}
-              onClick={handleLogout}
-              disabled={loggingOut}
+              title={t("profile.open")}
+              aria-label={t("profile.open")}
+              aria-haspopup="dialog"
+              aria-expanded={profileOpen}
+              aria-controls="profile-panel"
+              onClick={() => {
+                if (profileOpen) {
+                  closeProfile();
+                } else {
+                  setProfileOpen(true);
+                }
+              }}
             >
-              <LogoutIcon size={14} />
+              <span className={styles.avatar}>
+                <img src={user.avatarUrl} alt="" />
+              </span>
+              <span className={styles.nickname}>{user.nickname}</span>
             </button>
+
+            {profileOpen ? <ProfilePanel onClose={closeProfile} /> : null}
           </div>
         ) : (
           <button className={styles.loginButton} type="button" onClick={onLogin}>

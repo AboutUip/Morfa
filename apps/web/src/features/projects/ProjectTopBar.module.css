@@ -220,12 +220,27 @@
   opacity: 0.84;
 }
 
-.user {
+.profileArea {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.userButton {
   display: flex;
   align-items: center;
   gap: 7px;
   min-width: 0;
-  padding-left: 1px;
+  height: 32px;
+  padding: 2px 6px 2px 2px;
+  border-radius: var(--mf-radius-sm);
+  color: var(--mf-text-secondary);
+  transition: background var(--mf-transition);
+}
+
+.userButton:hover,
+.userButton[aria-expanded="true"] {
+  background: var(--mf-bg-hover);
 }
 
 .avatar {
@@ -253,28 +268,6 @@
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.logoutButton {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: var(--mf-radius-xs);
-  color: var(--mf-text-tertiary);
-  transition:
-    color var(--mf-transition),
-    background var(--mf-transition);
-}
-
-.logoutButton:hover:not(:disabled) {
-  background: var(--mf-bg-hover);
-  color: var(--mf-danger);
-}
-
-.logoutButton:disabled {
-  opacity: 0.4;
 }
 
 .authSkeleton {
@@ -363,14 +356,13 @@
     margin: 0 6px;
   }
 
+  .userButton {
+    height: 40px;
+  }
+
   .avatar {
     width: 28px;
     height: 28px;
-  }
-
-  .logoutButton {
-    width: 34px;
-    height: 34px;
   }
 
   .nickname {
@@ -439,8 +431,7 @@
     height: 40px;
   }
 
-  .logoutButton {
-    width: 34px;
-    height: 34px;
+  .userButton {
+    height: 40px;
   }
 }

@@ -118,6 +118,24 @@ export function LogoutIcon(props: IconProps) {
   );
 }
 
+export function UserIcon(props: IconProps) {
+  return (
+    <svg {...iconProps(props)}>
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M5 19c.8-3.3 3.5-5.2 7-5.2s6.2 1.9 7 5.2" />
+    </svg>
+  );
+}
+
+export function KeyIcon(props: IconProps) {
+  return (
+    <svg {...iconProps(props)}>
+      <circle cx="8" cy="12" r="3.5" />
+      <path d="M11.5 12H21M17 12v3M14 12v2" />
+    </svg>
+  );
+}
+
 export function SlidersIcon(props: IconProps) {
   return (
     <svg {...iconProps(props)}>

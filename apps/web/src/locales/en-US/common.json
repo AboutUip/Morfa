@@ -35,6 +35,24 @@
     "emptyTitle": "Settings coming soon",
     "emptyHint": "Appearance, language, and account settings will live here."
   },
+  "profile": {
+    "title": "Profile",
+    "open": "Open profile",
+    "close": "Close",
+    "logout": "Sign out",
+    "tabs": {
+      "profile": "Profile",
+      "account": "Account"
+    },
+    "nickname": "Nickname",
+    "loginAccount": "Login account",
+    "userId": "User ID",
+    "status": "Account status",
+    "active": "Active",
+    "joined": "Joined",
+    "readonlyHint": "Profile details are read-only for now.",
+    "accountHint": "Password and security settings are coming soon."
+  },
   "auth": {
     "login": "Sign in",
     "register": "Sign up",
@@ -58,7 +76,6 @@
     "submitLogin": "Sign in",
     "submitRegister": "Sign up & sign in",
     "submitting": "Please wait…",
-    "logout": "Sign out",
     "close": "Close",
     "autoLoginNote": "You will be signed in automatically",
     "errors": {

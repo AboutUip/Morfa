@@ -35,6 +35,24 @@
     "emptyTitle": "设置即将开放",
     "emptyHint": "外观、语言与账号设置将在这里集中管理。"
   },
+  "profile": {
+    "title": "个人",
+    "open": "打开个人面板",
+    "close": "关闭",
+    "logout": "退出登录",
+    "tabs": {
+      "profile": "个人",
+      "account": "账户"
+    },
+    "nickname": "昵称",
+    "loginAccount": "登录账号",
+    "userId": "用户 ID",
+    "status": "账号状态",
+    "active": "正常",
+    "joined": "加入时间",
+    "readonlyHint": "个人资料目前为只读。",
+    "accountHint": "密码与安全设置即将开放。"
+  },
   "auth": {
     "login": "登录",
     "register": "注册",
@@ -58,7 +76,6 @@
     "submitLogin": "登录",
     "submitRegister": "注册并登录",
     "submitting": "请稍候…",
-    "logout": "退出登录",
     "close": "关闭",
     "autoLoginNote": "注册成功后会自动登录",
     "errors": {
