@@ -234,7 +234,9 @@ export function ProfileTab({
           title={t("profile.avatar.change")}
           aria-busy={avatarBusy}
         >
-          <img src={avatarPreview ?? user.avatarUrl} alt="" />
+          <span className={styles.avatarImage}>
+            <img src={avatarPreview ?? user.avatarUrl} alt="" />
+          </span>
           <span className={styles.avatarBadge} aria-hidden="true">
             <UploadIcon size={12} />
           </span>

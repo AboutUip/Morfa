@@ -168,6 +168,15 @@
   flex: none;
   width: 62px;
   height: 62px;
+  place-items: center;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.avatarImage {
+  display: grid;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
   place-items: center;
   border: 1px solid var(--mf-border);
@@ -175,7 +184,7 @@
   background: var(--mf-bg-app);
 }
 
-.avatarButton img {
+.avatarImage img {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -187,8 +196,9 @@
 
 .avatarBadge {
   position: absolute;
-  right: 0;
-  bottom: 0;
+  right: -1px;
+  bottom: -1px;
+  z-index: 1;
   display: grid;
   width: 21px;
   height: 21px;
