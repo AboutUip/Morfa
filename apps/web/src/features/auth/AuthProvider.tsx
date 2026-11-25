@@ -15,6 +15,11 @@ import {
   type AuthUser,
   type RegisterResponse,
 } from "../../lib/api";
+import {
+  bootScheduler,
+  type BootPreferences,
+  type BootSession,
+} from "../../lib/boot";
 import { getLocale, setLocale } from "../../lib/i18n";
 import {
   preferencesRealtime,
@@ -56,6 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     useState<PendingVCodeSetup | null>(null);
   const setModeRef = useRef(setMode);
   const modeRef = useRef(mode);
+  const allowBootPreferencesRef = useRef(false);
 
   useEffect(() => {
     setModeRef.current = setMode;
@@ -85,7 +91,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    const loadPreferences = async () => {
+    const loadPreferences = async (initial: boolean) => {
+      const bootSession = bootScheduler.get<BootSession>("session");
+      const canUseBootPreferences =
+        initial &&
+        allowBootPreferencesRef.current &&
+        bootSession?.user?.id === userId;
+
+      if (canUseBootPreferences) {
+        try {
+          const preferences =
+            await bootScheduler.await<BootPreferences>("preferences");
+          if (preferences) {
+            if (active) applyPreferences(preferences);
+            return;
+          }
+        } catch {
+          // 启动预取失败时回退为一次普通请求
+        }
+      }
+
       try {
         const preferences = await preferencesRealtime.get();
         if (active) applyPreferences(preferences);
@@ -103,11 +128,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     const unsubscribeReconnect = realtimeClient.onReconnected(
       (reconnected) => {
-        if (reconnected) void loadPreferences();
+        if (reconnected) void loadPreferences(false);
       },
     );
 
-    void loadPreferences();
+    void loadPreferences(true);
 
     return () => {
       active = false;
@@ -119,13 +144,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
 
-    authApi
-      .me()
-      .then(({ user: currentUser }) => {
-        if (active) {
-          setUser(currentUser);
-          if (currentUser) setPendingVCodeSetup(null);
-        }
+    bootScheduler
+      .await<BootSession>("session")
+      .then((session) => {
+        if (!active) return;
+        const currentUser = session?.user ?? null;
+        allowBootPreferencesRef.current = Boolean(currentUser);
+        setUser(currentUser);
+        if (currentUser) setPendingVCodeSetup(null);
       })
       .catch((error: unknown) => {
         if (error instanceof ApiError && error.code !== "NETWORK_ERROR") {
@@ -153,6 +179,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return "vcodeSetupRequired";
     }
 
+    allowBootPreferencesRef.current = false;
     setUser(result.user);
     setStatus("ready");
     setPendingVCodeSetup(null);
@@ -170,6 +197,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         code,
       );
 
+      allowBootPreferencesRef.current = false;
       setUser(nextUser);
       setStatus("ready");
     },
@@ -182,6 +210,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = useCallback(async (formData: FormData) => {
     const result = await authApi.register(formData);
+    allowBootPreferencesRef.current = false;
     setUser(result.user);
     setStatus("ready");
     setPendingVCodeSetup(null);
@@ -191,6 +220,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     await authApi.logout();
     realtimeClient.disconnect();
+    allowBootPreferencesRef.current = false;
     setUser(null);
     setPendingVCodeSetup(null);
   }, []);
@@ -201,6 +231,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const clearUser = useCallback(() => {
     realtimeClient.disconnect();
+    allowBootPreferencesRef.current = false;
     setUser(null);
     setPendingVCodeSetup(null);
   }, []);
