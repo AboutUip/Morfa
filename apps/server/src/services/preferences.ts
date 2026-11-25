@@ -6,6 +6,7 @@ import {
   type UserThemeMode,
 } from "../db/preferences.js";
 import { ApiError } from "../lib/errors.js";
+import { publishRealtimeEvent } from "../realtime/events.js";
 
 const LOCALES: UserLocale[] = ["zh-CN", "en-US"];
 const THEME_MODES: UserThemeMode[] = ["system", "light", "dark"];
@@ -61,9 +62,18 @@ export function updateUserPreferences(
     now: Date.now(),
   });
 
-  return {
+  const preferences: PreferencesDto = {
     locale: row.locale,
     themeMode: row.theme_mode,
     updatedAt: row.updated_at,
   };
+
+  publishRealtimeEvent({
+    userId,
+    module: "preferences",
+    event: "changed",
+    payload: preferences,
+  });
+
+  return preferences;
 }

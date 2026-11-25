@@ -36,6 +36,7 @@ import {
   randomToken,
   verifySecret,
 } from "../lib/secret.js";
+import { realtimeGateway } from "../realtime/index.js";
 import {
   assertAvatar,
   avatarUrl,
@@ -373,5 +374,9 @@ export function requireActiveUser(token: string | null): SessionUser {
 
 export function logout(token: string | null) {
   if (!token) return;
+  const session = getSessionUser(token);
   deleteSession(hashToken(token));
+  if (session) {
+    realtimeGateway.closeUserConnections(session.row.id, "LOGOUT");
+  }
 }

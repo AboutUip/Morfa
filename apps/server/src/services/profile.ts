@@ -10,6 +10,7 @@ import {
 import { transaction } from "../db/transaction.js";
 import { ApiError } from "../lib/errors.js";
 import { hashSecret, verifySecret } from "../lib/secret.js";
+import { realtimeGateway } from "../realtime/index.js";
 import {
   assertAvatar,
   deleteAvatar,
@@ -103,6 +104,12 @@ export async function changePassword(
     updateUserPassword(user.id, passwordHash, now);
     deleteUserSessions(user.id, currentTokenHash);
   });
+
+  realtimeGateway.closeUserConnections(
+    user.id,
+    "PASSWORD_CHANGED",
+    1012,
+  );
 }
 
 export async function resetPassword(
@@ -122,6 +129,12 @@ export async function resetPassword(
     updateUserPassword(user.id, passwordHash, now);
     deleteUserSessions(user.id, currentTokenHash);
   });
+
+  realtimeGateway.closeUserConnections(
+    user.id,
+    "PASSWORD_RESET",
+    1012,
+  );
 }
 
 export async function cancelAccount(
@@ -141,4 +154,6 @@ export async function cancelAccount(
     deleteUserSessions(user.id);
     deleteApiKeysForUser(user.id);
   });
+
+  realtimeGateway.closeUserConnections(user.id, "ACCOUNT_CANCELLED");
 }

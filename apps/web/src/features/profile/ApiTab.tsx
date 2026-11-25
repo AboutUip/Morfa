@@ -17,12 +17,12 @@ import {
 } from "../../components/icons";
 import {
   apiKeyApi,
-  mcpApi,
   type ApiKeySummary,
   type McpCapabilityDetail,
   type McpCapabilitySummary,
 } from "../../lib/api";
 import { apiErrorMessage } from "../../lib/apiErrors";
+import { mcpRealtime } from "../../lib/realtime";
 import styles from "./ProfilePanel.module.css";
 
 interface PermissionSwitchProps {
@@ -186,7 +186,7 @@ export function ApiTab() {
     setCatalogLoading(true);
     setCatalogError(null);
 
-    mcpApi
+    mcpRealtime
       .capabilities()
       .then(({ capabilities }) => {
         if (active) setCatalog(capabilities);
@@ -380,7 +380,7 @@ export function ApiTab() {
 
     setDetailLoadingName(capability.name);
     try {
-      const { capability: detail } = await mcpApi.capability(
+      const { capability: detail } = await mcpRealtime.capability(
         capability.name,
       );
       setDetails((current) => ({

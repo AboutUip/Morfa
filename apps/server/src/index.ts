@@ -1,6 +1,7 @@
 import fs from "node:fs";
 
 import multipart from "@fastify/multipart";
+import websocket from "@fastify/websocket";
 import Fastify from "fastify";
 
 import { registerAccountRoutes } from "./api/account.js";
@@ -9,6 +10,7 @@ import { registerAuthRoutes } from "./api/auth.js";
 import { registerMcpRoutes } from "./api/mcp.js";
 import { registerModelProviderRoutes } from "./api/modelProviders.js";
 import { registerPreferencesRoutes } from "./api/preferences.js";
+import { registerRealtimeRoutes } from "./api/realtime.js";
 import { registerUploadRoutes } from "./api/uploads.js";
 import {
   AVATARS_DIR,
@@ -26,6 +28,10 @@ import {
 } from "./db/vcode.js";
 import { ApiError } from "./lib/errors.js";
 import { mcpController } from "./mcp/runtime.js";
+import {
+  initializeRealtimeOperations,
+  realtimeGateway,
+} from "./realtime/index.js";
 
 fs.mkdirSync(AVATARS_DIR, { recursive: true });
 fs.mkdirSync(EXPORTS_DIR, { recursive: true });
@@ -49,8 +55,15 @@ await app.register(multipart, {
     parts: 28,
   },
 });
+await app.register(websocket, {
+  options: {
+    maxPayload: 256 * 1024,
+  },
+});
 
 app.get("/api/health", async () => ({ ok: true }));
+
+initializeRealtimeOperations();
 
 registerAuthRoutes(app);
 registerAccountRoutes(app);
@@ -58,6 +71,7 @@ registerPreferencesRoutes(app);
 registerApiKeyRoutes(app);
 registerModelProviderRoutes(app);
 registerMcpRoutes(app, mcpController);
+registerRealtimeRoutes(app);
 registerUploadRoutes(app);
 
 app.setErrorHandler((error, request, reply) => {
@@ -95,6 +109,7 @@ app.setErrorHandler((error, request, reply) => {
 });
 
 const close = async () => {
+  realtimeGateway.closeAll();
   await app.close();
   db.close();
 };

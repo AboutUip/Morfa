@@ -12,19 +12,17 @@ import {
 import {
   ApiError,
   authApi,
-  preferencesApi,
   type AuthUser,
   type RegisterResponse,
 } from "../../lib/api";
 import { getLocale, setLocale } from "../../lib/i18n";
+import {
+  preferencesRealtime,
+  realtimeClient,
+} from "../../lib/realtime";
 import { useTheme } from "../../lib/theme";
 
 type AuthStatus = "loading" | "ready";
-
-// 嵌入式预览与多窗口切换可能连续触发 window focus，偏好同步必须节流，
-// 否则每次焦点变化都会产生一次 /api/me/preferences 请求。
-const PREFERENCE_SYNC_MIN_INTERVAL_MS = 15_000;
-const PREFERENCE_SYNC_POLL_MS = 60_000;
 
 export interface PendingVCodeSetup {
   setupToken: string;
@@ -58,7 +56,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     useState<PendingVCodeSetup | null>(null);
   const setModeRef = useRef(setMode);
   const modeRef = useRef(mode);
-  const lastPreferenceSyncRef = useRef(0);
 
   useEffect(() => {
     setModeRef.current = setMode;
@@ -72,56 +69,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let active = true;
 
-    const applyPreferences = async (force = false) => {
-      if (!active || document.visibilityState === "hidden") return;
-
-      const now = Date.now();
+    const applyPreferences = (
+      preferences: Awaited<
+        ReturnType<typeof preferencesRealtime.get>
+      >,
+    ) => {
+      if (preferences.locale && preferences.locale !== getLocale()) {
+        setLocale(preferences.locale);
+      }
       if (
-        !force &&
-        now - lastPreferenceSyncRef.current <
-          PREFERENCE_SYNC_MIN_INTERVAL_MS
+        preferences.themeMode &&
+        preferences.themeMode !== modeRef.current
       ) {
-        return;
+        setModeRef.current(preferences.themeMode);
       }
-      lastPreferenceSyncRef.current = now;
+    };
 
+    const loadPreferences = async () => {
       try {
-        const { preferences } = await preferencesApi.get();
-        if (!active) return;
-
-        if (preferences.locale && preferences.locale !== getLocale()) {
-          setLocale(preferences.locale);
-        }
-        if (
-          preferences.themeMode &&
-          preferences.themeMode !== modeRef.current
-        ) {
-          setModeRef.current(preferences.themeMode);
-        }
+        const preferences = await preferencesRealtime.get();
+        if (active) applyPreferences(preferences);
       } catch {
-        // 偏好同步失败不阻塞主流程，保留当前本地设置
+        // 实时与 HTTP 回退都失败时保留当前本地设置
       }
     };
 
-    void applyPreferences(true);
-    const interval = window.setInterval(() => {
-      void applyPreferences();
-    }, PREFERENCE_SYNC_POLL_MS);
-    const onFocus = () => void applyPreferences();
-    const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        void applyPreferences();
-      }
-    };
+    void realtimeClient.ensureConnected().catch(() => {
+      // 后续请求会自动回退到 HTTP
+    });
 
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onVisibilityChange);
+    const unsubscribe = preferencesRealtime.subscribe((preferences) => {
+      if (active) applyPreferences(preferences);
+    });
+    const unsubscribeReconnect = realtimeClient.onReconnected(
+      (reconnected) => {
+        if (reconnected) void loadPreferences();
+      },
+    );
+
+    void loadPreferences();
 
     return () => {
       active = false;
-      window.clearInterval(interval);
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
+      unsubscribe();
+      unsubscribeReconnect();
     };
   }, [userId]);
 
@@ -199,6 +190,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     await authApi.logout();
+    realtimeClient.disconnect();
     setUser(null);
     setPendingVCodeSetup(null);
   }, []);
@@ -208,6 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const clearUser = useCallback(() => {
+    realtimeClient.disconnect();
     setUser(null);
     setPendingVCodeSetup(null);
   }, []);

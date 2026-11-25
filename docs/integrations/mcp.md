@@ -135,13 +135,15 @@ API Key 在个人面板的「API」Tab 中创建，明文只在创建成功时�
 
 以上接口均使用 API Key Bearer 认证，权限规则与 MCP `tools/call` 完全一致。
 
+Morfa Web 客户端的 MCP 能力目录优先通过实时通道的 `mcp.capabilities.list` / `mcp.capabilities.get` 读取，连接不可用时回退到上述 HTTP 接口；外部 MCP 客户端仍然只使用 `/mcp` 和公开 HTTP API。
+
 ## llms.txt
 
 `GET /llms.txt` 是公开的 Markdown 文档，包含端点、认证、权限说明、MCP 调用示例以及全部能力的输入 schema 和参数示例。个人面板的「API」Tab 同时提供外链与下载按钮，方便直接提供给 LLM。
 
 ## 偏好同步
 
-语言与主题同时保存在 `user_preferences` 表。前端登录后读取服务端偏好并应用，之后在窗口重新获得焦点（15 秒节流）、页面重新可见或每 60 秒同步一次，因此通过 MCP 修改语言 / 主题后，已打开的 Morfa 页面也会在短时间内更新。
+语言与主题同时保存在 `user_preferences` 表。前端登录后读取一次快照，并订阅实时通道的 `preferences.changed` 事件；MCP 修改语言 / 主题后，服务端立即推送给该用户所有在线页面，不再依赖 focus 或轮询。详见 [实时网络通道](../architecture/realtime.md)。
 
 ## 安全约定
 

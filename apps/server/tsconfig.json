@@ -9,8 +9,7 @@
     "noEmit": true,
     "verbatimModuleSyntax": true,
     "forceConsistentCasingInFileNames": true,
-    "types": ["node"],
-    "rootDir": "src"
+    "types": ["node"]
   },
   "include": ["src"]
 }

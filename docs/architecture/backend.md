@@ -12,7 +12,7 @@ Node.js 服务负责鉴权、项目与设计文档的持久化、资源管理、
 | --- | --- | --- |
 | 运行时 | Node.js >= 22（LTS） | 已接入 |
 | 语言 | TypeScript（strict） | 已接入 |
-| HTTP 框架 | Fastify 5 | 已接入（认证 API） |
+| HTTP / WS 框架 | Fastify 5 + `@fastify/websocket` | 已接入（认证、模型、MCP 与实时通道） |
 | 校验 | Zod（与共享 schema 复用） | 建议，当前为手写校验 |
 | 数据库 | SQLite（WAL） | 已接入（认证） |
 | 数据访问 | `node:sqlite`（原生） | 已接入；ORM 评估中 |
@@ -32,6 +32,7 @@ apps/server/
 │  ├─ db/                  # 连接、schema、仓储、迁移执行器
 │  ├─ agent/               # 编排器、模型适配、工具注册与运行记录
 │  ├─ mcp/                 # MCP 总控、能力注册、API Key 鉴权与 llms.txt
+│  ├─ realtime/            # WebSocket 网关、操作注册、订阅与领域事件
 │  └─ lib/                 # 配置、日志、错误、鉴权等基础设施
 ├─ migrations/             # 顺序编号的 SQL 迁移
 ├─ data/                   # 本地 SQLite 文件（不提交）
@@ -70,7 +71,9 @@ apps/server/
 - `POST /api/me/model-providers/:id/test`：真实调用模型，以 `application/x-ndjson` 流返回 `start`、`reasoning`、`delta`、`done`、`error` 事件；支持根据模型能力自动选择流式 / 非流式，并在开启思考时发送供应商对应的推理参数。
 - `DELETE /api/me/model-providers/:id`：删除供应商并级联删除模型。
 - `POST /api/me/model-providers/:id/reveal-key`：消费 `reveal_api_key` ticket 后返回解密后的 API Key。
-- `GET /api/me/preferences` / `PATCH`：读取或更新账号级语言与主题偏好；未设置时返回 `null`，前端保留本地设置。
+- `GET /api/me/preferences` / `PATCH`：读取或更新账号级语言与主题偏好；未设置时返回 `null`，前端保留本地设置。HTTP 接口作为一次性快照与 WebSocket 不可用时的回退。
+- `GET /api/realtime`：WebSocket Upgrade 端点，使用 Session Cookie 与 Origin 校验；信封为 `v / id / type / module / action / payload`，支持请求、订阅与服务器推送。
+- `preferences.get` / `preferences.update`：通过实时操作注册表调用同一套偏好 service；更新后发布 `preferences.changed`，推送给该用户所有在线连接。
 - `GET /api/me/api-keys` / `POST` / `PATCH /:id` / `DELETE /:id`：管理 MCP API Key。明文只在创建响应返回一次，数据库保存 SHA-256 哈希与展示前缀。
 - `POST /mcp`：MCP JSON-RPC 2.0 端点，使用 `Authorization: Bearer mf_...` 认证；支持 `initialize`、`ping`、`tools/list`、`tools/call` 与通知请求。
 - `GET /api/mcp/capabilities` / `GET /api/mcp/capabilities/:name` / `POST /api/mcp/capabilities/:name/call`：与 MCP 共用同一套能力注册表和权限校验，便于其他模块接入。
@@ -88,7 +91,7 @@ apps/server/
 - 模型测试使用固定提示词验证模型确实返回内容；OpenAI 协议发送 `reasoning_effort`，Anthropic 协议发送 `thinking` 与对应 token 预算。流式请求按 SSE 增量解析，客户端断开时中止上游请求，单次测试最长 60 秒。空响应、鉴权失败、超时、流格式错误与上游错误分别返回稳定错误码。
 - MCP 能力统一由 `src/mcp/McpController` 注册和执行：能力定义包含双语标题 / 描述、JSON schema、权限要求、示例与只读 / 破坏性注解。控制器负责参数校验、API Key 权限、`tools/list` 过滤、`tools/call` 结果封装和 `llms.txt` 生成；新模块只需 `register()` 一个能力定义。
 - API Key 有两个独立权限位：VCode 与密码。能力声明自己需要的权限，控制器在每次调用时校验 Key 权限并检查调用参数中的 `vcode` / `password`；同时需要两项的能力要求 Key 同时开启两个权限位。详见 [MCP 集成](../integrations/mcp.md)。
-- 语言与主题偏好写入 `user_preferences`；MCP 修改后，前端通过窗口聚焦（15 秒节流）与 60 秒轮询同步，避免另建长连接。
+- 语言与主题偏好写入 `user_preferences`；修改后由领域层发布 `preferences.changed`，WebSocket 网关按用户订阅推送，不再轮询。实时网关的鉴权、重连、信封和扩展方式见 [实时网络通道](realtime.md)。
 - 头像文件写入 `apps/server/data/uploads/avatars/`，数据库仅保存 `uploads/avatars/<uuid>.<ext>` 相对路径，限制 PNG / JPG / WebP 2 MB。
 - 详细取舍见 [ADR 0005](../decisions/0005-auth-and-avatar.md)。
 

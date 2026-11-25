@@ -1,0 +1,12 @@
+{
+  "name": "@morfa/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cross-runtime contracts for Morfa",
+  "exports": {
+    ".": "./src/index.ts",
+    "./realtime": "./src/realtime.ts"
+  },
+  "types": "./src/index.ts"
+}

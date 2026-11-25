@@ -9,6 +9,11 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
+      "/api/realtime": {
+        target: "http://127.0.0.1:3001",
+        ws: true,
+        changeOrigin: false,
+      },
       "/api": "http://127.0.0.1:3001",
       "/uploads": "http://127.0.0.1:3001",
       "/mcp": "http://127.0.0.1:3001",

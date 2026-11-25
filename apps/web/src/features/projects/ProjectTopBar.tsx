@@ -19,8 +19,8 @@ import {
   SlidersIcon,
   SunIcon,
 } from "../../components/icons";
-import { preferencesApi } from "../../lib/api";
 import { setLocale, type Locale } from "../../lib/i18n";
+import { preferencesRealtime } from "../../lib/realtime";
 import { useMediaQuery } from "../../lib/useMediaQuery";
 import { useTheme } from "../../lib/theme";
 import { useAuth } from "../auth/AuthProvider";
@@ -318,7 +318,7 @@ export function ProjectTopBar({
   const selectLanguage = (locale: Locale) => {
     setLocale(locale);
     if (user) {
-      void preferencesApi.update({ locale }).catch(() => {
+      void preferencesRealtime.update({ locale }).catch(() => {
         // 本地语言已切换，服务端同步失败不影响当前会话
       });
     }
@@ -329,7 +329,7 @@ export function ProjectTopBar({
     const next = resolved === "dark" ? "light" : "dark";
     toggle();
     if (user) {
-      void preferencesApi.update({ themeMode: next }).catch(() => {
+      void preferencesRealtime.update({ themeMode: next }).catch(() => {
         // 本地主题已切换，服务端同步失败不影响当前会话
       });
     }

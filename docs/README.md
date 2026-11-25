@@ -19,6 +19,7 @@
 | [product/vision.md](product/vision.md) | 产品定位、目标用户、核心价值与产品原则 | 草案 |
 | [product/roadmap.md](product/roadmap.md) | 里程碑划分与验收标准 | 草案 |
 | [architecture/overview.md](architecture/overview.md) | 系统上下文、组件划分、数据流与跨平台策略 | M1 部分实现 |
+| [architecture/realtime.md](architecture/realtime.md) | WebSocket 信封、操作注册、订阅、重连与推送 | 已实现基础 |
 | [architecture/frontend.md](architecture/frontend.md) | React 前端结构、启动加载、状态与样式 | 部分实现 |
 | [architecture/backend.md](architecture/backend.md) | Node.js 服务、认证 API、模块与安全 | M1 部分实现 |
 | [architecture/database.md](architecture/database.md) | SQLite 使用约定、迁移流程与表结构 | M1 部分实现 |
@@ -38,7 +39,7 @@
 
 - **新加入的开发者**：README → 产品愿景 → 架构总览 → 开发指南 → 对应模块文档。
 - **产品与设计**：产品愿景 → 路线图 → 主题规范 → i18n 规范。
-- **Agent / MCP 方向**：架构总览 → Agent 设计 → MCP 集成 → XAIOP 集成 → 数据库设计（运行记录部分）。
+- **Agent / MCP / 实时方向**：架构总览 → Agent 设计 → MCP 集成 → 实时网络通道 → XAIOP 集成 → 数据库设计（运行记录部分）。
 - **第三方依赖维护**：XAIOP 集成 → vendor README → ADR 0004。
 - **架构评审**：架构总览 → 各模块文档 → ADR 列表。
 

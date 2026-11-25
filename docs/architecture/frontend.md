@@ -28,7 +28,7 @@ apps/web/
 │  ├─ app/                 # 入口、路由、全局 Provider、错误边界
 │  ├─ components/          # 跨功能复用的展示型组件
 │  ├─ features/            # 按业务域组织的功能模块
-│  ├─ lib/                 # 通用工具、hooks、API 客户端
+│  ├─ lib/                 # 通用工具、hooks、API 客户端、WebSocket 实时客户端
 │  ├─ locales/             # zh-CN / en-US 文案资源
 │  ├─ styles/              # 设计令牌、主题、全局样式
 │  └─ assets/              # 参与构建的图片、字体
@@ -50,7 +50,7 @@ features/
 
 当前 `App` 在启动加载结束后渲染 `projects/ProjectsPage`；账号状态由 `auth/AuthProvider` 在应用启动时通过 `/api/auth/me` 恢复。跨功能复用的 `components/VCodeModal` 提供 3×4 数字键盘、6 位自动确认、物理键盘输入、焦点陷阱与焦点恢复；`components/PasswordModal` 提供当前密码验证、串行操作与同样的焦点管理；`components/ModelTestModal` 与 `components/ModelEditModal` 分别承载模型真实调用测试与能力配置，沿用相同的进入 / 退出动画和焦点管理。个人面板通过 `features/profile` 组织资料、导出与注销流程；`features/profile/ApiTab.tsx` 负责 MCP API Key、权限开关、llms.txt 链接与能力目录。
 
-`AuthProvider` 登录后读取 `/api/me/preferences` 并应用服务端语言 / 主题偏好，同时在窗口聚焦（15 秒最小间隔）、页面重新可见或 60 秒轮询时同步，使 MCP 修改的外观设置能在已打开的页面中生效。顶栏切换主题或语言时也会回写 `/api/me/preferences`。
+实时通道由 `lib/realtime/client.ts` 单例管理，每个 Tab 一条 WebSocket，负责请求 / 响应、订阅、心跳与指数退避重连。`AuthProvider` 登录后获取一次偏好快照，并订阅 `preferences.changed`；MCP、HTTP PATCH 或其他 Tab 修改偏好后，服务端直接推送到在线页面，不再使用 focus 节流或定时轮询。顶栏切换主题或语言时优先通过 WebSocket 提交，连接不可用时回退到一次性 HTTP。详见 [实时网络通道](realtime.md)。
 
 规则：
 

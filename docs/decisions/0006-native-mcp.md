@@ -15,7 +15,7 @@ Morfa 需要把账号、外观、导出与模型供应商能力开放给 MCP 客
    - 密码敏感能力：调用时必须传当前账号 `password`。
    同时需要两项的能力要求 Key 同时开启两个权限位。
 4. **发现能力**：`tools/list` 只返回当前 Key 可调用的能力；`search_mcp_capabilities` / `get_mcp_capability` 可查询被锁定的能力及要求。另提供共用同一控制器的 REST 发现与调用 API。
-5. **偏好同步**：语言与主题写入 `user_preferences`；网页登录后读取，并通过窗口聚焦（15 秒节流）+ 页面可见 + 60 秒轮询同步 MCP 发起的修改，避免长连接。
+5. **偏好同步**：语言与主题写入 `user_preferences`；网页登录后读取一次快照，并通过实时通道订阅 `preferences.changed`；MCP 修改后由服务端直接推送到在线页面。
 
 ## 结果
 

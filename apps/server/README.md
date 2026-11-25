@@ -2,12 +2,13 @@
 
 Morfa 的 Node.js 后端：HTTP API、账号认证、VCode 验证、SQLite 数据访问、加密数据导出与头像文件存储。
 
-> 状态：M1 认证、VCode、账号、导出、模型供应商、模型可用性测试、API Key 与原生 MCP API 已实现；编辑器与项目接口待接入。
+> 状态：M1 认证、VCode、账号、导出、模型供应商、模型可用性测试、API Key、原生 MCP API 与 WebSocket 实时通道已实现；编辑器与项目接口待接入。
 
 ## 技术栈
 
 - Node.js >= 22 + TypeScript
 - Fastify 5
+- `@fastify/websocket`（实时信封、订阅与推送）
 - `node:sqlite`（WAL 模式）
 - `@fastify/multipart`（头像与数据包上传）
 - 密码 / VCode：`crypto.scrypt` + 随机盐
@@ -20,6 +21,7 @@ Morfa 的 Node.js 后端：HTTP API、账号认证、VCode 验证、SQLite 数�
 src/
 ├─ api/         认证、账号、导出与头像路由
 ├─ mcp/         MCP 总控、能力注册、鉴权、参数校验与 llms.txt
+├─ realtime/    WebSocket 网关、操作注册、订阅、心跳与领域事件
 ├─ services/    认证、VCode、个人资料、偏好、API Key、数据导出 / 导入、模型供应商与模型测试
 ├─ db/          连接、迁移、用户 / 会话 / 票据 / 导出 / 项目仓储
 ├─ lib/         Cookie、错误处理、密钥派生与加密辅助
@@ -69,6 +71,7 @@ data/           本地 SQLite、头像、导出文件与主密钥（不提交）
 | `POST` | `/api/mcp/capabilities/:name/call` | 使用 API Key 直接调用能力 |
 | `GET` | `/api/mcp/export/latest` | 使用 API Key 下载当前有效导出包 |
 | `GET` | `/llms.txt` | 公开的 MCP llms.txt 文档 |
+| `GET` | `/api/realtime` | WebSocket Upgrade；请求 / 订阅 / 推送统一信封 |
 | `GET` | `/uploads/avatars/:filename` | 读取头像文件 |
 
 注册成功会直接创建会话，返回 `201` 和 `{ user, importedProjectCount }`，前端无需再次登录。缺少 VCode 的老用户登录时返回 `requiresVCodeSetup`、`setupToken` 和 `preview`，完成设置后才创建会话。
@@ -90,7 +93,8 @@ data/           本地 SQLite、头像、导出文件与主密钥（不提交）
 - 同一用户只保留一个有效导出包；新导出使旧包失效，导入成功后吊销数据包。
 - API Key 只保存 SHA-256 哈希与展示前缀，明文只在创建响应中返回一次；每个 Key 可独立开启 VCode 与密码敏感操作权限，调用时分别传入 `vcode` / `password`。
 - MCP 能力注册与执行统一由 `apps/server/src/mcp/McpController` 管理；`GET /llms.txt` 自动生成能力目录、参数 schema 与调用示例。详见 [MCP 集成](../../docs/integrations/mcp.md)。
-- 账号级语言与主题偏好保存在 `user_preferences`；前端登录后读取，并在窗口聚焦或轮询时同步 MCP 发起的修改。
+- 账号级语言与主题偏好保存在 `user_preferences`；更新后发布 `preferences.changed`，通过 WebSocket 推送给该用户所有在线连接，不再轮询。
+- 实时通道使用 `@fastify/websocket`，单条消息上限 256 KB；注销、改密、重置密码与注销账号会主动关闭用户连接。信封与扩展方式见 [实时网络通道](../../docs/architecture/realtime.md)。
 
 ## 导出安全
 
