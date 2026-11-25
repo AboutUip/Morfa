@@ -23,7 +23,7 @@ npm run build
 
 Accounts support avatar upload (only the relative file path is stored), nickname, unique login account, password confirmation, and automatic sign-in after sign-up. The login/register modal does not close when the backdrop is clicked.
 
-The UI is responsive across mobile and desktop: safe-area insets, `100dvh`, a bottom-sheet auth modal on small screens, 16px form inputs to avoid iOS zoom, and larger touch targets. A PWA manifest and icons are included; no Service Worker yet.
+The UI is responsive across mobile and desktop: safe-area insets, `100dvh`, a bottom-sheet auth modal on small screens, 16px form inputs to avoid iOS zoom, and larger touch targets. The top bar switches between Projects, Components, and Settings (the latter two are placeholders for now). A PWA manifest and icons are included; no Service Worker yet.
 
 **Typeface:** Maple Mono CN 7.9 (monospace, Latin + Simplified Chinese, rounded sans-serif) is self-hosted as subsetted WOFF2 files under `apps/web/src/assets/fonts/maple-mono/`, licensed under SIL OFL 1.1. UI strings use the font; rare characters fall back to system fonts.
 

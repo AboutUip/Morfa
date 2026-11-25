@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { BrandMark } from "../../components/BrandMark";
@@ -20,11 +20,25 @@ const LANGUAGE_LABELS: Record<Locale, string> = {
   "en-US": "English",
 };
 
+export type WorkspaceTab = "projects" | "components" | "settings";
+
+const TABS: Array<{ id: WorkspaceTab; labelKey: string }> = [
+  { id: "projects", labelKey: "nav.projects" },
+  { id: "components", labelKey: "nav.components" },
+  { id: "settings", labelKey: "nav.settings" },
+];
+
 interface ProjectTopBarProps {
+  activeTab: WorkspaceTab;
+  onTabChange: (tab: WorkspaceTab) => void;
   onLogin: () => void;
 }
 
-export function ProjectTopBar({ onLogin }: ProjectTopBarProps) {
+export function ProjectTopBar({
+  activeTab,
+  onTabChange,
+  onLogin,
+}: ProjectTopBarProps) {
   const { t, i18n } = useTranslation();
   const { resolved, toggle } = useTheme();
   const { user, status, logout } = useAuth();
@@ -88,6 +102,30 @@ export function ProjectTopBar({ onLogin }: ProjectTopBarProps) {
         </span>
         <span className={styles.productName}>{t("app.productName")}</span>
       </div>
+
+      <nav className={styles.nav} role="tablist" aria-label={t("nav.primary")}>
+        {TABS.map((tab, index) => (
+          <Fragment key={tab.id}>
+            {index > 0 ? (
+              <span className={styles.navSeparator} aria-hidden="true">
+                |
+              </span>
+            ) : null}
+            <button
+              id={`tab-${tab.id}`}
+              className={styles.navTab}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              aria-controls={`panel-${tab.id}`}
+              data-active={activeTab === tab.id}
+              onClick={() => onTabChange(tab.id)}
+            >
+              {t(tab.labelKey)}
+            </button>
+          </Fragment>
+        ))}
+      </nav>
 
       <div className={styles.actions}>
         <button

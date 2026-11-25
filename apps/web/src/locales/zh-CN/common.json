@@ -4,6 +4,12 @@
     "toggleTheme": "切换主题",
     "switchLanguage": "切换语言"
   },
+  "nav": {
+    "primary": "主导航",
+    "projects": "项目",
+    "components": "组件",
+    "settings": "设置"
+  },
   "loading": {
     "title": "正在初始化工作区",
     "description": "正在准备设计文档与本地工作区",
@@ -15,11 +21,18 @@
     "retry": "重试"
   },
   "projects": {
-    "title": "项目",
     "emptyTitle": "还没有项目",
     "emptyHint": "登录后，你的设计项目会显示在这里。",
     "emptyHintLoggedIn": "你的设计项目会显示在这里。项目创建功能即将开放。",
     "loginCta": "登录 / 注册"
+  },
+  "components": {
+    "emptyTitle": "还没有组件",
+    "emptyHint": "可复用组件与设计系统将在这里管理。"
+  },
+  "settings": {
+    "emptyTitle": "设置即将开放",
+    "emptyHint": "外观、语言与账号设置将在这里集中管理。"
   },
   "auth": {
     "login": "登录",

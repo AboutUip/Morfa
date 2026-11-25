@@ -1,11 +1,12 @@
 .topBar {
   position: relative;
   z-index: 3;
-  display: flex;
+  display: grid;
   flex: none;
+  grid-template-areas: "brand nav actions";
+  grid-template-columns: auto auto 1fr;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  column-gap: 20px;
   height: calc(var(--mf-topbar-height) + var(--mf-safe-top));
   padding: var(--mf-safe-top) max(16px, var(--mf-safe-right)) 0
     max(16px, var(--mf-safe-left));
@@ -15,6 +16,7 @@
 
 .brandGroup {
   display: flex;
+  grid-area: brand;
   align-items: center;
   min-width: 0;
   gap: 12px;
@@ -38,9 +40,49 @@
   white-space: nowrap;
 }
 
+.nav {
+  display: flex;
+  grid-area: nav;
+  align-items: center;
+  min-width: 0;
+}
+
+.navTab {
+  height: 28px;
+  padding: 0 9px;
+  border-radius: var(--mf-radius-sm);
+  color: var(--mf-text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    color var(--mf-transition),
+    background var(--mf-transition);
+}
+
+.navTab:hover {
+  background: var(--mf-bg-hover);
+  color: var(--mf-text-primary);
+}
+
+.navTab[data-active="true"] {
+  background: var(--mf-bg-hover);
+  color: var(--mf-text-primary);
+  font-weight: 600;
+}
+
+.navSeparator {
+  color: var(--mf-border-strong);
+  font-size: 11px;
+  line-height: 1;
+  user-select: none;
+}
+
 .actions {
   display: flex;
+  grid-area: actions;
   align-items: center;
+  justify-self: end;
   gap: 2px;
 }
 
@@ -255,13 +297,37 @@
 
 @media (max-width: 640px) {
   .topBar {
-    gap: 8px;
+    grid-template-areas:
+      "brand actions"
+      "nav nav";
+    grid-template-columns: minmax(0, 1fr) auto;
+    height: auto;
+    min-height: calc(var(--mf-topbar-height) + var(--mf-safe-top));
+    padding-top: calc(6px + var(--mf-safe-top));
     padding-right: max(12px, var(--mf-safe-right));
+    padding-bottom: 6px;
     padding-left: max(12px, var(--mf-safe-left));
+    column-gap: 8px;
+    row-gap: 4px;
   }
 
   .brandGroup {
     gap: 9px;
+  }
+
+  .nav {
+    width: 100%;
+    padding-top: 2px;
+  }
+
+  .navTab {
+    height: 38px;
+    padding: 0 11px;
+    font-size: 12px;
+  }
+
+  .navSeparator {
+    font-size: 12px;
   }
 
   .pipe {
@@ -332,6 +398,11 @@
 
   .languageLabel {
     font-size: 10px;
+  }
+
+  .navTab {
+    padding: 0 8px;
+    font-size: 11px;
   }
 }
 

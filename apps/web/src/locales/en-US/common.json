@@ -4,6 +4,12 @@
     "toggleTheme": "Toggle theme",
     "switchLanguage": "Switch language"
   },
+  "nav": {
+    "primary": "Primary navigation",
+    "projects": "Projects",
+    "components": "Components",
+    "settings": "Settings"
+  },
   "loading": {
     "title": "Preparing your workspace",
     "description": "Setting up design documents and local workspace",
@@ -15,11 +21,18 @@
     "retry": "Try again"
   },
   "projects": {
-    "title": "Projects",
     "emptyTitle": "No projects yet",
     "emptyHint": "Sign in and your design projects will appear here.",
     "emptyHintLoggedIn": "Your design projects will appear here. Project creation is coming soon.",
     "loginCta": "Sign in / Sign up"
+  },
+  "components": {
+    "emptyTitle": "No components yet",
+    "emptyHint": "Reusable components and your design system will live here."
+  },
+  "settings": {
+    "emptyTitle": "Settings coming soon",
+    "emptyHint": "Appearance, language, and account settings will live here."
   },
   "auth": {
     "login": "Sign in",
