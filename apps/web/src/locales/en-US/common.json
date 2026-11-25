@@ -9,7 +9,8 @@
     "skipToContent": "Skip to content",
     "projects": "Projects",
     "components": "Components",
-    "settings": "Settings"
+    "settings": "Settings",
+    "workspaceMenu": "Workspace pages"
   },
   "loading": {
     "title": "Preparing your workspace",

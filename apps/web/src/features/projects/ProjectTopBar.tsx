@@ -13,10 +13,14 @@ import {
   CheckIcon,
   ChevronDownIcon,
   GlobeIcon,
+  LayersIcon,
   MoonIcon,
+  PageIcon,
+  SlidersIcon,
   SunIcon,
 } from "../../components/icons";
 import { setLocale, type Locale } from "../../lib/i18n";
+import { useMediaQuery } from "../../lib/useMediaQuery";
 import { useTheme } from "../../lib/theme";
 import { useAuth } from "../auth/AuthProvider";
 import { ProfilePanel } from "../profile/ProfilePanel";
@@ -29,10 +33,14 @@ const LANGUAGE_LABELS: Record<Locale, string> = {
 
 export type WorkspaceTab = "projects" | "components" | "settings";
 
-const TABS: Array<{ id: WorkspaceTab; labelKey: string }> = [
-  { id: "projects", labelKey: "nav.projects" },
-  { id: "components", labelKey: "nav.components" },
-  { id: "settings", labelKey: "nav.settings" },
+const TABS: Array<{
+  id: WorkspaceTab;
+  labelKey: string;
+  icon: typeof PageIcon;
+}> = [
+  { id: "projects", labelKey: "nav.projects", icon: PageIcon },
+  { id: "components", labelKey: "nav.components", icon: LayersIcon },
+  { id: "settings", labelKey: "nav.settings", icon: SlidersIcon },
 ];
 
 interface ProjectTopBarProps {
@@ -49,13 +57,17 @@ export function ProjectTopBar({
   const { t, i18n } = useTranslation();
   const { resolved, toggle } = useTheme();
   const { user, status } = useAuth();
+  const isCompactNav = useMediaQuery("(max-width: 640px)");
   const [languageOpen, setLanguageOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [brandMenuOpen, setBrandMenuOpen] = useState(false);
 
   const languageAreaRef = useRef<HTMLDivElement>(null);
   const languageButtonRef = useRef<HTMLButtonElement>(null);
   const languageMenuRef = useRef<HTMLDivElement>(null);
   const languageFocusTargetRef = useRef<"first" | "last">("first");
+  const brandAreaRef = useRef<HTMLDivElement>(null);
+  const brandButtonRef = useRef<HTMLButtonElement>(null);
   const profileButtonRef = useRef<HTMLButtonElement>(null);
   const tabRefs = useRef<Record<WorkspaceTab, HTMLButtonElement | null>>({
     projects: null,
@@ -65,6 +77,8 @@ export function ProjectTopBar({
 
   const currentLocale: Locale =
     i18n.resolvedLanguage === "en-US" ? "en-US" : "zh-CN";
+  const activeTabMeta =
+    TABS.find((tab) => tab.id === activeTab) ?? TABS[0];
 
   useEffect(() => {
     if (!languageOpen) return;
@@ -107,7 +121,50 @@ export function ProjectTopBar({
     if (!user) setProfileOpen(false);
   }, [user]);
 
+  useEffect(() => {
+    if (!isCompactNav) setBrandMenuOpen(false);
+  }, [isCompactNav]);
+
+  useEffect(() => {
+    if (!brandMenuOpen) return;
+
+    const frame = requestAnimationFrame(() => {
+      tabRefs.current[activeTab]?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [brandMenuOpen, activeTab]);
+
+  useEffect(() => {
+    if (!brandMenuOpen) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (!brandAreaRef.current?.contains(event.target as Node)) {
+        setBrandMenuOpen(false);
+      }
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setBrandMenuOpen(false);
+        brandButtonRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [brandMenuOpen]);
+
+  useEffect(() => {
+    if (profileOpen) setBrandMenuOpen(false);
+  }, [profileOpen]);
+
   const openLanguageMenu = (target: "first" | "last") => {
+    setBrandMenuOpen(false);
     languageFocusTargetRef.current = target;
     if (languageOpen) {
       const items =
@@ -188,14 +245,52 @@ export function ProjectTopBar({
     }
   };
 
+  const openBrandMenu = () => {
+    setLanguageOpen(false);
+    setBrandMenuOpen(true);
+  };
+
+  const closeBrandMenu = (restoreFocus = false) => {
+    setBrandMenuOpen(false);
+    if (restoreFocus) brandButtonRef.current?.focus();
+  };
+
+  const toggleBrandMenu = () => {
+    if (brandMenuOpen) {
+      closeBrandMenu(true);
+    } else {
+      openBrandMenu();
+    }
+  };
+
+  const handleBrandButtonKeyDown = (
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+  ) => {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      openBrandMenu();
+    }
+  };
+
+  const handleBrandAreaBlur = (
+    event: ReactFocusEvent<HTMLDivElement>,
+  ) => {
+    const nextFocus = event.relatedTarget as Node | null;
+    if (!nextFocus || !event.currentTarget.contains(nextFocus)) {
+      setBrandMenuOpen(false);
+    }
+  };
+
   const handleTabKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
     const currentIndex = TABS.findIndex((tab) => tab.id === activeTab);
     let nextIndex: number | null = null;
 
     switch (event.key) {
+      case "ArrowDown":
       case "ArrowRight":
         nextIndex = (currentIndex + 1) % TABS.length;
         break;
+      case "ArrowUp":
       case "ArrowLeft":
         nextIndex = (currentIndex - 1 + TABS.length) % TABS.length;
         break;
@@ -239,45 +334,128 @@ export function ProjectTopBar({
 
   return (
     <header className={styles.topBar}>
-      <div className={styles.brandGroup}>
-        <BrandMark size={26} />
-        <span className={styles.pipe} aria-hidden="true">
-          |
-        </span>
-        <span className={styles.productName}>{t("app.productName")}</span>
+      <div
+        className={styles.brandGroup}
+        ref={brandAreaRef}
+        onBlur={handleBrandAreaBlur}
+      >
+        {isCompactNav ? (
+          <button
+            ref={brandButtonRef}
+            className={styles.brandButton}
+            type="button"
+            aria-label={`${t("nav.workspaceMenu")} · ${t(
+              activeTabMeta.labelKey,
+            )}`}
+            title={t("nav.workspaceMenu")}
+            aria-expanded={brandMenuOpen}
+            aria-controls="workspace-tabs"
+            onClick={toggleBrandMenu}
+            onKeyDown={handleBrandButtonKeyDown}
+          >
+            <BrandMark size={26} />
+            <span className={styles.pipe} aria-hidden="true">
+              |
+            </span>
+            <span className={styles.productName}>
+              {t("app.productName")}
+            </span>
+            <ChevronDownIcon size={12} className={styles.brandChevron} />
+          </button>
+        ) : (
+          <>
+            <BrandMark size={26} />
+            <span className={styles.pipe} aria-hidden="true">
+              |
+            </span>
+            <span className={styles.productName}>
+              {t("app.productName")}
+            </span>
+          </>
+        )}
+
+        {isCompactNav ? (
+          <div
+            id="workspace-tabs"
+            className={styles.brandMenu}
+            role="tablist"
+            aria-orientation="vertical"
+            aria-label={t("nav.primary")}
+            data-open={brandMenuOpen}
+            aria-hidden={!brandMenuOpen}
+            inert={!brandMenuOpen}
+            onKeyDown={handleTabKeyDown}
+          >
+            {TABS.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  ref={(element) => {
+                    tabRefs.current[tab.id] = element;
+                  }}
+                  id={`tab-${tab.id}`}
+                  className={styles.brandMenuItem}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab.id}
+                  aria-controls={`panel-${tab.id}`}
+                  data-active={activeTab === tab.id}
+                  onClick={() => {
+                    onTabChange(tab.id);
+                    closeBrandMenu(true);
+                  }}
+                >
+                  <Icon size={15} />
+                  <span className={styles.brandMenuLabel}>
+                    {t(tab.labelKey)}
+                  </span>
+                  {activeTab === tab.id ? (
+                    <CheckIcon
+                      size={13}
+                      className={styles.brandMenuCheck}
+                    />
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
       </div>
 
-      <nav
-        className={styles.nav}
-        role="tablist"
-        aria-label={t("nav.primary")}
-        onKeyDown={handleTabKeyDown}
-      >
-        {TABS.map((tab, index) => (
-          <Fragment key={tab.id}>
-            {index > 0 ? (
-              <span className={styles.navSeparator} aria-hidden="true">
-                |
-              </span>
-            ) : null}
-            <button
-              ref={(element) => {
-                tabRefs.current[tab.id] = element;
-              }}
-              id={`tab-${tab.id}`}
-              className={styles.navTab}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === tab.id}
-              aria-controls={`panel-${tab.id}`}
-              data-active={activeTab === tab.id}
-              onClick={() => onTabChange(tab.id)}
-            >
-              {t(tab.labelKey)}
-            </button>
-          </Fragment>
-        ))}
-      </nav>
+      {!isCompactNav ? (
+        <nav
+          className={styles.nav}
+          role="tablist"
+          aria-label={t("nav.primary")}
+          onKeyDown={handleTabKeyDown}
+        >
+          {TABS.map((tab, index) => (
+            <Fragment key={tab.id}>
+              {index > 0 ? (
+                <span className={styles.navSeparator} aria-hidden="true">
+                  |
+                </span>
+              ) : null}
+              <button
+                ref={(element) => {
+                  tabRefs.current[tab.id] = element;
+                }}
+                id={`tab-${tab.id}`}
+                className={styles.navTab}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === tab.id}
+                aria-controls={`panel-${tab.id}`}
+                data-active={activeTab === tab.id}
+                onClick={() => onTabChange(tab.id)}
+              >
+                {t(tab.labelKey)}
+              </button>
+            </Fragment>
+          ))}
+        </nav>
+      ) : null}
 
       <div className={styles.actions}>
         <button

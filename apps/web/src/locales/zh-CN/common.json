@@ -9,7 +9,8 @@
     "skipToContent": "跳到主要内容",
     "projects": "项目",
     "components": "组件",
-    "settings": "设置"
+    "settings": "设置",
+    "workspaceMenu": "工作区页面"
   },
   "loading": {
     "title": "正在初始化工作区",
