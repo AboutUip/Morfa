@@ -168,6 +168,47 @@ export function ProjectWorkspace({
     endTransaction();
   };
 
+  const handleResizePage = (
+    pageId: string,
+    width: number,
+    height: number,
+  ) => {
+    const target = pages.find((page) => page.id === pageId);
+    if (!target || target.lockedSize) return;
+
+    const nextWidth = `${Math.max(1, Math.round(width))}px`;
+    const nextHeight = `${Math.max(1, Math.round(height))}px`;
+    if (
+      target.styles.width === nextWidth &&
+      target.styles.height === nextHeight
+    ) {
+      return;
+    }
+
+    transient((current) =>
+      current.map((page) => {
+        if (page.id !== pageId || page.lockedSize) return page;
+
+        return {
+          ...page,
+          styles: {
+            ...page.styles,
+            width: nextWidth,
+            height: nextHeight,
+          },
+        };
+      }),
+    );
+  };
+
+  const handleResizePageStart = () => {
+    beginTransaction();
+  };
+
+  const handleResizePageEnd = () => {
+    endTransaction();
+  };
+
   const handleReorderPage = (
     dragId: string,
     targetId: string,
@@ -345,6 +386,9 @@ export function ProjectWorkspace({
           onMovePage={handleMovePage}
           onMovePageStart={handleMovePageStart}
           onMovePageEnd={handleMovePageEnd}
+          onResizePage={handleResizePage}
+          onResizePageStart={handleResizePageStart}
+          onResizePageEnd={handleResizePageEnd}
           onRenamePage={handleRenamePage}
           onDeletePage={handleDeletePage}
           onCopyPage={handleCopyPage}

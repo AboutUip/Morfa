@@ -41,6 +41,7 @@ const MAJOR_GRID_CELLS = 5;
 const ZOOM_SENSITIVITY = 0.0015;
 const KEYBOARD_ZOOM_STEP = 1.2;
 const SNAP_THRESHOLD_PX = 6;
+const MIN_PAGE_SIZE = 32;
 
 interface CanvasView {
   x: number;
@@ -69,6 +70,16 @@ interface MoveSession {
   startWorldY: number;
   startX: number;
   startY: number;
+}
+
+interface ResizeSession {
+  pointerId: number;
+  pageId: string;
+  startX: number;
+  startY: number;
+  startWidth: number;
+  startHeight: number;
+  zoom: number;
 }
 
 interface SnapGuides {
@@ -110,6 +121,13 @@ interface CanvasViewportProps {
   onMovePage: (pageId: string, x: number, y: number) => void;
   onMovePageStart: () => void;
   onMovePageEnd: () => void;
+  onResizePage: (
+    pageId: string,
+    width: number,
+    height: number,
+  ) => void;
+  onResizePageStart: () => void;
+  onResizePageEnd: () => void;
   onRenamePage: (pageId: string, name: string) => void;
   onDeletePage: (pageId: string) => void;
   onCopyPage: (pageId: string) => void;
@@ -147,6 +165,13 @@ function isEditableElement(target: EventTarget | null) {
     target.tagName === "TEXTAREA" ||
     target.tagName === "SELECT"
   );
+}
+
+function blurActiveEditableElement() {
+  const activeElement = document.activeElement;
+  if (activeElement instanceof HTMLElement && isEditableElement(activeElement)) {
+    activeElement.blur();
+  }
 }
 
 function findPageAt(
@@ -370,6 +395,9 @@ export function CanvasViewport({
   onMovePage,
   onMovePageStart,
   onMovePageEnd,
+  onResizePage,
+  onResizePageStart,
+  onResizePageEnd,
   onRenamePage,
   onDeletePage,
   onCopyPage,
@@ -388,10 +416,12 @@ export function CanvasViewport({
   const panRef = useRef<PanSession | null>(null);
   const marqueeRef = useRef<MarqueeSession | null>(null);
   const moveRef = useRef<MoveSession | null>(null);
+  const resizeRef = useRef<ResizeSession | null>(null);
   const gestureRef = useRef<GestureSession | null>(null);
   const [panning, setPanning] = useState(false);
   const [marquee, setMarquee] = useState<MarqueeRect | null>(null);
   const [movingPage, setMovingPage] = useState(false);
+  const [resizingPage, setResizingPage] = useState(false);
   const [hoveringPage, setHoveringPage] = useState(false);
   const [snapGuides, setSnapGuides] = useState<SnapGuides | null>(null);
   const [dropActive, setDropActive] = useState(false);
@@ -619,17 +649,8 @@ export function CanvasViewport({
   }, []);
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLElement>) => {
-    const activeElement = document.activeElement;
-    if (
-      activeElement instanceof HTMLElement &&
-      (activeElement.isContentEditable ||
-        activeElement.tagName === "INPUT" ||
-        activeElement.tagName === "TEXTAREA" ||
-        activeElement.tagName === "SELECT")
-    ) {
-      // 画布会阻止 pointerdown 的默认行为，需要主动让属性输入框失焦并提交。
-      activeElement.blur();
-    }
+    // 画布会阻止 pointerdown 的默认行为，需要主动让属性输入框失焦并提交。
+    blurActiveEditableElement();
 
     const isMiddlePan = event.button === 1;
     const isHandPan = event.button === 0 && activeTool === "hand";
@@ -856,6 +877,77 @@ export function CanvasViewport({
     }
   };
 
+  const startPageResize = (
+    event: ReactPointerEvent<HTMLSpanElement>,
+    page: CanvasPage,
+  ) => {
+    if (page.lockedSize || event.button !== 0) return;
+
+    blurActiveEditableElement();
+    event.preventDefault();
+    event.stopPropagation();
+
+    const size = getPageSize(page, pages);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    resizeRef.current = {
+      pointerId: event.pointerId,
+      pageId: page.id,
+      startX: event.clientX,
+      startY: event.clientY,
+      startWidth: size.width,
+      startHeight: size.height,
+      zoom: viewRef.current.zoom,
+    };
+    onResizePageStart();
+    setResizingPage(true);
+  };
+
+  const handlePageResizeMove = (
+    event: ReactPointerEvent<HTMLSpanElement>,
+  ) => {
+    const resize = resizeRef.current;
+    if (!resize || resize.pointerId !== event.pointerId) return;
+
+    event.stopPropagation();
+    const width = Math.max(
+      MIN_PAGE_SIZE,
+      resize.startWidth +
+        (event.clientX - resize.startX) / resize.zoom,
+    );
+    const height = Math.max(
+      MIN_PAGE_SIZE,
+      resize.startHeight +
+        (event.clientY - resize.startY) / resize.zoom,
+    );
+
+    onResizePage(resize.pageId, width, height);
+  };
+
+  const endPageResize = (
+    event: ReactPointerEvent<HTMLSpanElement>,
+  ) => {
+    const resize = resizeRef.current;
+    if (!resize || resize.pointerId !== event.pointerId) return;
+
+    event.stopPropagation();
+    resizeRef.current = null;
+    setResizingPage(false);
+    onResizePageEnd();
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  const handlePageResizeLostCapture = (
+    event: ReactPointerEvent<HTMLSpanElement>,
+  ) => {
+    if (resizeRef.current?.pointerId !== event.pointerId) return;
+    resizeRef.current = null;
+    setResizingPage(false);
+    onResizePageEnd();
+  };
+
   const handlePointerLeave = () => {
     if (!panRef.current && !moveRef.current && !marqueeRef.current) {
       setHoveringPage(false);
@@ -1030,6 +1122,7 @@ export function CanvasViewport({
       data-tool={activeTool}
       data-panning={panning}
       data-moving={movingPage}
+      data-resizing={resizingPage}
       data-hover-page={hoveringPage}
       data-marquee={marquee !== null}
       data-drop-active={dropActive}
@@ -1132,6 +1225,27 @@ export function CanvasViewport({
               ) : (
                 surface
               )}
+
+              {selectedIds.includes(page.id) && !page.lockedSize ? (
+                <span
+                  className={styles.pageResizeAnchor}
+                  style={{ transform: `scale(${1 / view.zoom})` }}
+                  aria-hidden="true"
+                >
+                  <span
+                    className={styles.pageResizeHandle}
+                    onPointerDown={(event) =>
+                      startPageResize(event, page)
+                    }
+                    onPointerMove={handlePageResizeMove}
+                    onPointerUp={endPageResize}
+                    onPointerCancel={endPageResize}
+                    onLostPointerCapture={
+                      handlePageResizeLostCapture
+                    }
+                  />
+                </span>
+              ) : null}
             </div>
           );
         })}

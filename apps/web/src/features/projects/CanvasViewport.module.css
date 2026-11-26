@@ -30,6 +30,10 @@
   cursor: url("/cursors/hand-closed.svg") 12 12, grabbing;
 }
 
+.viewport[data-resizing="true"] {
+  cursor: nwse-resize;
+}
+
 .viewport[data-tool="select"][data-marquee="true"] {
   cursor: url("/cursors/select.svg") 5 4, default;
 }
@@ -218,6 +222,36 @@
   white-space: nowrap;
   pointer-events: none;
   user-select: none;
+}
+
+.pageResizeAnchor {
+  position: absolute;
+  top: 100%;
+  left: 100%;
+  z-index: 5;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+.pageResizeHandle {
+  position: absolute;
+  top: -5px;
+  left: -5px;
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--mf-accent);
+  border-radius: 2px;
+  background: var(--mf-bg-surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  cursor: nwse-resize;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.pageResizeHandle:hover {
+  background: var(--mf-accent);
 }
 
 .snapGuideVertical {
