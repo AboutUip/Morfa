@@ -31,10 +31,12 @@
   height: 20px;
   align-items: center;
   gap: 5px;
-  padding: 0 7px;
+  padding: 0 8px;
   border-radius: 4px;
-  color: var(--mf-statusbar-text);
-  font-size: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
   transition:
     color var(--mf-transition),
@@ -43,24 +45,24 @@
 
 .lintStatusButton:hover,
 .lintStatusButton[data-active="true"] {
-  background: var(--mf-bg-hover);
-  color: var(--mf-text-primary);
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
 }
 
 .lintStatusButton[data-clean="true"] {
-  color: var(--mf-text-tertiary);
+  color: #ffffff;
 }
 
 .lintStatusMark {
-  color: var(--mf-danger);
+  color: #ffd8d8;
   font-size: 14px;
   font-weight: 600;
   line-height: 1;
 }
 
 .lintStatusCheck {
-  color: var(--mf-success);
-  font-size: 11px;
+  color: #e4fff1;
+  font-size: 12px;
   font-weight: 600;
   line-height: 1;
 }
@@ -103,7 +105,7 @@
   align-items: center;
   gap: 7px;
   color: var(--mf-text-primary);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -173,7 +175,7 @@
   gap: 6px;
   overflow: hidden;
   color: var(--mf-text-secondary);
-  font-size: 10px;
+  font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -187,7 +189,7 @@
   background: var(--mf-bg-app);
   color: var(--mf-text-primary);
   font-family: var(--mf-font-mono);
-  font-size: 9px;
+  font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -195,21 +197,21 @@
 .lintMessage {
   margin: 0;
   color: var(--mf-text-secondary);
-  font-size: 10px;
-  line-height: 1.4;
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 .lintChain {
   margin: 0;
-  color: var(--mf-text-tertiary);
-  font-size: 9px;
-  line-height: 1.4;
+  color: var(--mf-text-secondary);
+  font-size: 10px;
+  line-height: 1.45;
   white-space: pre-wrap;
 }
 
 .lintEmpty {
   margin: 0;
   padding: 8px 0;
-  color: var(--mf-text-tertiary);
-  font-size: 10px;
+  color: var(--mf-text-secondary);
+  font-size: 11px;
 }
