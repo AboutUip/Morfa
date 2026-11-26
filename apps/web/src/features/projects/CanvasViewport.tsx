@@ -1007,10 +1007,11 @@ export function CanvasViewport({
             height = "800px",
             ...surfaceStyles
           } = page.styles;
+          const seeThrough = isPageSeeThrough(page);
           const surface = (
             <div
               className={styles.pageSurface}
-              data-see-through={isPageSeeThrough(page)}
+              data-see-through={seeThrough}
               style={toReactStyle(surfaceStyles)}
             />
           );
@@ -1055,8 +1056,15 @@ export function CanvasViewport({
               )}
 
               {page.frame ? (
-                <div className={styles.deviceFrame} data-frame={page.frame}>
-                  <div className={styles.deviceScreen}>
+                <div
+                  className={styles.deviceFrame}
+                  data-frame={page.frame}
+                  data-see-through={seeThrough}
+                >
+                  <div
+                    className={styles.deviceScreen}
+                    data-see-through={seeThrough}
+                  >
                     {surface}
                     {page.frame === "iphone" ? (
                       <span className={styles.deviceNotch} />
