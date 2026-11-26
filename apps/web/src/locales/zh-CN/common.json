@@ -96,18 +96,21 @@
         "empty": "当前节点还没有数据。",
         "inheritedEmpty": "当前节点没有可继承的父级数据。",
         "inheritHint": "与当前节点同名的父级数据会被当前值覆盖。",
+        "rowHint": "悬浮查看备注，右键数据可编辑或删除。",
         "shadowed": "已覆盖",
         "source": "来自 {{name}}",
         "fields": {
           "key": "键",
           "type": "类型",
-          "value": "值"
+          "value": "值",
+          "commit": "备注"
         },
         "placeholders": {
           "key": "例如 primary-color",
           "type": "选择类型",
           "typeFirst": "先选择类型",
-          "value": "输入值"
+          "value": "输入值",
+          "commit": "可选，说明这个数据的用途"
         },
         "types": {
           "text": "文本",

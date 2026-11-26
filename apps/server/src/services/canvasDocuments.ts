@@ -13,6 +13,7 @@ const MAX_STYLE_VALUE_LENGTH = 2000;
 const MAX_PAGE_DATA_ENTRIES = 100;
 const MAX_DATA_KEY_LENGTH = 64;
 const MAX_DATA_VALUE_LENGTH = 2000;
+const MAX_DATA_COMMIT_LENGTH = 1000;
 const MAX_CANVAS_JSON_LENGTH = 2_000_000;
 
 export type CanvasFrame = "iphone" | "android" | "watch";
@@ -27,6 +28,7 @@ export interface CanvasDataEntryDto {
   key: string;
   type: CanvasDataType;
   value: string;
+  commit?: string;
 }
 
 export interface CanvasPageDto {
@@ -138,7 +140,16 @@ function normalizeData(value: unknown): CanvasDataEntryDto[] {
     const entryValue = typeof entry.value === "string" ? entry.value : "";
     if (entryValue.length > MAX_DATA_VALUE_LENGTH) invalidDocument();
 
-    entries.push({ key, type, value: entryValue });
+    const commit =
+      typeof entry.commit === "string" ? entry.commit.trim() : "";
+    if (commit.length > MAX_DATA_COMMIT_LENGTH) invalidDocument();
+
+    entries.push({
+      key,
+      type,
+      value: entryValue,
+      ...(commit ? { commit } : {}),
+    });
   }
 
   return entries;

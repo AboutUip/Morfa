@@ -58,9 +58,17 @@ export function ProjectWorkspace({
     undo,
     redo,
   } = useCanvasHistory(pages, setPages, project.id);
-  const [selectedPageId, setSelectedPageId] = useState<string | null>(
-    null,
-  );
+  const [selectedPageIds, setSelectedPageIds] = useState<string[]>([]);
+  const selectedPageId =
+    selectedPageIds[selectedPageIds.length - 1] ?? null;
+
+  const selectPage = (pageId: string | null) => {
+    setSelectedPageIds(pageId ? [pageId] : []);
+  };
+
+  const selectPages = (pageIds: string[]) => {
+    setSelectedPageIds(Array.from(new Set(pageIds)));
+  };
 
   const handleCreatePage = (page: CanvasPage) => {
     commit((current) => [...current, page]);
@@ -105,8 +113,10 @@ export function ProjectWorkspace({
       });
     });
 
-    setSelectedPageId((current) =>
-      current === pageId ? id : current,
+    setSelectedPageIds((current) =>
+      current.map((selectedId) =>
+        selectedId === pageId ? id : selectedId,
+      ),
     );
   };
 
@@ -115,7 +125,9 @@ export function ProjectWorkspace({
       if (!current.some((page) => page.id === pageId)) return current;
       return current.filter((page) => page.id !== pageId);
     });
-    setSelectedPageId((current) => (current === pageId ? null : current));
+    setSelectedPageIds((current) =>
+      current.filter((selectedId) => selectedId !== pageId),
+    );
   };
 
   const handleUpdatePageStyles = (
@@ -200,7 +212,7 @@ export function ProjectWorkspace({
     if (!pasted) return;
 
     commit((current) => [...current, pasted]);
-    setSelectedPageId(pasted.id);
+    setSelectedPageIds([pasted.id]);
   };
 
   const handleDuplicatePage = (pageId: string) => {
@@ -213,17 +225,17 @@ export function ProjectWorkspace({
       t("projects.workspace.canvas.copySuffix"),
     );
     commit((current) => [...current, duplicate]);
-    setSelectedPageId(duplicate.id);
+    setSelectedPageIds([duplicate.id]);
   };
 
   useEffect(() => {
-    if (
-      selectedPageId &&
-      !pages.some((page) => page.id === selectedPageId)
-    ) {
-      setSelectedPageId(null);
-    }
-  }, [pages, selectedPageId]);
+    setSelectedPageIds((current) => {
+      const next = current.filter((id) =>
+        pages.some((page) => page.id === id),
+      );
+      return next.length === current.length ? current : next;
+    });
+  }, [pages]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -232,9 +244,16 @@ export function ProjectWorkspace({
       if (document.body.dataset.canvasModal === "true") return;
 
       if (event.key === "Delete" || event.key === "Backspace") {
-        if (!selectedPageId) return;
+        if (!selectedPageIds.length) return;
         event.preventDefault();
-        handleDeletePage(selectedPageId);
+        const deleting = new Set(selectedPageIds);
+        commit((current) => {
+          if (!current.some((page) => deleting.has(page.id))) {
+            return current;
+          }
+          return current.filter((page) => !deleting.has(page.id));
+        });
+        setSelectedPageIds([]);
         return;
       }
 
@@ -248,7 +267,7 @@ export function ProjectWorkspace({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedPageId]);
+  }, [selectedPageIds]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -318,9 +337,10 @@ export function ProjectWorkspace({
           label={project.name}
           activeTool={activeTool}
           pages={pages}
-          selectedId={selectedPageId}
+          selectedIds={selectedPageIds}
           snapSettings={snapSettings}
-          onSelectPage={setSelectedPageId}
+          onSelectPage={selectPage}
+          onSelectPages={selectPages}
           onCreatePage={handleCreatePage}
           onMovePage={handleMovePage}
           onMovePageStart={handleMovePageStart}
@@ -336,7 +356,8 @@ export function ProjectWorkspace({
         <CanvasRightSidebar
           pages={pages}
           selectedId={selectedPageId}
-          onSelect={setSelectedPageId}
+          selectedIds={selectedPageIds}
+          onSelect={selectPage}
           onRename={handleRenamePage}
           onRenameId={handleRenamePageId}
           onDelete={handleDeletePage}

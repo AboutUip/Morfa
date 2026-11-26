@@ -102,9 +102,10 @@ interface CanvasViewportProps {
   label: string;
   activeTool: CanvasTool;
   pages: CanvasPage[];
-  selectedId: string | null;
+  selectedIds: string[];
   snapSettings?: CanvasSnapSettings;
   onSelectPage: (pageId: string | null) => void;
+  onSelectPages: (pageIds: string[]) => void;
   onCreatePage: (page: CanvasPage) => void;
   onMovePage: (pageId: string, x: number, y: number) => void;
   onMovePageStart: () => void;
@@ -168,6 +169,38 @@ function findPageAt(
   }
 
   return null;
+}
+
+function findPageIdsInMarquee(
+  pages: CanvasPage[],
+  startX: number,
+  startY: number,
+  endX: number,
+  endY: number,
+  view: CanvasView,
+) {
+  const left = Math.min(startX, endX);
+  const top = Math.min(startY, endY);
+  const right = Math.max(startX, endX);
+  const bottom = Math.max(startY, endY);
+  if (right - left < 2 && bottom - top < 2) return [];
+
+  const worldLeft = (left - view.x) / view.zoom;
+  const worldTop = (top - view.y) / view.zoom;
+  const worldRight = (right - view.x) / view.zoom;
+  const worldBottom = (bottom - view.y) / view.zoom;
+
+  return pages
+    .filter((page) => {
+      const { width, height } = getPageSize(page, pages);
+      return (
+        page.x < worldRight &&
+        page.x + width > worldLeft &&
+        page.y < worldBottom &&
+        page.y + height > worldTop
+      );
+    })
+    .map((page) => page.id);
 }
 
 function nearestSnap(
@@ -329,9 +362,10 @@ export function CanvasViewport({
   label,
   activeTool,
   pages,
-  selectedId,
+  selectedIds,
   snapSettings = DEFAULT_CANVAS_SNAP_SETTINGS,
   onSelectPage,
+  onSelectPages,
   onCreatePage,
   onMovePage,
   onMovePageStart,
@@ -759,6 +793,17 @@ export function CanvasViewport({
     }
     marqueeRef.current = null;
     setMarquee(null);
+
+    onSelectPages(
+      findPageIdsInMarquee(
+        pages,
+        selection.startX,
+        selection.startY,
+        selection.currentX,
+        selection.currentY,
+        viewRef.current,
+      ),
+    );
   };
 
   const endMove = (event: ReactPointerEvent<HTMLElement>) => {
@@ -1028,7 +1073,7 @@ export function CanvasViewport({
               key={page.id}
               className={styles.page}
               data-page-container="true"
-              data-selected={selectedId === page.id}
+              data-selected={selectedIds.includes(page.id)}
               style={{
                 left: page.x,
                 top: page.y,

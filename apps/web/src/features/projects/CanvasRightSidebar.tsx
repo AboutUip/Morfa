@@ -36,7 +36,7 @@ import styles from "./CanvasRightSidebar.module.css";
 
 const DEFAULT_PANEL_WIDTH = 320;
 const MIN_PANEL_WIDTH = 180;
-const MAX_PANEL_WIDTH = 420;
+const MAX_PANEL_WIDTH = 640;
 const RESIZE_STEP = 16;
 const PANEL_ANIMATION_MS = 200;
 const PANEL_ID = "canvas-inspector-panel";
@@ -75,6 +75,7 @@ interface ResizeSession {
 interface CanvasRightSidebarProps {
   pages: CanvasPage[];
   selectedId: string | null;
+  selectedIds: string[];
   onSelect: (pageId: string | null) => void;
   onRename: (pageId: string, name: string) => void;
   onRenameId: (pageId: string, nextId: string) => void;
@@ -409,14 +410,14 @@ function ControlSection({
 
 function LayersPanel({
   pages,
-  selectedId,
+  selectedIds,
   onSelect,
   onRename,
   onDelete,
   onReorder,
 }: {
   pages: CanvasPage[];
-  selectedId: string | null;
+  selectedIds: string[];
   onSelect: (pageId: string | null) => void;
   onRename: (pageId: string, name: string) => void;
   onDelete: (pageId: string) => void;
@@ -566,7 +567,7 @@ function LayersPanel({
     >
       {pages.map((page) => {
         const expanded = expandedIds.has(page.id);
-        const selected = selectedId === page.id;
+        const selected = selectedIds.includes(page.id);
         const dropPosition =
           dropTarget?.pageId === page.id ? dropTarget.position : null;
 
@@ -1416,9 +1417,15 @@ function DataPanel({
   const [draftKey, setDraftKey] = useState("");
   const [draftType, setDraftType] = useState<CanvasDataType | "">("");
   const [draftValue, setDraftValue] = useState("");
+  const [draftCommit, setDraftCommit] = useState("");
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [dataMenu, setDataMenu] = useState<{
+    key: string;
+    x: number;
+    y: number;
+  } | null>(null);
 
   const pageId = page?.id ?? null;
 
@@ -1426,10 +1433,33 @@ function DataPanel({
     setDraftKey("");
     setDraftType("");
     setDraftValue("");
+    setDraftCommit("");
     setEditingKey(null);
     setError("");
     setDialogOpen(false);
+    setDataMenu(null);
   }, [pageId]);
+
+  useEffect(() => {
+    if (!dataMenu) return;
+
+    const closeMenu = () => setDataMenu(null);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeMenu();
+    };
+
+    document.addEventListener("pointerdown", closeMenu);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("wheel", closeMenu, { passive: true });
+    window.addEventListener("resize", closeMenu);
+
+    return () => {
+      document.removeEventListener("pointerdown", closeMenu);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("wheel", closeMenu);
+      window.removeEventListener("resize", closeMenu);
+    };
+  }, [dataMenu]);
 
   useEffect(() => {
     if (!dialogOpen) return;
@@ -1447,6 +1477,7 @@ function DataPanel({
     setDraftKey("");
     setDraftType("");
     setDraftValue("");
+    setDraftCommit("");
     setEditingKey(null);
     setError("");
   };
@@ -1491,10 +1522,12 @@ function DataPanel({
       return;
     }
 
+    const commit = draftCommit.trim();
     const entry: CanvasDataEntry = {
       key,
       type: draftType,
       value: draftValue,
+      ...(commit ? { commit } : {}),
     };
     const editingIndex =
       editingKey === null
@@ -1522,7 +1555,9 @@ function DataPanel({
     setDraftKey(entry.key);
     setDraftType(entry.type);
     setDraftValue(entry.value);
+    setDraftCommit(entry.commit ?? "");
     setError("");
+    setDataMenu(null);
     setDialogOpen(true);
   };
 
@@ -1537,6 +1572,24 @@ function DataPanel({
       pageData.filter((entry) => entry.key !== key),
     );
     if (editingKey === key) resetDraft();
+  };
+
+  const openDataMenu = (
+    event: ReactMouseEvent<HTMLDivElement>,
+    key: string,
+  ) => {
+    event.preventDefault();
+    setDataMenu({
+      key,
+      x: Math.max(
+        8,
+        Math.min(event.clientX, window.innerWidth - 172),
+      ),
+      y: Math.max(
+        8,
+        Math.min(event.clientY, window.innerHeight - 88),
+      ),
+    });
   };
 
   return (
@@ -1565,12 +1618,23 @@ function DataPanel({
                 className={styles.dataRow}
                 key={entry.key}
                 data-editing={editingKey === entry.key}
+                title={entry.commit || undefined}
+                onContextMenu={(event) =>
+                  openDataMenu(event, entry.key)
+                }
               >
                 <div className={styles.dataRowMain}>
                   <code className={styles.dataKey}>{entry.key}</code>
                   <span className={styles.dataTypeBadge}>
                     {t(DATA_TYPE_LABEL_KEYS[entry.type])}
                   </span>
+                  {entry.commit ? (
+                    <span
+                      className={styles.dataCommitDot}
+                      title={entry.commit}
+                      aria-hidden="true"
+                    />
+                  ) : null}
                 </div>
                 <div className={styles.dataRowBottom}>
                   <DataValuePreview entry={entry} />
@@ -1582,16 +1646,6 @@ function DataPanel({
                     >
                       {t("projects.workspace.dataPanel.actions.edit")}
                     </button>
-                    <button
-                      className={styles.dataRemoveButton}
-                      type="button"
-                      aria-label={t(
-                        "projects.workspace.dataPanel.actions.delete",
-                      )}
-                      onClick={() => removeEntry(entry.key)}
-                    >
-                      ×
-                    </button>
                   </span>
                 </div>
               </div>
@@ -1602,6 +1656,12 @@ function DataPanel({
             {t("projects.workspace.dataPanel.empty")}
           </p>
         )}
+
+        {pageData.length ? (
+          <p className={styles.dataHint}>
+            {t("projects.workspace.dataPanel.rowHint")}
+          </p>
+        ) : null}
       </section>
 
       <section className={styles.dataSection}>
@@ -1617,12 +1677,20 @@ function DataPanel({
                 className={styles.dataRow}
                 key={`${entry.sourceId}:${entry.key}`}
                 data-shadowed={entry.shadowed}
+                title={entry.commit || undefined}
               >
                 <div className={styles.dataRowMain}>
                   <code className={styles.dataKey}>{entry.key}</code>
                   <span className={styles.dataTypeBadge}>
                     {t(DATA_TYPE_LABEL_KEYS[entry.type])}
                   </span>
+                  {entry.commit ? (
+                    <span
+                      className={styles.dataCommitDot}
+                      title={entry.commit}
+                      aria-hidden="true"
+                    />
+                  ) : null}
                   {entry.shadowed ? (
                     <span className={styles.dataShadowed}>
                       {t("projects.workspace.dataPanel.shadowed")}
@@ -1758,6 +1826,25 @@ function DataPanel({
                     />
                   </label>
 
+                  <label className={styles.dataDialogField}>
+                    <span>
+                      {t("projects.workspace.dataPanel.fields.commit")}
+                    </span>
+                    <textarea
+                      className={styles.dataCommitInput}
+                      value={draftCommit}
+                      maxLength={1000}
+                      rows={2}
+                      placeholder={t(
+                        "projects.workspace.dataPanel.placeholders.commit",
+                      )}
+                      onChange={(event) => {
+                        setDraftCommit(event.target.value);
+                        setError("");
+                      }}
+                    />
+                  </label>
+
                   {error ? (
                     <p className={styles.dataError}>{t(error)}</p>
                   ) : null}
@@ -1789,6 +1876,53 @@ function DataPanel({
             document.body,
           )
         : null}
+
+      {dataMenu
+        ? createPortal(
+            <div
+              className={styles.contextMenu}
+              style={{ left: dataMenu.x, top: dataMenu.y }}
+              role="menu"
+              onPointerDown={(event) => event.stopPropagation()}
+              onContextMenu={(event) => event.preventDefault()}
+              onKeyDown={(event) => {
+                event.stopPropagation();
+                if (event.key === "Escape") {
+                  setDataMenu(null);
+                }
+              }}
+            >
+              <button
+                className={styles.contextMenuItem}
+                type="button"
+                role="menuitem"
+                autoFocus
+                onClick={() => {
+                  const entry = pageData.find(
+                    (item) => item.key === dataMenu.key,
+                  );
+                  setDataMenu(null);
+                  if (entry) openEditDialog(entry);
+                }}
+              >
+                {t("projects.workspace.dataPanel.actions.edit")}
+              </button>
+              <button
+                className={styles.contextMenuItem}
+                type="button"
+                role="menuitem"
+                data-danger="true"
+                onClick={() => {
+                  removeEntry(dataMenu.key);
+                  setDataMenu(null);
+                }}
+              >
+                {t("projects.workspace.dataPanel.actions.delete")}
+              </button>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
@@ -1796,6 +1930,7 @@ function DataPanel({
 export function CanvasRightSidebar({
   pages,
   selectedId,
+  selectedIds,
   onSelect,
   onRename,
   onRenameId,
@@ -1974,7 +2109,7 @@ export function CanvasRightSidebar({
             {activePanel === "layers" ? (
               <LayersPanel
                 pages={pages}
-                selectedId={selectedId}
+                selectedIds={selectedIds}
                 onSelect={onSelect}
                 onRename={onRename}
                 onDelete={onDelete}

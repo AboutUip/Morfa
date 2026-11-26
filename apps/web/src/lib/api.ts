@@ -72,6 +72,7 @@ export interface CanvasDataEntryDto {
   key: string;
   type: CanvasDataType;
   value: string;
+  commit?: string;
 }
 
 export interface CanvasPageDto {

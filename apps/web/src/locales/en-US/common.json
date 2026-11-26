@@ -96,18 +96,21 @@
         "empty": "This node has no data yet.",
         "inheritedEmpty": "This node has no inherited data.",
         "inheritHint": "Parent data with the same key is overridden by the current node.",
+        "rowHint": "Hover to see notes; right-click to edit or delete.",
         "shadowed": "Overridden",
         "source": "From {{name}}",
         "fields": {
           "key": "Key",
           "type": "Type",
-          "value": "Value"
+          "value": "Value",
+          "commit": "Note"
         },
         "placeholders": {
           "key": "e.g. primary-color",
           "type": "Select type",
           "typeFirst": "Select a type first",
-          "value": "Enter value"
+          "value": "Enter value",
+          "commit": "Optional note about this value"
         },
         "types": {
           "text": "Text",
