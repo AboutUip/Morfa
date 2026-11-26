@@ -1,16 +1,22 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { BrandMark } from "../../components/BrandMark";
 import { LayersIcon, SlidersIcon } from "../../components/icons";
 import { type ProjectSummary } from "../../lib/api";
+import {
+  hasProjectHistoryEntry,
+  pushProjectRoute,
+  readProjectIdFromLocation,
+  replaceWithProjectsRoute,
+} from "../../lib/projectRoute";
 import { projectsStore, useProjects } from "../../lib/projects";
 import { AuthModal } from "../auth/AuthModal";
 import { useAuth } from "../auth/AuthProvider";
 import { VCodeSetupGate } from "../auth/VCodeSetupGate";
+import { ProjectEntry } from "./ProjectEntry";
 import { ProjectLauncher } from "./ProjectLauncher";
 import { ProjectTopBar, type WorkspaceTab } from "./ProjectTopBar";
-import { ProjectWorkspace } from "./ProjectWorkspace";
 import styles from "./ProjectsPage.module.css";
 
 function ProjectCover({ project }: { project: ProjectSummary }) {
@@ -31,8 +37,8 @@ export function ProjectsPage() {
   const projectState = useProjects();
   const [authOpen, setAuthOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("projects");
-  const [activeProject, setActiveProject] = useState<ProjectSummary | null>(
-    null,
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(() =>
+    readProjectIdFromLocation(),
   );
   const locale = i18n.resolvedLanguage === "en-US" ? "en-US" : "zh-CN";
   const dateFormatter = useMemo(
@@ -56,13 +62,43 @@ export function ProjectsPage() {
     });
   }, [user]);
 
+  useEffect(() => {
+    const handlePopState = () => {
+      setActiveProjectId(readProjectIdFromLocation());
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
   const openAuth = () => setAuthOpen(true);
 
-  if (activeProject) {
+  const openProject = (project: ProjectSummary) => {
+    pushProjectRoute(project.id);
+    setActiveProjectId(project.id);
+  };
+
+  const exitProject = useCallback(() => {
+    if (hasProjectHistoryEntry()) {
+      window.history.back();
+      return;
+    }
+
+    replaceWithProjectsRoute();
+    setActiveProjectId(null);
+  }, []);
+
+  const handleMissingProject = useCallback(() => {
+    replaceWithProjectsRoute();
+    setActiveProjectId(null);
+  }, []);
+
+  if (activeProjectId) {
     return (
-      <ProjectWorkspace
-        project={activeProject}
-        onExit={() => setActiveProject(null)}
+      <ProjectEntry
+        projectId={activeProjectId}
+        onExit={exitProject}
+        onMissing={handleMissingProject}
       />
     );
   }
@@ -180,7 +216,7 @@ export function ProjectsPage() {
                 aria-label={t("projects.openProject", {
                   name: project.name,
                 })}
-                onClick={() => setActiveProject(project)}
+                onClick={() => openProject(project)}
               />
               <div className={styles.projectBody}>
                 <div className={styles.projectBadges}>
