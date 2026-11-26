@@ -45,6 +45,7 @@
       "exit": "Exit project",
       "emptyMenu": "No actions yet",
       "sidebar": "Canvas tools",
+      "inspector": "Canvas inspector",
       "loadingTitle": "Opening project",
       "loadingHint": "Preparing the workspace for {{name}}",
       "loadingLabel": "Preparing project workspace"

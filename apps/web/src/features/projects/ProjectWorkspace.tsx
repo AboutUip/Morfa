@@ -57,6 +57,11 @@ export function ProjectWorkspace({
           tabIndex={-1}
           aria-label={project.name}
         />
+
+        <aside
+          className={`${styles.sidebar} ${styles.sidebarEnd}`}
+          aria-label={t("projects.workspace.inspector")}
+        />
       </div>
 
       <footer className={styles.statusBar} />
