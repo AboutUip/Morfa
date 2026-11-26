@@ -179,7 +179,7 @@ interface CanvasViewportProps {
   onDeleteLink: (linkId: string) => void;
   onMovePage: (pageId: string, x: number, y: number) => void;
   onMovePageStart: () => void;
-  onMovePageEnd: () => void;
+  onMovePageEnd: (pageId: string, moved: boolean) => void;
   onResizePage: (
     pageId: string,
     x: number,
@@ -303,6 +303,7 @@ function findLinkSourcePageAt(
 
   for (let index = pages.length - 1; index >= 0; index -= 1) {
     const page = pages[index];
+    if (page.parentId) continue;
     const { width, height } = getPageSize(page, pages, links);
     if (
       worldX < page.x - band ||
@@ -356,7 +357,7 @@ function findLinkTargetPageAt(
 
   for (let index = pages.length - 1; index >= 0; index -= 1) {
     const page = pages[index];
-    if (page.id === excludeId) continue;
+    if (page.id === excludeId || page.parentId) continue;
     const { width, height } = getPageSize(page, pages, links);
     if (
       worldX >= page.x - margin &&
@@ -1345,8 +1346,10 @@ export function CanvasViewport({
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
+    const pageId = move.pageId;
+    const moved = move.started;
     moveRef.current = null;
-    onMovePageEnd();
+    onMovePageEnd(pageId, moved);
     setMovingPage(false);
     setSnapGuides(null);
   };
@@ -1424,8 +1427,9 @@ export function CanvasViewport({
     }
 
     if (moveRef.current?.pointerId === event.pointerId) {
+      const move = moveRef.current;
       moveRef.current = null;
-      onMovePageEnd();
+      onMovePageEnd(move.pageId, move.started);
       setMovingPage(false);
       setSnapGuides(null);
     }
@@ -1669,6 +1673,7 @@ export function CanvasViewport({
       (event.clientX - rect.left - currentView.x) / currentView.zoom;
     const worldY =
       (event.clientY - rect.top - currentView.y) / currentView.zoom;
+    const parentPage = findPageAt(pages, worldX, worldY, links);
     const widget =
       item.type === "widget"
         ? {
@@ -1681,6 +1686,7 @@ export function CanvasViewport({
       name: uniquePageName(t(item.nameKey), pages),
       x: worldX,
       y: worldY,
+      ...(parentPage ? { parentId: parentPage.id } : {}),
       styles:
         item.type === "widget"
           ? {
@@ -1744,6 +1750,7 @@ export function CanvasViewport({
     const fromPage = pages.find((page) => page.id === link.fromId);
     const toPage = pages.find((page) => page.id === link.toId);
     if (!fromPage || !toPage) return [];
+    if (fromPage.parentId || toPage.parentId) return [];
 
     const from = toScreenPoint(
       getLinkAnchorPoint(fromPage, link.fromAnchor, pages, links),

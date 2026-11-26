@@ -1,6 +1,7 @@
 import {
   useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
   type DragEvent as ReactDragEvent,
@@ -40,6 +41,12 @@ import {
   WIDGET_VALUE_KINDS,
   WIDGET_VARIANT_OPTIONS,
 } from "./CanvasWidgetView";
+import {
+  getPageChildren,
+  getRootPages,
+  isPageInSubtree,
+  type LayerDropPosition,
+} from "./canvasHierarchy";
 import styles from "./CanvasRightSidebar.module.css";
 
 const DEFAULT_PANEL_WIDTH = 320;
@@ -52,7 +59,6 @@ const LAYER_DRAG_MIME = "application/x-morfa-layer";
 
 type RightPanel = "layers" | "properties" | "data";
 type PropertyTab = "style" | "behavior";
-type DropPosition = "before" | "after";
 
 const PANEL_ITEMS = [
   { id: "layers", Icon: LayersIcon },
@@ -101,7 +107,7 @@ interface CanvasRightSidebarProps {
   onReorder: (
     dragId: string,
     targetId: string,
-    position: DropPosition,
+    position: LayerDropPosition,
   ) => void;
 }
 
@@ -113,7 +119,7 @@ interface ContextMenuState {
 
 interface DropTargetState {
   pageId: string;
-  position: DropPosition;
+  position: LayerDropPosition;
 }
 
 function clampWidth(width: number) {
@@ -437,11 +443,11 @@ function LayersPanel({
   onReorder: (
     dragId: string,
     targetId: string,
-    position: DropPosition,
+    position: LayerDropPosition,
   ) => void;
 }) {
   const { t } = useTranslation();
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(
     () => new Set(),
   );
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -451,6 +457,12 @@ function LayersPanel({
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] =
     useState<DropTargetState | null>(null);
+
+  const childrenByPage = useMemo(
+    () => getPageChildren(pages),
+    [pages],
+  );
+  const rootPages = useMemo(() => getRootPages(pages), [pages]);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -469,7 +481,7 @@ function LayersPanel({
   }, [contextMenu]);
 
   const toggleExpanded = (pageId: string) => {
-    setExpandedIds((current) => {
+    setCollapsedIds((current) => {
       const next = new Set(current);
       if (next.has(pageId)) next.delete(pageId);
       else next.add(pageId);
@@ -530,18 +542,31 @@ function LayersPanel({
     setDraggingId(page.id);
   };
 
+  const resolveDropPosition = (
+    event: ReactDragEvent<HTMLDivElement>,
+  ): LayerDropPosition => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const ratio = (event.clientY - rect.top) / rect.height;
+    if (ratio < 0.3) return "before";
+    if (ratio > 0.7) return "after";
+    return "inside";
+  };
+
+  const canDropOnPage = (dragId: string, pageId: string) =>
+    dragId !== pageId && !isPageInSubtree(pages, pageId, dragId);
+
   const handleDragOver = (
     event: ReactDragEvent<HTMLDivElement>,
     page: CanvasPage,
   ) => {
-    if (!draggingId || draggingId === page.id) return;
+    if (!draggingId || !canDropOnPage(draggingId, page.id)) return;
 
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
-    const rect = event.currentTarget.getBoundingClientRect();
-    const position: DropPosition =
-      event.clientY < rect.top + rect.height / 2 ? "before" : "after";
-    setDropTarget({ pageId: page.id, position });
+    setDropTarget({
+      pageId: page.id,
+      position: resolveDropPosition(event),
+    });
   };
 
   const clearDragState = () => {
@@ -556,15 +581,12 @@ function LayersPanel({
     event.preventDefault();
     const dragId =
       event.dataTransfer.getData(LAYER_DRAG_MIME) || draggingId;
-    if (!dragId || dragId === page.id) {
+    if (!dragId || !canDropOnPage(dragId, page.id)) {
       clearDragState();
       return;
     }
 
-    const rect = event.currentTarget.getBoundingClientRect();
-    const position: DropPosition =
-      event.clientY < rect.top + rect.height / 2 ? "before" : "after";
-    onReorder(dragId, page.id, position);
+    onReorder(dragId, page.id, resolveDropPosition(event));
     clearDragState();
   };
 
@@ -572,81 +594,84 @@ function LayersPanel({
     ? pages.find((page) => page.id === contextMenu.pageId) ?? null
     : null;
 
+  const renderPage = (page: CanvasPage, depth: number): ReactNode => {
+    const children = childrenByPage.get(page.id) ?? [];
+    const hasChildren = children.length > 0;
+    const expanded = !collapsedIds.has(page.id);
+    const selected = selectedIds.includes(page.id);
+    const dropPosition =
+      dropTarget?.pageId === page.id ? dropTarget.position : null;
+
+    return (
+      <div key={page.id} className={styles.layerNode}>
+        <div
+          className={styles.layerRow}
+          role="treeitem"
+          aria-level={depth + 1}
+          aria-expanded={hasChildren ? expanded : undefined}
+          aria-selected={selected}
+          data-selected={selected}
+          data-drop-position={dropPosition ?? undefined}
+          draggable={editingId !== page.id}
+          tabIndex={0}
+          onClick={() => {
+            if (editingId === page.id) return;
+            onSelect(page.id);
+            if (hasChildren) toggleExpanded(page.id);
+          }}
+          onContextMenu={(event) => openContextMenu(event, page)}
+          onDragStart={(event) => handleDragStart(event, page)}
+          onDragOver={(event) => handleDragOver(event, page)}
+          onDragLeave={(event) => {
+            const next = event.relatedTarget as Node | null;
+            if (!next || !event.currentTarget.contains(next)) {
+              setDropTarget((current) =>
+                current?.pageId === page.id ? null : current,
+              );
+            }
+          }}
+          onDrop={(event) => handleDrop(event, page)}
+          onDragEnd={clearDragState}
+        >
+          <ChevronDownIcon
+            size={10}
+            className={expanded ? styles.chevronOpen : styles.chevron}
+            style={{ visibility: hasChildren ? "visible" : "hidden" }}
+          />
+          <PageIcon size={13} />
+
+          {editingId === page.id ? (
+            <input
+              className={styles.renameInput}
+              value={draftName}
+              autoFocus
+              onFocus={(event) => event.currentTarget.select()}
+              onChange={(event) => setDraftName(event.target.value)}
+              onBlur={() => commitRename(page)}
+              onClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => handleRenameKeyDown(event, page)}
+            />
+          ) : (
+            <span className={styles.layerName}>{page.name}</span>
+          )}
+        </div>
+
+        {hasChildren && expanded ? (
+          <div className={styles.layerChildren} role="group">
+            {children.map((child) => renderPage(child, depth + 1))}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
   return (
     <div
       className={styles.layerList}
       role="tree"
       aria-label={t("projects.workspace.rightPanels.layers")}
     >
-      {pages.map((page) => {
-        const expanded = expandedIds.has(page.id);
-        const selected = selectedIds.includes(page.id);
-        const dropPosition =
-          dropTarget?.pageId === page.id ? dropTarget.position : null;
-
-        return (
-          <div key={page.id} className={styles.layerNode}>
-            <div
-              className={styles.layerRow}
-              role="treeitem"
-              aria-expanded={expanded}
-              aria-selected={selected}
-              data-selected={selected}
-              data-drop-position={dropPosition ?? undefined}
-              draggable={editingId !== page.id}
-              tabIndex={0}
-              onClick={() => {
-                if (editingId === page.id) return;
-                onSelect(page.id);
-                toggleExpanded(page.id);
-              }}
-              onContextMenu={(event) => openContextMenu(event, page)}
-              onDragStart={(event) => handleDragStart(event, page)}
-              onDragOver={(event) => handleDragOver(event, page)}
-              onDragLeave={(event) => {
-                const next = event.relatedTarget as Node | null;
-                if (
-                  !next ||
-                  !event.currentTarget.contains(next)
-                ) {
-                  setDropTarget((current) =>
-                    current?.pageId === page.id ? null : current,
-                  );
-                }
-              }}
-              onDrop={(event) => handleDrop(event, page)}
-              onDragEnd={clearDragState}
-            >
-              <ChevronDownIcon
-                size={10}
-                className={expanded ? styles.chevronOpen : styles.chevron}
-              />
-              <PageIcon size={13} />
-
-              {editingId === page.id ? (
-                <input
-                  className={styles.renameInput}
-                  value={draftName}
-                  autoFocus
-                  onFocus={(event) => event.currentTarget.select()}
-                  onChange={(event) => setDraftName(event.target.value)}
-                  onBlur={() => commitRename(page)}
-                  onClick={(event) => event.stopPropagation()}
-                  onKeyDown={(event) =>
-                    handleRenameKeyDown(event, page)
-                  }
-                />
-              ) : (
-                <span className={styles.layerName}>{page.name}</span>
-              )}
-            </div>
-
-            {expanded ? (
-              <div className={styles.layerChildren} role="group" />
-            ) : null}
-          </div>
-        );
-      })}
+      {rootPages.map((page) => renderPage(page, 0))}
 
       {contextMenu && menuPage
         ? createPortal(

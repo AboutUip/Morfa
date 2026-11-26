@@ -151,6 +151,12 @@
   bottom: -1px;
 }
 
+.layerRow[data-drop-position="inside"] {
+  background: var(--mf-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--mf-accent);
+  color: var(--mf-text-primary);
+}
+
 .chevron,
 .chevronOpen {
   flex: none;

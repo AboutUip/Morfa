@@ -26,6 +26,7 @@ import {
   clearStyleVariableFallbackCache,
   collectCanvasLint,
   createLinkId,
+  getPageSize,
   renameLinkReferences,
   renameStyleReferences,
   type CanvasDataEntry,
@@ -35,6 +36,11 @@ import {
   type CanvasPage,
   type CanvasWidget,
 } from "./canvasDocument";
+import {
+  getSubtreeIds,
+  movePageInHierarchy,
+  type LayerDropPosition,
+} from "./canvasHierarchy";
 import { useCanvasSnapSettings } from "./canvasSnap";
 import { ProjectWorkspaceTopBar } from "./ProjectWorkspaceTopBar";
 import { useCanvasHistory } from "./useCanvasHistory";
@@ -371,7 +377,18 @@ export function ProjectWorkspace({
 
   const deletePages = (pageIds: string[]) => {
     if (!pageIds.length) return;
-    const deleting = new Set(pageIds);
+
+    const deleting = new Set<string>();
+    const stack = [...pageIds];
+    while (stack.length) {
+      const id = stack.pop();
+      if (!id || deleting.has(id)) continue;
+      deleting.add(id);
+      for (const page of pages) {
+        if (page.parentId === id) stack.push(page.id);
+      }
+    }
+
     commit((current) => {
       const nextPages = current.pages.filter(
         (page) => !deleting.has(page.id),
@@ -419,11 +436,25 @@ export function ProjectWorkspace({
   };
 
   const handleMovePage = (pageId: string, x: number, y: number) => {
-    transientPages((current) =>
-      current.map((page) =>
-        page.id === pageId ? { ...page, x, y } : page,
-      ),
-    );
+    transientPages((current) => {
+      const target = current.find((page) => page.id === pageId);
+      if (!target) return current;
+
+      const dx = x - target.x;
+      const dy = y - target.y;
+      if (dx === 0 && dy === 0) return current;
+
+      const descendants = getSubtreeIds(current, pageId);
+      descendants.delete(pageId);
+
+      return current.map((page) => {
+        if (page.id === pageId) return { ...page, x, y };
+        if (descendants.has(page.id)) {
+          return { ...page, x: page.x + dx, y: page.y + dy };
+        }
+        return page;
+      });
+    });
   };
 
   const handleUpdatePageData = (
@@ -441,7 +472,74 @@ export function ProjectWorkspace({
     beginTransaction();
   };
 
-  const handleMovePageEnd = () => {
+  const handleMovePageEnd = (pageId: string, moved: boolean) => {
+    if (moved) {
+      transient((current) => {
+        const page = current.pages.find((item) => item.id === pageId);
+        if (!page) return current;
+
+        const subtreeIds = getSubtreeIds(current.pages, pageId);
+        const { width, height } = getPageSize(
+          page,
+          current.pages,
+          current.links,
+        );
+        const centerX = page.x + width / 2;
+        const centerY = page.y + height / 2;
+
+        let parentPage: CanvasPage | null = null;
+        for (let index = current.pages.length - 1; index >= 0; index -= 1) {
+          const candidate = current.pages[index];
+          if (subtreeIds.has(candidate.id)) continue;
+          const size = getPageSize(
+            candidate,
+            current.pages,
+            current.links,
+          );
+          if (
+            centerX >= candidate.x &&
+            centerX <= candidate.x + size.width &&
+            centerY >= candidate.y &&
+            centerY <= candidate.y + size.height
+          ) {
+            parentPage = candidate;
+            break;
+          }
+        }
+
+        const nextParentId = parentPage?.id ?? null;
+        if ((page.parentId ?? null) === nextParentId) return current;
+
+        const nextPages = current.pages.map((item) => {
+          if (item.id !== pageId) return item;
+          if (nextParentId) {
+            return { ...item, parentId: nextParentId };
+          }
+          const next = { ...item };
+          delete next.parentId;
+          return next;
+        });
+        const parentedIds = new Set(
+          nextPages
+            .filter((item) => item.parentId)
+            .map((item) => item.id),
+        );
+        const nextLinks = current.links.filter(
+          (link) =>
+            !parentedIds.has(link.fromId) &&
+            !parentedIds.has(link.toId),
+        );
+
+        return {
+          pages: nextPages,
+          links:
+            nextLinks.length === current.links.length
+              ? current.links
+              : nextLinks,
+        };
+      });
+    }
+
     endTransaction();
   };
 
@@ -497,22 +595,37 @@ export function ProjectWorkspace({
   const handleReorderPage = (
     dragId: string,
     targetId: string,
-    position: "before" | "after",
+    position: LayerDropPosition,
   ) => {
     if (dragId === targetId) return;
 
-    commitPages((current) => {
-      const fromIndex = current.findIndex((page) => page.id === dragId);
-      if (fromIndex < 0) return current;
+    commit((current) => {
+      const nextPages = movePageInHierarchy(
+        current.pages,
+        dragId,
+        targetId,
+        position,
+      );
+      if (!nextPages) return current;
 
-      const next = [...current];
-      const [moved] = next.splice(fromIndex, 1);
-      let targetIndex = next.findIndex((page) => page.id === targetId);
-      if (targetIndex < 0) return current;
+      const parentedIds = new Set(
+        nextPages
+          .filter((page) => page.parentId)
+          .map((page) => page.id),
+      );
+      const nextLinks = current.links.filter(
+        (link) =>
+          !parentedIds.has(link.fromId) &&
+          !parentedIds.has(link.toId),
+      );
 
-      if (position === "after") targetIndex += 1;
-      next.splice(targetIndex, 0, moved);
-      return next;
+      return {
+        pages: nextPages,
+        links:
+          nextLinks.length === current.links.length
+            ? current.links
+            : nextLinks,
+      };
     });
   };
 

@@ -368,6 +368,9 @@ function normalizeLinks(
   }
 
   const pageIds = new Set(pages.map((page) => page.id));
+  const parentedPageIds = new Set(
+    pages.filter((page) => page.parentId).map((page) => page.id),
+  );
   const linkIds = new Set<string>();
   const links: CanvasLinkDto[] = [];
 
@@ -382,6 +385,11 @@ function normalizeLinks(
     if (fromId === toId) invalidDocument();
     if (!pageIds.has(fromId) || !pageIds.has(toId)) {
       invalidDocument();
+    }
+
+    // 子节点禁止关联线，加载旧数据时直接忽略这类关联。
+    if (parentedPageIds.has(fromId) || parentedPageIds.has(toId)) {
+      continue;
     }
 
     const direction = link.direction;
