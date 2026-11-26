@@ -110,6 +110,14 @@ export function ToolsIcon(props: IconProps) {
   );
 }
 
+export function FrameIcon(props: IconProps) {
+  return (
+    <svg {...iconProps(props)}>
+      <path d="M8 3v18M16 3v18M3 8h18M3 16h18" />
+    </svg>
+  );
+}
+
 export function GlobeIcon(props: IconProps) {
   return (
     <svg {...iconProps(props)}>

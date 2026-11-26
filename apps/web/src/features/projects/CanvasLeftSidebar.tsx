@@ -6,7 +6,13 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 
-import { CursorIcon, HandIcon, ToolsIcon } from "../../components/icons";
+import {
+  CursorIcon,
+  FrameIcon,
+  HandIcon,
+  LayersIcon,
+  ToolsIcon,
+} from "../../components/icons";
 import {
   CANVAS_TOOL_SHORTCUTS,
   type CanvasTool,
@@ -17,7 +23,21 @@ const DEFAULT_PANEL_WIDTH = 240;
 const MIN_PANEL_WIDTH = 180;
 const MAX_PANEL_WIDTH = 420;
 const RESIZE_STEP = 16;
-const PANEL_ID = "canvas-tools-panel";
+const PANEL_ID = "canvas-side-panel";
+
+type SidePanel = "tools" | "components" | "canvas";
+
+const PANEL_LABEL_KEYS: Record<SidePanel, string> = {
+  tools: "projects.workspace.sidebarPanels.tools",
+  components: "projects.workspace.sidebarPanels.components",
+  canvas: "projects.workspace.sidebarPanels.canvas",
+};
+
+const PANEL_ITEMS = [
+  { id: "tools", Icon: ToolsIcon },
+  { id: "components", Icon: LayersIcon },
+  { id: "canvas", Icon: FrameIcon },
+] as const;
 
 interface CanvasLeftSidebarProps {
   activeTool: CanvasTool;
@@ -39,7 +59,7 @@ export function CanvasLeftSidebar({
   onToolChange,
 }: CanvasLeftSidebarProps) {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
+  const [activePanel, setActivePanel] = useState<SidePanel | null>(null);
   const [panelWidth, setPanelWidth] = useState(DEFAULT_PANEL_WIDTH);
   const [resizing, setResizing] = useState(false);
   const resizeRef = useRef<ResizeSession | null>(null);
@@ -104,76 +124,89 @@ export function CanvasLeftSidebar({
         className={styles.rail}
         aria-label={t("projects.workspace.sidebar")}
       >
-        <button
-          className={styles.railItem}
-          type="button"
-          title={t("projects.workspace.tools.title")}
-          aria-label={t("projects.workspace.tools.title")}
-          aria-expanded={open}
-          aria-controls={open ? PANEL_ID : undefined}
-          data-active={open}
-          onClick={() => setOpen((current) => !current)}
-        >
-          <ToolsIcon size={18} />
-          <span>{t("projects.workspace.tools.title")}</span>
-        </button>
+        {PANEL_ITEMS.map(({ id, Icon }) => {
+          const isOpen = activePanel === id;
+          const label = t(PANEL_LABEL_KEYS[id]);
+
+          return (
+            <button
+              key={id}
+              className={styles.railItem}
+              type="button"
+              title={label}
+              aria-label={label}
+              aria-expanded={isOpen}
+              aria-controls={isOpen ? PANEL_ID : undefined}
+              data-active={isOpen}
+              onClick={() =>
+                setActivePanel((current) => (current === id ? null : id))
+              }
+            >
+              <Icon size={18} />
+              <span>{label}</span>
+            </button>
+          );
+        })}
       </aside>
 
-      {open ? (
+      {activePanel ? (
         <aside
           id={PANEL_ID}
           className={styles.panel}
           style={{ width: panelWidth }}
           data-resizing={resizing}
-          aria-label={t("projects.workspace.tools.panel")}
+          data-panel={activePanel}
+          aria-label={t(PANEL_LABEL_KEYS[activePanel])}
         >
           <div className={styles.panelHeader}>
-            {t("projects.workspace.tools.title")}
+            {t(PANEL_LABEL_KEYS[activePanel])}
           </div>
 
-          <div
-            className={styles.toolList}
-            role="group"
-            aria-label={t("projects.workspace.tools.panel")}
-          >
-            <button
-              className={styles.toolItem}
-              type="button"
-              data-active={activeTool === "select"}
-              aria-pressed={activeTool === "select"}
-              onClick={() => onToolChange("select")}
+          {activePanel === "tools" ? (
+            <div
+              className={styles.toolList}
+              role="group"
+              aria-label={t(PANEL_LABEL_KEYS.tools)}
             >
-              <CursorIcon size={15} />
-              <span className={styles.toolLabel}>
-                {t("projects.workspace.tools.select")}
-              </span>
-              <span className={styles.shortcut}>
-                ({CANVAS_TOOL_SHORTCUTS.select})
-              </span>
-            </button>
+              <button
+                className={styles.toolItem}
+                type="button"
+                data-active={activeTool === "select"}
+                aria-pressed={activeTool === "select"}
+                onClick={() => onToolChange("select")}
+              >
+                <CursorIcon size={15} />
+                <span className={styles.toolLabel}>
+                  {t("projects.workspace.tools.select")}
+                </span>
+                <span className={styles.shortcut}>
+                  ({CANVAS_TOOL_SHORTCUTS.select})
+                </span>
+              </button>
 
-            <button
-              className={styles.toolItem}
-              type="button"
-              data-active={activeTool === "hand"}
-              aria-pressed={activeTool === "hand"}
-              onClick={() => onToolChange("hand")}
-            >
-              <HandIcon size={15} />
-              <span className={styles.toolLabel}>
-                {t("projects.workspace.tools.hand")}
-              </span>
-              <span className={styles.shortcut}>
-                ({CANVAS_TOOL_SHORTCUTS.hand})
-              </span>
-            </button>
-          </div>
+              <button
+                className={styles.toolItem}
+                type="button"
+                data-active={activeTool === "hand"}
+                aria-pressed={activeTool === "hand"}
+                onClick={() => onToolChange("hand")}
+              >
+                <HandIcon size={15} />
+                <span className={styles.toolLabel}>
+                  {t("projects.workspace.tools.hand")}
+                </span>
+                <span className={styles.shortcut}>
+                  ({CANVAS_TOOL_SHORTCUTS.hand})
+                </span>
+              </button>
+            </div>
+          ) : null}
 
           <div
             className={styles.resizeHandle}
             role="separator"
             aria-orientation="vertical"
-            aria-label={t("projects.workspace.tools.resize")}
+            aria-label={t("projects.workspace.sidebarPanels.resize")}
             aria-valuemin={MIN_PANEL_WIDTH}
             aria-valuemax={MAX_PANEL_WIDTH}
             aria-valuenow={panelWidth}

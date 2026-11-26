@@ -47,11 +47,14 @@
       "sidebar": "画布工具栏",
       "inspector": "画布属性栏",
       "tools": {
-        "title": "工具",
-        "panel": "工具面板",
         "select": "选择工具",
-        "hand": "抓手工具",
-        "resize": "调整工具面板宽度"
+        "hand": "抓手工具"
+      },
+      "sidebarPanels": {
+        "tools": "工具",
+        "components": "组件",
+        "canvas": "画布",
+        "resize": "调整侧栏宽度"
       },
       "loadingTitle": "正在打开项目",
       "loadingHint": "正在准备 {{name}} 的项目工作区",
