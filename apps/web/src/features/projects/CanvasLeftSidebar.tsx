@@ -19,6 +19,7 @@ import {
 } from "../../components/icons";
 import type { ProjectType } from "../../lib/api";
 import {
+  DEFAULT_CANVAS_SNAP_SETTINGS,
   type CanvasSnapSettings,
 } from "./canvasSnap";
 import {
@@ -81,7 +82,7 @@ interface CanvasLeftSidebarProps {
   activeTool: CanvasTool;
   onToolChange: (tool: CanvasTool) => void;
   projectType: ProjectType;
-  snapSettings: CanvasSnapSettings;
+  snapSettings?: CanvasSnapSettings;
   onSnapSettingsChange: (
     update: (current: CanvasSnapSettings) => CanvasSnapSettings,
   ) => void;
@@ -103,7 +104,7 @@ export function CanvasLeftSidebar({
   activeTool,
   onToolChange,
   projectType,
-  snapSettings,
+  snapSettings = DEFAULT_CANVAS_SNAP_SETTINGS,
   onSnapSettingsChange,
 }: CanvasLeftSidebarProps) {
   const { t } = useTranslation();
