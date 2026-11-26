@@ -24,70 +24,91 @@
   animation: notice-in 180ms var(--mf-ease-out) both;
 }
 
-.launcher {
+.dock {
+  position: relative;
   display: flex;
-  flex-direction: row-reverse;
-  align-items: center;
+  align-items: flex-end;
+  justify-content: flex-end;
+}
+
+.toggle {
+  display: inline-flex;
   width: 56px;
   height: 56px;
-  padding: 0;
-  overflow: hidden;
+  flex: none;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--mf-border);
-  border-radius: 28px;
+  border-radius: 50%;
   background: var(--mf-bg-surface);
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.12),
     0 16px 42px rgba(0, 0, 0, 0.2);
+  color: var(--mf-text-primary);
   transition:
-    width 280ms var(--mf-ease-out),
-    padding 280ms var(--mf-ease-out),
-    border-radius 280ms var(--mf-ease-out),
-    box-shadow 280ms var(--mf-ease);
+    background var(--mf-transition),
+    box-shadow var(--mf-transition),
+    transform var(--mf-transition);
 }
 
-.launcher[data-open="true"] {
-  width: min(282px, calc(100vw - 24px));
-  padding-left: 8px;
-  border-radius: 22px;
+.toggle:hover {
+  background: var(--mf-bg-hover);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.12),
+    0 20px 52px rgba(0, 0, 0, 0.24);
+}
+
+.menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  display: flex;
+  width: min(220px, calc(100vw - 24px));
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--mf-border);
+  border-radius: 18px;
+  background: var(--mf-bg-surface);
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.12),
     0 22px 60px rgba(0, 0, 0, 0.24);
-}
-
-.actions {
-  display: flex;
-  width: 0;
-  flex: none;
-  align-items: center;
-  gap: 2px;
-  overflow: hidden;
   opacity: 0;
-  transform: translateX(14px);
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(8px) scale(0.98);
+  transform-origin: bottom right;
   transition:
-    width 280ms var(--mf-ease-out),
-    opacity 170ms var(--mf-ease),
-    transform 280ms var(--mf-ease-out);
+    opacity 160ms var(--mf-ease),
+    transform 200ms var(--mf-ease-out),
+    visibility 0s linear 200ms;
 }
 
-.launcher[data-open="true"] .actions {
-  width: calc(100% - 56px);
+.menu[data-open="true"] {
   opacity: 1;
-  transform: translateX(0);
-  transition-delay: 30ms;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+  transition:
+    opacity 160ms var(--mf-ease),
+    transform 200ms var(--mf-ease-out),
+    visibility 0s;
 }
 
 .action {
-  display: inline-flex;
+  display: flex;
+  width: 100%;
+  min-height: 42px;
+  flex: none;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 42px;
-  flex: 1;
-  padding: 0 8px;
-  border-radius: 14px;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 0 12px;
+  border-radius: 12px;
   color: var(--mf-text-secondary);
   font-size: 10px;
   font-weight: 500;
+  text-align: left;
   white-space: nowrap;
   transition:
     background var(--mf-transition),
@@ -105,28 +126,14 @@
   color: var(--mf-text-tertiary);
 }
 
-.toggle {
-  display: inline-flex;
-  width: 56px;
-  height: 56px;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  border-radius: 28px;
-  color: var(--mf-text-primary);
-  transition: background var(--mf-transition);
+.action[aria-disabled="true"] {
+  color: var(--mf-text-tertiary);
 }
 
-.toggle:hover {
-  background: var(--mf-bg-hover);
-}
-
-.plus {
-  transition: transform 260ms var(--mf-ease-out);
-}
-
-.launcher[data-open="true"] .plus {
-  transform: rotate(45deg);
+.action[aria-disabled="true"]:hover,
+.action[aria-disabled="true"]:focus-visible {
+  background: transparent;
+  color: var(--mf-text-tertiary);
 }
 
 @keyframes notice-in {
@@ -146,13 +153,13 @@
     bottom: calc(12px + var(--mf-safe-bottom));
   }
 
-  .launcher[data-open="true"] {
-    width: min(282px, calc(100vw - 24px));
+  .menu {
+    width: min(220px, calc(100vw - 24px));
   }
 
   .action {
     min-height: 44px;
-    font-size: 10px;
+    font-size: 11px;
   }
 
   .toggle {
@@ -162,12 +169,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .launcher,
-  .actions,
-  .plus,
   .notice,
-  .action,
-  .toggle {
+  .toggle,
+  .menu,
+  .menu[data-open="true"],
+  .action {
     transition: none;
     animation: none;
   }

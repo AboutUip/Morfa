@@ -55,10 +55,11 @@
     "created": "项目已创建",
     "joined": "已加入项目",
     "launcher": {
-      "open": "新建或加入项目",
-      "close": "收起项目操作",
+      "open": "打开项目菜单",
+      "close": "收起项目菜单",
       "create": "创建项目",
-      "join": "加入项目"
+      "join": "加入项目",
+      "filter": "打开筛选"
     },
     "create": {
       "eyebrow": "新项目",

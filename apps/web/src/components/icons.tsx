@@ -46,10 +46,10 @@ export function PageIcon(props: IconProps) {
   );
 }
 
-export function PlusIcon(props: IconProps) {
+export function MenuIcon(props: IconProps) {
   return (
     <svg {...iconProps(props)}>
-      <path d="M12 5v14M5 12h14" />
+      <path d="M4 7h16M4 12h16M4 17h16" />
     </svg>
   );
 }

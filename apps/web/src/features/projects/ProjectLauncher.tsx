@@ -6,7 +6,13 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 
-import { PlusIcon, SparkIcon, UsersIcon } from "../../components/icons";
+import {
+  CloseIcon,
+  MenuIcon,
+  SlidersIcon,
+  SparkIcon,
+  UsersIcon,
+} from "../../components/icons";
 import { useAuth } from "../auth/AuthProvider";
 import { CreateProjectModal } from "./CreateProjectModal";
 import { JoinProjectModal } from "./JoinProjectModal";
@@ -23,6 +29,7 @@ export function ProjectLauncher() {
   const toggleRef = useRef<HTMLButtonElement>(null);
   const createActionRef = useRef<HTMLButtonElement>(null);
   const joinActionRef = useRef<HTMLButtonElement>(null);
+  const filterActionRef = useRef<HTMLButtonElement>(null);
   const noticeTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -75,10 +82,16 @@ export function ProjectLauncher() {
     setJoinOpen(true);
   };
 
+  const openFilter = () => {
+    // 预留筛选入口：默认不执行任何操作。
+  };
+
   const focusAction = (target: "first" | "last") => {
     requestAnimationFrame(() => {
       const element =
-        target === "last" ? joinActionRef.current : createActionRef.current;
+        target === "last"
+          ? filterActionRef.current
+          : createActionRef.current;
       element?.focus();
     });
   };
@@ -95,9 +108,11 @@ export function ProjectLauncher() {
   const handleMenuKeyDown = (
     event: ReactKeyboardEvent<HTMLDivElement>,
   ) => {
-    const items = [createActionRef.current, joinActionRef.current].filter(
-      (item): item is HTMLButtonElement => Boolean(item),
-    );
+    const items = [
+      createActionRef.current,
+      joinActionRef.current,
+      filterActionRef.current,
+    ].filter((item): item is HTMLButtonElement => Boolean(item));
     if (items.length === 0) return;
 
     const currentIndex = items.indexOf(
@@ -151,7 +166,7 @@ export function ProjectLauncher() {
         </div>
       ) : null}
 
-      <div className={styles.launcher} data-open={open}>
+      <div className={styles.dock}>
         <button
           ref={toggleRef}
           className={styles.toggle}
@@ -167,12 +182,13 @@ export function ProjectLauncher() {
           onClick={() => setOpen((current) => !current)}
           onKeyDown={handleToggleKeyDown}
         >
-          <PlusIcon size={22} className={styles.plus} />
+          {open ? <CloseIcon size={18} /> : <MenuIcon size={21} />}
         </button>
 
         <div
           id="project-launcher-actions"
-          className={styles.actions}
+          className={styles.menu}
+          data-open={open}
           role="menu"
           aria-label={t("projects.launcher.open")}
           aria-hidden={!open}
@@ -198,6 +214,17 @@ export function ProjectLauncher() {
           >
             <UsersIcon size={15} />
             <span>{t("projects.launcher.join")}</span>
+          </button>
+          <button
+            ref={filterActionRef}
+            className={styles.action}
+            type="button"
+            role="menuitem"
+            aria-disabled="true"
+            onClick={openFilter}
+          >
+            <SlidersIcon size={15} />
+            <span>{t("projects.launcher.filter")}</span>
           </button>
         </div>
       </div>

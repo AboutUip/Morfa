@@ -55,10 +55,11 @@
     "created": "Project created",
     "joined": "Joined project",
     "launcher": {
-      "open": "Create or join a project",
-      "close": "Collapse project actions",
+      "open": "Open project menu",
+      "close": "Collapse project menu",
       "create": "Create project",
-      "join": "Join project"
+      "join": "Join project",
+      "filter": "Open filters"
     },
     "create": {
       "eyebrow": "New project",
