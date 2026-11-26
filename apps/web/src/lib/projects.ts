@@ -104,6 +104,19 @@ class ProjectsStore {
     return promise;
   }
 
+  touch(projectId: string, updatedAt: number) {
+    if (!this.snapshot.projects.some((item) => item.id === projectId)) {
+      return;
+    }
+
+    this.set({
+      ...this.snapshot,
+      projects: this.snapshot.projects.map((item) =>
+        item.id === projectId ? { ...item, updatedAt } : item,
+      ),
+    });
+  }
+
   upsert(project: ProjectSummary) {
     const exists = this.snapshot.projects.some(
       (item) => item.id === project.id,

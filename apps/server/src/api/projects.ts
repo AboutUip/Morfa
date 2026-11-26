@@ -6,6 +6,10 @@ import { readSessionToken } from "../lib/cookies.js";
 import { ApiError } from "../lib/errors.js";
 import { requireActiveUser } from "../services/auth.js";
 import {
+  getProjectCanvas,
+  saveProjectCanvas,
+} from "../services/canvasDocuments.js";
+import {
   createProject,
   joinProject,
   listProjects,
@@ -87,4 +91,24 @@ export function registerProjectRoutes(app: FastifyInstance) {
     }
     return { project: joinProject(session.row, code) };
   });
+
+  app.get("/api/me/projects/:projectId/canvas", async (request) => {
+    const session = requireActiveUser(readSessionToken(request));
+    const { projectId } = request.params as { projectId: string };
+    return getProjectCanvas(session.row.id, projectId);
+  });
+
+  app.put(
+    "/api/me/projects/:projectId/canvas",
+    { bodyLimit: PROJECT_BODY_LIMIT },
+    async (request) => {
+      const session = requireActiveUser(readSessionToken(request));
+      const { projectId } = request.params as { projectId: string };
+      return saveProjectCanvas(
+        session.row.id,
+        projectId,
+        readBody(request).pages,
+      );
+    },
+  );
 }

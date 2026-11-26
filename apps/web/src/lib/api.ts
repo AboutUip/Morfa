@@ -61,6 +61,19 @@ export interface CreateProjectInput {
   requestId?: string | null;
 }
 
+export interface CanvasPageDto {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  styles: Record<string, string>;
+}
+
+export interface ProjectCanvasResponse {
+  pages: CanvasPageDto[];
+  updatedAt: number;
+}
+
 export interface ModelProviderModel {
   id: string;
   displayName: string | null;
@@ -260,6 +273,23 @@ export const projectApi = {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ code }),
     }),
+};
+
+export const projectCanvasApi = {
+  get: (projectId: string) =>
+    request<ProjectCanvasResponse>(
+      `/api/me/projects/${encodeURIComponent(projectId)}/canvas`,
+    ),
+
+  save: (projectId: string, pages: CanvasPageDto[]) =>
+    request<ProjectCanvasResponse>(
+      `/api/me/projects/${encodeURIComponent(projectId)}/canvas`,
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ pages }),
+      },
+    ),
 };
 
 export const profileApi = {

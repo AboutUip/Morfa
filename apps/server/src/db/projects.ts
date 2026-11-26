@@ -17,6 +17,11 @@ export interface ImportedProject {
   updatedAt: number;
 }
 
+export interface ProjectDataRow {
+  data: string;
+  updated_at: number;
+}
+
 export type ProjectType = "software" | "website";
 export type ProjectVisibility = "public" | "private" | "shared";
 
@@ -148,6 +153,34 @@ export function findProjectCardByRequestId(
     .get(userId, userId, requestId) as unknown as
     | ProjectCardRow
     | undefined;
+}
+
+export function findProjectDataForUser(
+  userId: string,
+  projectId: string,
+): ProjectDataRow | undefined {
+  return db
+    .prepare(
+      `SELECT p.data, p.updated_at
+       FROM projects p
+       LEFT JOIN project_members pm
+         ON pm.project_id = p.id AND pm.user_id = ?
+       WHERE p.id = ? AND (p.user_id = ? OR pm.user_id = ?)
+       LIMIT 1`,
+    )
+    .get(userId, projectId, userId, userId) as unknown as
+    | ProjectDataRow
+    | undefined;
+}
+
+export function updateProjectData(
+  projectId: string,
+  data: string,
+  updatedAt: number,
+) {
+  db.prepare(
+    "UPDATE projects SET data = ?, updated_at = ? WHERE id = ?",
+  ).run(data, updatedAt, projectId);
 }
 
 export function countOwnedProjects(userId: string): number {

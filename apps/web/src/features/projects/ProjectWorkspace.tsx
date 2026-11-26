@@ -10,6 +10,7 @@ import {
 } from "./canvasTools";
 import type { CanvasPage } from "./canvasDocument";
 import { ProjectWorkspaceTopBar } from "./ProjectWorkspaceTopBar";
+import { useProjectCanvas } from "./useProjectCanvas";
 import styles from "./ProjectWorkspace.module.css";
 
 function isEditableTarget(target: EventTarget | null) {
@@ -33,7 +34,7 @@ export function ProjectWorkspace({
   onExit,
 }: ProjectWorkspaceProps) {
   const [activeTool, setActiveTool] = useState<CanvasTool>("select");
-  const [pages, setPages] = useState<CanvasPage[]>([]);
+  const { pages, setPages } = useProjectCanvas(project.id);
   const [selectedPageId, setSelectedPageId] = useState<string | null>(
     null,
   );

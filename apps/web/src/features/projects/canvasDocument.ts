@@ -1,10 +1,6 @@
-export interface CanvasPage {
-  id: string;
-  name: string;
-  x: number;
-  y: number;
-  styles: Record<string, string>;
-}
+import type { CanvasPageDto } from "../../lib/api";
+
+export type CanvasPage = CanvasPageDto;
 
 export const DEFAULT_PAGE_STYLES: Record<string, string> = {
   width: "800px",
