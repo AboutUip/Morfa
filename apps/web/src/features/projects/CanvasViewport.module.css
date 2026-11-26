@@ -21,8 +21,7 @@
   cursor: url("/cursors/hand-open.svg") 12 12, grab;
 }
 
-.viewport[data-moving="true"],
-.viewport[data-tool="select"][data-hover-page="true"] {
+.viewport[data-moving="true"] {
   cursor: url("/cursors/move.svg") 12 12, move;
 }
 

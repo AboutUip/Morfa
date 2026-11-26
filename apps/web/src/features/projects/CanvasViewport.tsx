@@ -46,6 +46,7 @@ const MAJOR_GRID_CELLS = 5;
 const ZOOM_SENSITIVITY = 0.0015;
 const KEYBOARD_ZOOM_STEP = 1.2;
 const SNAP_THRESHOLD_PX = 6;
+const MOVE_DRAG_THRESHOLD_PX = 3;
 const MIN_PAGE_SIZE = 32;
 const LINK_EDGE_BAND_PX = 12;
 const LINK_CORNER_GUARD_PX = 18;
@@ -84,6 +85,9 @@ interface MoveSession {
   startWorldY: number;
   startX: number;
   startY: number;
+  startClientX: number;
+  startClientY: number;
+  started: boolean;
 }
 
 type ResizeCorner = "tl" | "tr" | "bl" | "br";
@@ -1109,9 +1113,11 @@ export function CanvasViewport({
         startWorldY: worldY,
         startX: hit.x,
         startY: hit.y,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        started: false,
       };
       onMovePageStart();
-      setMovingPage(true);
       setHoveringPage(true);
       setSnapGuides(null);
       return;
@@ -1190,6 +1196,18 @@ export function CanvasViewport({
 
     const move = moveRef.current;
     if (move && move.pointerId === event.pointerId) {
+      if (!move.started) {
+        const dx = event.clientX - move.startClientX;
+        const dy = event.clientY - move.startClientY;
+        if (
+          Math.hypot(dx, dy) < MOVE_DRAG_THRESHOLD_PX
+        ) {
+          return;
+        }
+        move.started = true;
+        setMovingPage(true);
+      }
+
       const rect = event.currentTarget.getBoundingClientRect();
       const currentView = viewRef.current;
       const worldX =
