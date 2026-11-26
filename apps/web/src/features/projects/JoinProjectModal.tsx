@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -25,11 +26,13 @@ const FOCUSABLE_SELECTOR = [
 interface JoinProjectModalProps {
   onClose: () => void;
   onJoined: () => void;
+  returnFocusRef?: RefObject<HTMLElement | null>;
 }
 
 export function JoinProjectModal({
   onClose,
   onJoined,
+  returnFocusRef,
 }: JoinProjectModalProps) {
   const { t } = useTranslation();
   const { closing, beginClose } = useAnimatedClose(onClose);
@@ -55,9 +58,10 @@ export function JoinProjectModal({
     return () => {
       cancelAnimationFrame(frame);
       releaseBackground();
-      if (trigger?.isConnected) {
+      const returnTarget = returnFocusRef?.current ?? trigger;
+      if (returnTarget?.isConnected) {
         requestAnimationFrame(() => {
-          if (trigger.isConnected) trigger.focus();
+          if (returnTarget.isConnected) returnTarget.focus();
         });
       }
     };

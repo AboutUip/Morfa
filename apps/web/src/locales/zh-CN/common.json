@@ -66,6 +66,7 @@
       "close": "关闭创建项目",
       "typeTitle": "选择项目类型",
       "typeHint": "先确定你要创建的平台类型，后续步骤会围绕它展开。",
+      "stepProgress": "第 {{current}} / {{total}} 步",
       "softwareHint": "桌面端或移动端应用、工具或游戏。",
       "websiteHint": "品牌站、产品站或网页应用。",
       "detailsTitle": "填写项目信息",

@@ -1,4 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import { PlusIcon, SparkIcon, UsersIcon } from "../../components/icons";
@@ -15,6 +20,9 @@ export function ProjectLauncher() {
   const [joinOpen, setJoinOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const createActionRef = useRef<HTMLButtonElement>(null);
+  const joinActionRef = useRef<HTMLButtonElement>(null);
   const noticeTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -27,6 +35,7 @@ export function ProjectLauncher() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setOpen(false);
+        toggleRef.current?.focus();
       }
     };
     document.addEventListener("pointerdown", onPointerDown);
@@ -66,6 +75,72 @@ export function ProjectLauncher() {
     setJoinOpen(true);
   };
 
+  const focusAction = (target: "first" | "last") => {
+    requestAnimationFrame(() => {
+      const element =
+        target === "last" ? joinActionRef.current : createActionRef.current;
+      element?.focus();
+    });
+  };
+
+  const handleToggleKeyDown = (
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+  ) => {
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    event.preventDefault();
+    if (!open) setOpen(true);
+    focusAction(event.key === "ArrowUp" ? "last" : "first");
+  };
+
+  const handleMenuKeyDown = (
+    event: ReactKeyboardEvent<HTMLDivElement>,
+  ) => {
+    const items = [createActionRef.current, joinActionRef.current].filter(
+      (item): item is HTMLButtonElement => Boolean(item),
+    );
+    if (items.length === 0) return;
+
+    const currentIndex = items.indexOf(
+      document.activeElement as HTMLButtonElement,
+    );
+    let nextIndex: number | null = null;
+
+    switch (event.key) {
+      case "ArrowDown":
+      case "ArrowRight":
+        nextIndex = (currentIndex + 1) % items.length;
+        break;
+      case "ArrowUp":
+      case "ArrowLeft":
+        nextIndex = (currentIndex - 1 + items.length) % items.length;
+        break;
+      case "Home":
+        nextIndex = 0;
+        break;
+      case "End":
+        nextIndex = items.length - 1;
+        break;
+      case "Escape":
+        event.preventDefault();
+        setOpen(false);
+        toggleRef.current?.focus();
+        return;
+      case "Tab":
+        if (
+          (!event.shiftKey && currentIndex === items.length - 1) ||
+          (event.shiftKey && currentIndex === 0)
+        ) {
+          setOpen(false);
+        }
+        return;
+      default:
+        return;
+    }
+
+    event.preventDefault();
+    items[nextIndex]?.focus();
+  };
+
   if (!user || status !== "ready") return null;
 
   return (
@@ -77,30 +152,8 @@ export function ProjectLauncher() {
       ) : null}
 
       <div className={styles.launcher} data-open={open}>
-        <div
-          className={styles.actions}
-          aria-hidden={!open}
-          inert={!open}
-        >
-          <button
-            className={styles.action}
-            type="button"
-            onClick={openCreate}
-          >
-            <SparkIcon size={15} />
-            <span>{t("projects.launcher.create")}</span>
-          </button>
-          <button
-            className={styles.action}
-            type="button"
-            onClick={openJoin}
-          >
-            <UsersIcon size={15} />
-            <span>{t("projects.launcher.join")}</span>
-          </button>
-        </div>
-
         <button
+          ref={toggleRef}
           className={styles.toggle}
           type="button"
           aria-label={
@@ -109,16 +162,51 @@ export function ProjectLauncher() {
               : t("projects.launcher.open")
           }
           aria-expanded={open}
+          aria-haspopup="menu"
+          aria-controls="project-launcher-actions"
           onClick={() => setOpen((current) => !current)}
+          onKeyDown={handleToggleKeyDown}
         >
           <PlusIcon size={22} className={styles.plus} />
         </button>
+
+        <div
+          id="project-launcher-actions"
+          className={styles.actions}
+          role="menu"
+          aria-label={t("projects.launcher.open")}
+          aria-hidden={!open}
+          inert={!open}
+          onKeyDown={handleMenuKeyDown}
+        >
+          <button
+            ref={createActionRef}
+            className={styles.action}
+            type="button"
+            role="menuitem"
+            onClick={openCreate}
+          >
+            <SparkIcon size={15} />
+            <span>{t("projects.launcher.create")}</span>
+          </button>
+          <button
+            ref={joinActionRef}
+            className={styles.action}
+            type="button"
+            role="menuitem"
+            onClick={openJoin}
+          >
+            <UsersIcon size={15} />
+            <span>{t("projects.launcher.join")}</span>
+          </button>
+        </div>
       </div>
 
       {createOpen ? (
         <CreateProjectModal
           onClose={() => setCreateOpen(false)}
           onCreated={() => showNotice(t("projects.created"))}
+          returnFocusRef={toggleRef}
         />
       ) : null}
 
@@ -126,6 +214,7 @@ export function ProjectLauncher() {
         <JoinProjectModal
           onClose={() => setJoinOpen(false)}
           onJoined={() => showNotice(t("projects.joined"))}
+          returnFocusRef={toggleRef}
         />
       ) : null}
     </div>

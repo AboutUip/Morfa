@@ -263,7 +263,7 @@
   color: var(--mf-text-secondary);
 }
 
-.projectCard h3 {
+.projectCard h2 {
   overflow: hidden;
   margin-top: 12px;
   color: var(--mf-text-primary);

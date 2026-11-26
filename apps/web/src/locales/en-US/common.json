@@ -66,6 +66,7 @@
       "close": "Close create project",
       "typeTitle": "Choose a project type",
       "typeHint": "Pick the platform type first; the following steps are tailored to it.",
+      "stepProgress": "Step {{current}} of {{total}}",
       "softwareHint": "Desktop or mobile apps, tools, and games.",
       "websiteHint": "Brand sites, product sites, and web apps.",
       "detailsTitle": "Project details",

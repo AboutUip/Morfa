@@ -176,7 +176,7 @@ export function ProjectsPage() {
                   ) : null}
                 </div>
 
-                <h3>{project.name}</h3>
+                <h2>{project.name}</h2>
                 <p className={styles.projectDescription}>
                   {project.description}
                 </p>

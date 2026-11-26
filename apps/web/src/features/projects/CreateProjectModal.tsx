@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   type DragEvent,
+  type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -62,11 +63,13 @@ function readFileAsDataUrl(file: File): Promise<string> {
 interface CreateProjectModalProps {
   onClose: () => void;
   onCreated: () => void;
+  returnFocusRef?: RefObject<HTMLElement | null>;
 }
 
 export function CreateProjectModal({
   onClose,
   onCreated,
+  returnFocusRef,
 }: CreateProjectModalProps) {
   const { t } = useTranslation();
   const { closing, beginClose } = useAnimatedClose(onClose);
@@ -91,7 +94,10 @@ export function CreateProjectModal({
   const panelRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const loadingHostRef = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
+  const typeFirstRef = useRef<HTMLButtonElement>(null);
+  const dropzoneRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const busyRef = useRef(false);
   const createLockRef = useRef(false);
@@ -122,17 +128,45 @@ export function CreateProjectModal({
     return () => {
       cancelAnimationFrame(frame);
       releaseBackground();
-      if (trigger?.isConnected) {
+      const returnTarget = returnFocusRef?.current ?? trigger;
+      if (returnTarget?.isConnected) {
         requestAnimationFrame(() => {
-          if (trigger.isConnected) trigger.focus();
+          if (returnTarget.isConnected) returnTarget.focus();
         });
       }
     };
   }, []);
 
   useEffect(() => {
-    if (step === 1) nameRef.current?.focus();
-  }, [step]);
+    if (!creating) return;
+    const frame = requestAnimationFrame(() => {
+      loadingHostRef.current?.focus();
+    });
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      event.preventDefault();
+      loadingHostRef.current?.focus();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [creating]);
+
+  useEffect(() => {
+    if (creating) return;
+    const frame = requestAnimationFrame(() => {
+      if (step === 0) {
+        typeFirstRef.current?.focus();
+      } else if (step === 1) {
+        nameRef.current?.focus();
+      } else {
+        dropzoneRef.current?.focus();
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [step, creating]);
 
   useLayoutEffect(() => {
     const content = contentRef.current;
@@ -307,7 +341,14 @@ export function CreateProjectModal({
 
   if (creating) {
     return createPortal(
-      <div className={styles.loadingHost}>
+      <div
+        ref={loadingHostRef}
+        className={styles.loadingHost}
+        tabIndex={-1}
+        role="status"
+        aria-busy="true"
+        aria-label={t("projects.create.creatingTitle")}
+      >
         <LoadingOverlay
           controller={controller}
           title={t("projects.create.creatingTitle")}
@@ -364,14 +405,22 @@ export function CreateProjectModal({
               </button>
             </header>
 
-            <div className={styles.stepDots} aria-hidden="true">
-              {[0, 1, 2].map((index) => (
-                <span
-                  key={index}
-                  className={styles.stepDot}
-                  data-active={step >= index}
-                />
-              ))}
+            <div className={styles.stepMeta}>
+              <div className={styles.stepDots} aria-hidden="true">
+                {[0, 1, 2].map((index) => (
+                  <span
+                    key={index}
+                    className={styles.stepDot}
+                    data-active={step >= index}
+                  />
+                ))}
+              </div>
+              <p className={styles.stepText} aria-live="polite">
+                {t("projects.create.stepProgress", {
+                  current: step + 1,
+                  total: 3,
+                })}
+              </p>
             </div>
 
             <div key={step} className={`${styles.body} ${styles.stepBody}`}>
@@ -383,9 +432,11 @@ export function CreateProjectModal({
                   </p>
                   <div className={styles.typeGrid}>
                     <button
+                      ref={typeFirstRef}
                       className={styles.typeCard}
                       type="button"
                       data-selected={type === "software"}
+                      aria-pressed={type === "software"}
                       onClick={() => {
                         setType("software");
                         resetRequestId();
@@ -402,6 +453,7 @@ export function CreateProjectModal({
                       className={styles.typeCard}
                       type="button"
                       data-selected={type === "website"}
+                      aria-pressed={type === "website"}
                       onClick={() => {
                         setType("website");
                         resetRequestId();
@@ -465,6 +517,7 @@ export function CreateProjectModal({
                           className={styles.visibilityOption}
                           type="button"
                           data-selected={visibility === option}
+                          aria-pressed={visibility === option}
                           onClick={() => {
                             setVisibility(option);
                             resetRequestId();
@@ -494,6 +547,7 @@ export function CreateProjectModal({
                   </p>
 
                   <button
+                    ref={dropzoneRef}
                     className={styles.dropzone}
                     type="button"
                     data-active={dragActive}

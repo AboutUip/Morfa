@@ -26,6 +26,7 @@
 
 .launcher {
   display: flex;
+  flex-direction: row-reverse;
   align-items: center;
   width: 56px;
   height: 56px;
