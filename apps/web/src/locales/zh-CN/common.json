@@ -61,7 +61,15 @@
         "properties": "属性"
       },
       "canvas": {
-        "copySuffix": "副本"
+        "copySuffix": "副本",
+        "contextMenu": {
+          "rename": "重命名",
+          "copy": "复制",
+          "cut": "剪切",
+          "duplicate": "创建副本",
+          "delete": "删除",
+          "paste": "粘贴"
+        }
       },
       "canvasPanel": {
         "snap": "吸附",

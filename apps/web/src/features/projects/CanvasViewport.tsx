@@ -4,11 +4,14 @@ import {
   useState,
   type CSSProperties,
   type DragEvent as ReactDragEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
+import { hasPageClipboard } from "./canvasClipboard";
 import type { CanvasTool } from "./canvasTools";
 import {
   createPageId,
@@ -85,6 +88,15 @@ interface GestureSession {
   py: number;
 }
 
+interface CanvasContextMenuState {
+  kind: "page" | "canvas";
+  pageId: string | null;
+  x: number;
+  y: number;
+  worldX: number;
+  worldY: number;
+}
+
 interface CanvasViewportProps {
   label: string;
   activeTool: CanvasTool;
@@ -94,6 +106,14 @@ interface CanvasViewportProps {
   onSelectPage: (pageId: string | null) => void;
   onCreatePage: (page: CanvasPage) => void;
   onMovePage: (pageId: string, x: number, y: number) => void;
+  onMovePageStart: () => void;
+  onMovePageEnd: () => void;
+  onRenamePage: (pageId: string, name: string) => void;
+  onDeletePage: (pageId: string) => void;
+  onCopyPage: (pageId: string) => void;
+  onCutPage: (pageId: string) => void;
+  onDuplicatePage: (pageId: string) => void;
+  onPastePage: (position?: { x: number; y: number }) => void;
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -114,6 +134,17 @@ function toReactStyle(styles: Record<string, string>): CSSProperties {
   }
 
   return result as CSSProperties;
+}
+
+function isEditableElement(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+
+  return (
+    target.isContentEditable ||
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.tagName === "SELECT"
+  );
 }
 
 function findPageAt(
@@ -302,6 +333,14 @@ export function CanvasViewport({
   onSelectPage,
   onCreatePage,
   onMovePage,
+  onMovePageStart,
+  onMovePageEnd,
+  onRenamePage,
+  onDeletePage,
+  onCopyPage,
+  onCutPage,
+  onDuplicatePage,
+  onPastePage,
 }: CanvasViewportProps) {
   const { t } = useTranslation();
   const viewportRef = useRef<HTMLElement>(null);
@@ -321,10 +360,48 @@ export function CanvasViewport({
   const [hoveringPage, setHoveringPage] = useState(false);
   const [snapGuides, setSnapGuides] = useState<SnapGuides | null>(null);
   const [dropActive, setDropActive] = useState(false);
+  const [contextMenu, setContextMenu] =
+    useState<CanvasContextMenuState | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const renameCancelRef = useRef(false);
 
   useEffect(() => {
     viewRef.current = view;
   }, [view]);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+
+    const closeMenu = () => setContextMenu(null);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeMenu();
+    };
+
+    document.addEventListener("pointerdown", closeMenu);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("blur", closeMenu);
+    window.addEventListener("resize", closeMenu);
+    window.addEventListener("wheel", closeMenu, { passive: true });
+
+    return () => {
+      document.removeEventListener("pointerdown", closeMenu);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("blur", closeMenu);
+      window.removeEventListener("resize", closeMenu);
+      window.removeEventListener("wheel", closeMenu);
+    };
+  }, [contextMenu]);
+
+  useEffect(() => {
+    if (
+      contextMenu?.kind === "page" &&
+      contextMenu.pageId &&
+      !pages.some((page) => page.id === contextMenu.pageId)
+    ) {
+      setContextMenu(null);
+    }
+  }, [pages, contextMenu]);
 
   useEffect(() => {
     const element = viewportRef.current;
@@ -555,6 +632,7 @@ export function CanvasViewport({
         startX: hit.x,
         startY: hit.y,
       };
+      onMovePageStart();
       setMovingPage(true);
       setHoveringPage(true);
       setSnapGuides(null);
@@ -689,6 +767,7 @@ export function CanvasViewport({
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
     moveRef.current = null;
+    onMovePageEnd();
     setMovingPage(false);
     setSnapGuides(null);
   };
@@ -719,6 +798,7 @@ export function CanvasViewport({
 
     if (moveRef.current?.pointerId === event.pointerId) {
       moveRef.current = null;
+      onMovePageEnd();
       setMovingPage(false);
       setSnapGuides(null);
     }
@@ -741,6 +821,76 @@ export function CanvasViewport({
 
   const handleAuxClick = (event: ReactMouseEvent<HTMLElement>) => {
     if (event.button === 1) event.preventDefault();
+  };
+
+  const handleContextMenu = (event: ReactMouseEvent<HTMLElement>) => {
+    if (isEditableElement(event.target)) return;
+
+    event.preventDefault();
+    const rect = event.currentTarget.getBoundingClientRect();
+    const currentView = viewRef.current;
+    const worldX =
+      (event.clientX - rect.left - currentView.x) / currentView.zoom;
+    const worldY =
+      (event.clientY - rect.top - currentView.y) / currentView.zoom;
+    const hit = findPageAt(pages, worldX, worldY);
+    const menuHeight = hit ? 196 : 48;
+
+    if (hit) onSelectPage(hit.id);
+
+    setContextMenu({
+      kind: hit ? "page" : "canvas",
+      pageId: hit?.id ?? null,
+      x: Math.max(
+        8,
+        Math.min(event.clientX, window.innerWidth - 188),
+      ),
+      y: Math.max(
+        8,
+        Math.min(event.clientY, window.innerHeight - menuHeight),
+      ),
+      worldX,
+      worldY,
+    });
+  };
+
+  const startPageRename = (page: CanvasPage) => {
+    renameCancelRef.current = false;
+    setRenamingId(page.id);
+    setRenameDraft(page.name);
+    setContextMenu(null);
+    onSelectPage(page.id);
+  };
+
+  const commitPageRename = (page: CanvasPage) => {
+    if (renameCancelRef.current) {
+      renameCancelRef.current = false;
+      setRenamingId(null);
+      setRenameDraft("");
+      return;
+    }
+
+    const name = renameDraft.trim();
+    if (name && name !== page.name) onRenamePage(page.id, name);
+    setRenamingId(null);
+    setRenameDraft("");
+  };
+
+  const handleRenameKeyDown = (
+    event: ReactKeyboardEvent<HTMLInputElement>,
+  ) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      event.currentTarget.blur();
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      renameCancelRef.current = true;
+      setRenamingId(null);
+      setRenameDraft("");
+    }
   };
 
   const handleDragOver = (event: ReactDragEvent<HTMLElement>) => {
@@ -817,6 +967,11 @@ export function CanvasViewport({
     transform: `translate3d(${view.x}px, ${view.y}px, 0) scale(${view.zoom})`,
   } as CSSProperties;
 
+  const contextMenuPage =
+    contextMenu?.pageId
+      ? pages.find((page) => page.id === contextMenu.pageId) ?? null
+      : null;
+
   return (
     <main
       ref={viewportRef}
@@ -839,12 +994,13 @@ export function CanvasViewport({
       onLostPointerCapture={handleLostPointerCapture}
       onMouseDown={handleMouseDown}
       onAuxClick={handleAuxClick}
+      onContextMenu={handleContextMenu}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
       <div className={styles.grid} style={gridStyle} aria-hidden="true" />
-      <div className={styles.world} style={worldStyle} aria-hidden="true">
+      <div className={styles.world} style={worldStyle}>
         {pages.map((page) => {
           const {
             width = "800px",
@@ -872,12 +1028,31 @@ export function CanvasViewport({
                 height,
               }}
             >
-              <span
-                className={styles.pageLabel}
-                style={{ transform: `scale(${1 / view.zoom})` }}
-              >
-                {page.name}
-              </span>
+              {renamingId === page.id ? (
+                <input
+                  className={styles.pageRenameInput}
+                  style={{ transform: `scale(${1 / view.zoom})` }}
+                  value={renameDraft}
+                  autoFocus
+                  aria-label={t(
+                    "projects.workspace.canvas.contextMenu.rename",
+                  )}
+                  onFocus={(event) => event.currentTarget.select()}
+                  onChange={(event) => setRenameDraft(event.target.value)}
+                  onBlur={() => commitPageRename(page)}
+                  onKeyDown={handleRenameKeyDown}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => event.stopPropagation()}
+                  onContextMenu={(event) => event.stopPropagation()}
+                />
+              ) : (
+                <span
+                  className={styles.pageLabel}
+                  style={{ transform: `scale(${1 / view.zoom})` }}
+                >
+                  {page.name}
+                </span>
+              )}
 
               {page.frame ? (
                 <div className={styles.deviceFrame} data-frame={page.frame}>
@@ -930,6 +1105,99 @@ export function CanvasViewport({
           aria-hidden="true"
         />
       ) : null}
+
+      {contextMenu
+        ? createPortal(
+            <div
+              className={styles.contextMenu}
+              style={{ left: contextMenu.x, top: contextMenu.y }}
+              role="menu"
+              onPointerDown={(event) => event.stopPropagation()}
+              onContextMenu={(event) => event.preventDefault()}
+            >
+              {contextMenu.kind === "page" && contextMenuPage ? (
+                <>
+                  <button
+                    className={styles.contextMenuItem}
+                    type="button"
+                    role="menuitem"
+                    autoFocus
+                    onClick={() => startPageRename(contextMenuPage)}
+                  >
+                    {t("projects.workspace.canvas.contextMenu.rename")}
+                  </button>
+                  <button
+                    className={styles.contextMenuItem}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      onCopyPage(contextMenuPage.id);
+                      setContextMenu(null);
+                    }}
+                  >
+                    {t("projects.workspace.canvas.contextMenu.copy")}
+                  </button>
+                  <button
+                    className={styles.contextMenuItem}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      onCutPage(contextMenuPage.id);
+                      setContextMenu(null);
+                    }}
+                  >
+                    {t("projects.workspace.canvas.contextMenu.cut")}
+                  </button>
+                  <button
+                    className={styles.contextMenuItem}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      onDuplicatePage(contextMenuPage.id);
+                      setContextMenu(null);
+                    }}
+                  >
+                    {t("projects.workspace.canvas.contextMenu.duplicate")}
+                  </button>
+                  <div
+                    className={styles.contextMenuSeparator}
+                    role="separator"
+                  />
+                  <button
+                    className={styles.contextMenuItem}
+                    type="button"
+                    role="menuitem"
+                    data-danger="true"
+                    onClick={() => {
+                      onDeletePage(contextMenuPage.id);
+                      setContextMenu(null);
+                    }}
+                  >
+                    {t("projects.workspace.canvas.contextMenu.delete")}
+                  </button>
+                </>
+              ) : (
+                <button
+                  className={styles.contextMenuItem}
+                  type="button"
+                  role="menuitem"
+                  autoFocus
+                  disabled={!hasPageClipboard()}
+                  onClick={() => {
+                    onPastePage({
+                      x: contextMenu.worldX,
+                      y: contextMenu.worldY,
+                    });
+                    setContextMenu(null);
+                  }}
+                >
+                  {t("projects.workspace.canvas.contextMenu.paste")}
+                </button>
+              )}
+            </div>,
+            document.body,
+          )
+        : null}
     </main>
   );
 }

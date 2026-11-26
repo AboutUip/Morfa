@@ -38,6 +38,7 @@ export function hasPageClipboard() {
 export function pastePageFromClipboard(
   pages: CanvasPage[],
   copySuffix: string,
+  position?: { x: number; y: number },
 ): CanvasPage | null {
   if (!clipboard) return null;
 
@@ -53,7 +54,23 @@ export function pastePageFromClipboard(
     ...clonePage(source),
     id: createPageId(),
     name: uniquePageName(baseName, pages),
-    x: source.x + offset,
-    y: source.y + offset,
+    x: position ? position.x : source.x + offset,
+    y: position ? position.y : source.y + offset,
+  };
+}
+
+export function duplicatePageFrom(
+  page: CanvasPage,
+  pages: CanvasPage[],
+  copySuffix: string,
+): CanvasPage {
+  const baseName = copySuffix ? `${page.name} ${copySuffix}` : page.name;
+
+  return {
+    ...clonePage(page),
+    id: createPageId(),
+    name: uniquePageName(baseName, pages),
+    x: page.x + PASTE_OFFSET,
+    y: page.y + PASTE_OFFSET,
   };
 }

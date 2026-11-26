@@ -61,7 +61,15 @@
         "properties": "Properties"
       },
       "canvas": {
-        "copySuffix": "copy"
+        "copySuffix": "copy",
+        "contextMenu": {
+          "rename": "Rename",
+          "copy": "Copy",
+          "cut": "Cut",
+          "duplicate": "Duplicate",
+          "delete": "Delete",
+          "paste": "Paste"
+        }
       },
       "canvasPanel": {
         "snap": "Snap",

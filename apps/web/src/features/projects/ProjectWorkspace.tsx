@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { ProjectSummary } from "../../lib/api";
 import {
   copyPageToClipboard,
+  duplicatePageFrom,
   hasPageClipboard,
   pastePageFromClipboard,
 } from "./canvasClipboard";
@@ -17,6 +18,7 @@ import {
 import type { CanvasPage } from "./canvasDocument";
 import { useCanvasSnapSettings } from "./canvasSnap";
 import { ProjectWorkspaceTopBar } from "./ProjectWorkspaceTopBar";
+import { useCanvasHistory } from "./useCanvasHistory";
 import { useProjectCanvas } from "./useProjectCanvas";
 import styles from "./ProjectWorkspace.module.css";
 
@@ -44,87 +46,38 @@ export function ProjectWorkspace({
   const [activeTool, setActiveTool] = useState<CanvasTool>("select");
   const [snapSettings, setSnapSettings] = useCanvasSnapSettings();
   const { pages, setPages } = useProjectCanvas(project.id);
+  const {
+    commit,
+    transient,
+    beginTransaction,
+    endTransaction,
+    undo,
+    redo,
+  } = useCanvasHistory(pages, setPages, project.id);
   const [selectedPageId, setSelectedPageId] = useState<string | null>(
     null,
   );
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.ctrlKey || event.metaKey || event.altKey) return;
-      if (isEditableTarget(event.target)) return;
-
-      const key = event.key.toUpperCase();
-      if (key === CANVAS_TOOL_SHORTCUTS.select) {
-        setActiveTool("select");
-      } else if (key === CANVAS_TOOL_SHORTCUTS.hand) {
-        setActiveTool("hand");
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
-      if (event.repeat) return;
-      if (isEditableTarget(event.target)) return;
-
-      const key = event.key.toLowerCase();
-      const selectedPage = selectedPageId
-        ? pages.find((page) => page.id === selectedPageId)
-        : null;
-
-      if (key === "c") {
-        if (!selectedPage) return;
-        event.preventDefault();
-        copyPageToClipboard(selectedPage);
-        return;
-      }
-
-      if (key === "x") {
-        if (!selectedPage) return;
-        event.preventDefault();
-        copyPageToClipboard(selectedPage, "cut");
-        setPages((current) =>
-          current.filter((page) => page.id !== selectedPage.id),
-        );
-        setSelectedPageId(null);
-        return;
-      }
-
-      if (key === "v") {
-        if (!hasPageClipboard()) return;
-        event.preventDefault();
-        const pasted = pastePageFromClipboard(
-          pages,
-          t("projects.workspace.canvas.copySuffix"),
-        );
-        if (!pasted) return;
-        setPages((current) => [...current, pasted]);
-        setSelectedPageId(pasted.id);
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [pages, selectedPageId, setPages, t]);
-
   const handleCreatePage = (page: CanvasPage) => {
-    setPages((current) => [...current, page]);
+    commit((current) => [...current, page]);
   };
 
   const handleRenamePage = (pageId: string, name: string) => {
-    setPages((current) =>
-      current.map((page) =>
+    commit((current) => {
+      const target = current.find((page) => page.id === pageId);
+      if (!target || target.name === name) return current;
+
+      return current.map((page) =>
         page.id === pageId ? { ...page, name } : page,
-      ),
-    );
+      );
+    });
   };
 
   const handleDeletePage = (pageId: string) => {
-    setPages((current) => current.filter((page) => page.id !== pageId));
+    commit((current) => {
+      if (!current.some((page) => page.id === pageId)) return current;
+      return current.filter((page) => page.id !== pageId);
+    });
     setSelectedPageId((current) => (current === pageId ? null : current));
   };
 
@@ -132,7 +85,7 @@ export function ProjectWorkspace({
     pageId: string,
     styles: Record<string, string>,
   ) => {
-    setPages((current) =>
+    commit((current) =>
       current.map((page) =>
         page.id === pageId ? { ...page, styles } : page,
       ),
@@ -140,11 +93,19 @@ export function ProjectWorkspace({
   };
 
   const handleMovePage = (pageId: string, x: number, y: number) => {
-    setPages((current) =>
+    transient((current) =>
       current.map((page) =>
         page.id === pageId ? { ...page, x, y } : page,
       ),
     );
+  };
+
+  const handleMovePageStart = () => {
+    beginTransaction();
+  };
+
+  const handleMovePageEnd = () => {
+    endTransaction();
   };
 
   const handleReorderPage = (
@@ -154,7 +115,7 @@ export function ProjectWorkspace({
   ) => {
     if (dragId === targetId) return;
 
-    setPages((current) => {
+    commit((current) => {
       const fromIndex = current.findIndex((page) => page.id === dragId);
       if (fromIndex < 0) return current;
 
@@ -168,6 +129,127 @@ export function ProjectWorkspace({
       return next;
     });
   };
+
+  const handleCopyPage = (pageId: string) => {
+    const page = pages.find((item) => item.id === pageId);
+    if (page) copyPageToClipboard(page);
+  };
+
+  const handleCutPage = (pageId: string) => {
+    const page = pages.find((item) => item.id === pageId);
+    if (!page) return;
+
+    copyPageToClipboard(page, "cut");
+    handleDeletePage(pageId);
+  };
+
+  const handlePastePage = (position?: { x: number; y: number }) => {
+    const pasted = pastePageFromClipboard(
+      pages,
+      t("projects.workspace.canvas.copySuffix"),
+      position,
+    );
+    if (!pasted) return;
+
+    commit((current) => [...current, pasted]);
+    setSelectedPageId(pasted.id);
+  };
+
+  const handleDuplicatePage = (pageId: string) => {
+    const page = pages.find((item) => item.id === pageId);
+    if (!page) return;
+
+    const duplicate = duplicatePageFrom(
+      page,
+      pages,
+      t("projects.workspace.canvas.copySuffix"),
+    );
+    commit((current) => [...current, duplicate]);
+    setSelectedPageId(duplicate.id);
+  };
+
+  useEffect(() => {
+    if (
+      selectedPageId &&
+      !pages.some((page) => page.id === selectedPageId)
+    ) {
+      setSelectedPageId(null);
+    }
+  }, [pages, selectedPageId]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      if (isEditableTarget(event.target)) return;
+
+      if (event.key === "Delete" || event.key === "Backspace") {
+        if (!selectedPageId) return;
+        event.preventDefault();
+        handleDeletePage(selectedPageId);
+        return;
+      }
+
+      const key = event.key.toUpperCase();
+      if (key === CANVAS_TOOL_SHORTCUTS.select) {
+        setActiveTool("select");
+      } else if (key === CANVAS_TOOL_SHORTCUTS.hand) {
+        setActiveTool("hand");
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedPageId]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+      if (event.repeat) return;
+      if (isEditableTarget(event.target)) return;
+
+      const key = event.key.toLowerCase();
+
+      if (key === "z") {
+        event.preventDefault();
+        if (event.shiftKey) redo();
+        else undo();
+        return;
+      }
+
+      if (key === "y") {
+        event.preventDefault();
+        redo();
+        return;
+      }
+
+      const selectedPage = selectedPageId
+        ? pages.find((page) => page.id === selectedPageId)
+        : null;
+
+      if (key === "c") {
+        if (!selectedPage) return;
+        event.preventDefault();
+        handleCopyPage(selectedPage.id);
+        return;
+      }
+
+      if (key === "x") {
+        if (!selectedPage) return;
+        event.preventDefault();
+        handleCutPage(selectedPage.id);
+        return;
+      }
+
+      if (key === "v") {
+        if (!hasPageClipboard()) return;
+        event.preventDefault();
+        handlePastePage();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [pages, selectedPageId, t]);
 
   return (
     <div className={styles.shell} data-project-workspace="true">
@@ -191,6 +273,14 @@ export function ProjectWorkspace({
           onSelectPage={setSelectedPageId}
           onCreatePage={handleCreatePage}
           onMovePage={handleMovePage}
+          onMovePageStart={handleMovePageStart}
+          onMovePageEnd={handleMovePageEnd}
+          onRenamePage={handleRenamePage}
+          onDeletePage={handleDeletePage}
+          onCopyPage={handleCopyPage}
+          onCutPage={handleCutPage}
+          onDuplicatePage={handleDuplicatePage}
+          onPastePage={handlePastePage}
         />
 
         <CanvasRightSidebar
