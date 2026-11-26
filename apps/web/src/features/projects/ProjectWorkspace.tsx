@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 
 import type { ProjectSummary } from "../../lib/api";
+import { CanvasViewport } from "./CanvasViewport";
 import { ProjectWorkspaceTopBar } from "./ProjectWorkspaceTopBar";
 import styles from "./ProjectWorkspace.module.css";
 
@@ -25,12 +26,7 @@ export function ProjectWorkspace({
           aria-label={t("projects.workspace.sidebar")}
         />
 
-        <main
-          id="project-main"
-          className={styles.main}
-          tabIndex={-1}
-          aria-label={project.name}
-        />
+        <CanvasViewport label={project.name} />
 
         <aside
           className={`${styles.sidebar} ${styles.sidebarEnd}`}

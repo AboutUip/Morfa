@@ -32,17 +32,6 @@
   border-left: 1px solid var(--mf-border);
 }
 
-.main {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  background: var(--mf-bg-app);
-}
-
-.main:focus {
-  outline: none;
-}
-
 .statusBar {
   flex: none;
   height: var(--mf-statusbar-height);

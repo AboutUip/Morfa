@@ -25,6 +25,8 @@
   --mf-danger-soft: rgba(198, 60, 60, 0.09);
 
   --mf-canvas-dot: rgba(24, 24, 31, 0.16);
+  --mf-canvas-grid: rgba(24, 24, 31, 0.06);
+  --mf-canvas-grid-major: rgba(24, 24, 31, 0.1);
   --mf-artboard: #ffffff;
   --mf-artboard-border: rgba(24, 24, 31, 0.08);
   --mf-artboard-shadow:
@@ -62,6 +64,8 @@
   --mf-danger-soft: rgba(255, 138, 138, 0.12);
 
   --mf-canvas-dot: rgba(255, 255, 255, 0.14);
+  --mf-canvas-grid: rgba(255, 255, 255, 0.05);
+  --mf-canvas-grid-major: rgba(255, 255, 255, 0.09);
   --mf-artboard: #151b23;
   --mf-artboard-border: rgba(255, 255, 255, 0.07);
   --mf-artboard-shadow:

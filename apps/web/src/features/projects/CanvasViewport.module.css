@@ -1,0 +1,59 @@
+.viewport {
+  position: relative;
+  display: block;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--mf-bg-canvas);
+  cursor: default;
+  outline: none;
+  user-select: none;
+  touch-action: none;
+  overscroll-behavior: none;
+}
+
+.viewport:focus {
+  outline: none;
+}
+
+.viewport[data-panning="true"] {
+  cursor: grabbing;
+}
+
+.grid {
+  position: absolute;
+  inset: 0;
+  background-color: var(--mf-bg-canvas);
+  background-image:
+    linear-gradient(
+      to right,
+      var(--mf-canvas-grid-major) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      var(--mf-canvas-grid-major) 1px,
+      transparent 1px
+    ),
+    linear-gradient(to right, var(--mf-canvas-grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--mf-canvas-grid) 1px, transparent 1px);
+  background-repeat: repeat;
+  background-position: var(--mf-grid-x) var(--mf-grid-y);
+  background-size:
+    var(--mf-grid-major-size) var(--mf-grid-major-size),
+    var(--mf-grid-major-size) var(--mf-grid-major-size),
+    var(--mf-grid-size) var(--mf-grid-size),
+    var(--mf-grid-size) var(--mf-grid-size);
+  pointer-events: none;
+}
+
+.world {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
