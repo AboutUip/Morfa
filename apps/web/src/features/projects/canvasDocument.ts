@@ -6,17 +6,21 @@ import type {
   CanvasLinkDto,
   CanvasLinkEdge,
   CanvasPageDto,
+  CanvasWidgetDto,
+  CanvasWidgetKind,
 } from "../../lib/api";
 
 export type CanvasPage = CanvasPageDto;
 export type CanvasDataEntry = CanvasDataEntryDto;
 export type CanvasLink = CanvasLinkDto;
 export type CanvasLinkAnchor = CanvasLinkAnchorDto;
+export type CanvasWidget = CanvasWidgetDto;
 export type {
   CanvasDataType,
   CanvasLinkAnchorDto,
   CanvasLinkDirection,
   CanvasLinkEdge,
+  CanvasWidgetKind,
 };
 
 export interface CanvasDocument {

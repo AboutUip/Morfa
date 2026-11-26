@@ -75,6 +75,36 @@ export interface CanvasDataEntryDto {
   commit?: string;
 }
 
+export type CanvasWidgetKind =
+  | "button"
+  | "select"
+  | "text"
+  | "input"
+  | "search"
+  | "textarea"
+  | "checkbox"
+  | "radio"
+  | "toggle"
+  | "progress"
+  | "slider"
+  | "image"
+  | "video"
+  | "avatar"
+  | "badge"
+  | "card"
+  | "tabs"
+  | "alert"
+  | "divider"
+  | "chart";
+
+export interface CanvasWidgetDto {
+  kind: CanvasWidgetKind;
+  variant?: string;
+  text?: string;
+  value?: number;
+  src?: string;
+}
+
 export interface CanvasPageDto {
   id: string;
   name: string;
@@ -85,6 +115,7 @@ export interface CanvasPageDto {
   lockedSize?: boolean;
   parentId?: string;
   data?: CanvasDataEntryDto[];
+  widget?: CanvasWidgetDto;
 }
 
 export type CanvasLinkDirection = "one-way" | "two-way";

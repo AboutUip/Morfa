@@ -191,7 +191,8 @@
           "appearance": "Appearance",
           "border": "Border",
           "flex": "Flex",
-          "effects": "Effects"
+          "effects": "Effects",
+          "widget": "Component"
         },
         "fields": {
           "nodeId": "Node ID",
@@ -212,8 +213,14 @@
           "justifyContent": "Justify content",
           "alignItems": "Align items",
           "boxShadow": "Box shadow",
-          "filter": "Filter"
+          "filter": "Filter",
+          "widgetVariant": "Variant",
+          "widgetText": "Text",
+          "widgetValue": "Value",
+          "widgetSource": "Source URL"
         },
+        "widgetTextPlaceholder": "Text shown by this component",
+        "widgetSourcePlaceholder": "https://...",
         "table": {
           "property": "CSS property",
           "value": "Value",
@@ -233,6 +240,15 @@
         "noResults": "No components found"
       },
       "componentMarket": {
+        "categories": {
+          "containers": "Containers",
+          "actions": "Actions",
+          "typography": "Text",
+          "forms": "Forms",
+          "feedback": "Feedback",
+          "media": "Media",
+          "display": "Display"
+        },
         "items": {
           "blank": {
             "name": "Blank page",
@@ -276,12 +292,132 @@
           },
           "galaxyWatch": {
             "name": "Galaxy Watch"
+          },
+          "buttonPrimary": {
+            "name": "Primary button"
+          },
+          "buttonSecondary": {
+            "name": "Secondary button"
+          },
+          "buttonGhost": {
+            "name": "Text button"
+          },
+          "buttonIcon": {
+            "name": "Icon button"
+          },
+          "textHeading": {
+            "name": "Heading text"
+          },
+          "textParagraph": {
+            "name": "Body text"
+          },
+          "textLabel": {
+            "name": "Label text"
+          },
+          "select": {
+            "name": "Dropdown"
+          },
+          "input": {
+            "name": "Input"
+          },
+          "search": {
+            "name": "Search box"
+          },
+          "textarea": {
+            "name": "Textarea"
+          },
+          "checkbox": {
+            "name": "Checkbox"
+          },
+          "radio": {
+            "name": "Radio"
+          },
+          "toggle": {
+            "name": "Toggle"
+          },
+          "slider": {
+            "name": "Slider"
+          },
+          "progress": {
+            "name": "Progress bar"
+          },
+          "alert": {
+            "name": "Alert"
+          },
+          "image": {
+            "name": "Image"
+          },
+          "video": {
+            "name": "Video"
+          },
+          "avatar": {
+            "name": "Avatar"
+          },
+          "badge": {
+            "name": "Badge"
+          },
+          "card": {
+            "name": "Card"
+          },
+          "tabs": {
+            "name": "Tabs"
+          },
+          "divider": {
+            "name": "Divider"
+          },
+          "chart": {
+            "name": "Bar chart"
           }
         },
         "descriptions": {
           "iphone": "Fixed screen container sized for iPhone.",
           "android": "Fixed screen container sized for Android phones.",
-          "watch": "Fixed screen container sized for watches."
+          "watch": "Fixed screen container sized for watches.",
+          "button": "Clickable action button for primary and secondary actions.",
+          "buttonIcon": "Compact icon-only button for toolbars and shortcuts.",
+          "text": "Text content with adjustable size for headings and body copy.",
+          "textLabel": "Short label for field names and helper text.",
+          "select": "Dropdown for choosing one value from several options.",
+          "input": "Single-line input for form fields.",
+          "search": "Filter input with a search icon.",
+          "textarea": "Multi-line input for notes and longer content.",
+          "checkbox": "Checkable option for multiple selections.",
+          "radio": "Single-choice option for mutually exclusive values.",
+          "toggle": "Switch control for enabling or disabling a setting.",
+          "slider": "Draggable control for selecting a numeric value.",
+          "progress": "Progress bar for showing task completion.",
+          "alert": "Prominent banner for status messages.",
+          "image": "Image placeholder; set the source URL in properties.",
+          "video": "Video placeholder; set the source URL in properties.",
+          "avatar": "Round avatar with an image or initial letter.",
+          "badge": "Compact status badge.",
+          "card": "Card with a cover area and text content.",
+          "tabs": "Tabs for switching between content groups.",
+          "divider": "Thin line for separating content.",
+          "chart": "Bar chart placeholder for showing data trends."
+        },
+        "widgetTexts": {
+          "buttonPrimary": "Get started",
+          "buttonSecondary": "Learn more",
+          "buttonGhost": "View details",
+          "select": "Select an option",
+          "textHeading": "Turn ideas into reality",
+          "textParagraph": "This is body text that explains a feature, status, or next step.",
+          "textLabel": "Label",
+          "input": "Enter text",
+          "search": "Search",
+          "textarea": "Write something",
+          "checkbox": "I agree to the terms",
+          "radio": "Option A",
+          "toggle": "Enable notifications",
+          "progress": "Upload progress",
+          "alert": "Heads up, this is an alert.",
+          "image": "Image",
+          "video": "Video",
+          "avatar": "M",
+          "badge": "New",
+          "card": "Card title",
+          "tabs": "Overview|Details|Settings"
         }
       },
       "loadingTitle": "Opening project",

@@ -33,6 +33,7 @@ import {
   type CanvasLinkAnchor,
   type CanvasLintItem,
   type CanvasPage,
+  type CanvasWidget,
 } from "./canvasDocument";
 import { useCanvasSnapSettings } from "./canvasSnap";
 import { ProjectWorkspaceTopBar } from "./ProjectWorkspaceTopBar";
@@ -404,6 +405,19 @@ export function ProjectWorkspace({
     );
   };
 
+  const handleUpdatePageWidget = (
+    pageId: string,
+    widget: CanvasWidget | null,
+  ) => {
+    commitPages((current) =>
+      current.map((page) =>
+        page.id === pageId
+          ? { ...page, widget: widget ?? undefined }
+          : page,
+      ),
+    );
+  };
+
   const handleMovePage = (pageId: string, x: number, y: number) => {
     transientPages((current) =>
       current.map((page) =>
@@ -744,6 +758,7 @@ export function ProjectWorkspace({
           onRenameId={handleRenamePageId}
           onDelete={handleDeletePage}
           onUpdateStyles={handleUpdatePageStyles}
+          onUpdateWidget={handleUpdatePageWidget}
           onUpdateData={handleUpdatePageData}
           onReorder={handleReorderPage}
         />

@@ -18,6 +18,9 @@ const MAX_CANVAS_LINKS = 500;
 const MAX_LINK_ID_LENGTH = 120;
 const MAX_LINK_COLOR_LENGTH = 64;
 const MAX_LINK_WIDTH = 32;
+const MAX_WIDGET_TEXT_LENGTH = 1000;
+const MAX_WIDGET_VARIANT_LENGTH = 40;
+const MAX_WIDGET_SRC_LENGTH = 4000;
 const MAX_CANVAS_JSON_LENGTH = 2_000_000;
 
 export type CanvasFrame = "iphone" | "android" | "watch";
@@ -27,6 +30,36 @@ export type CanvasDataType =
   | "color"
   | "date"
   | "boolean";
+
+export type CanvasWidgetKind =
+  | "button"
+  | "select"
+  | "text"
+  | "input"
+  | "search"
+  | "textarea"
+  | "checkbox"
+  | "radio"
+  | "toggle"
+  | "progress"
+  | "slider"
+  | "image"
+  | "video"
+  | "avatar"
+  | "badge"
+  | "card"
+  | "tabs"
+  | "alert"
+  | "divider"
+  | "chart";
+
+export interface CanvasWidgetDto {
+  kind: CanvasWidgetKind;
+  variant?: string;
+  text?: string;
+  value?: number;
+  src?: string;
+}
 
 export interface CanvasDataEntryDto {
   key: string;
@@ -45,6 +78,7 @@ export interface CanvasPageDto {
   lockedSize?: boolean;
   parentId?: string;
   data?: CanvasDataEntryDto[];
+  widget?: CanvasWidgetDto;
 }
 
 export type CanvasLinkDirection = "one-way" | "two-way";
@@ -182,6 +216,73 @@ function normalizeData(value: unknown): CanvasDataEntryDto[] {
   return entries;
 }
 
+const CANVAS_WIDGET_KINDS = new Set<CanvasWidgetKind>([
+  "button",
+  "select",
+  "text",
+  "input",
+  "search",
+  "textarea",
+  "checkbox",
+  "radio",
+  "toggle",
+  "progress",
+  "slider",
+  "image",
+  "video",
+  "avatar",
+  "badge",
+  "card",
+  "tabs",
+  "alert",
+  "divider",
+  "chart",
+]);
+
+function normalizeWidget(value: unknown): CanvasWidgetDto | undefined {
+  if (value === undefined) return undefined;
+
+  const widget = readObject(value);
+  const kind = widget.kind;
+  if (
+    typeof kind !== "string" ||
+    !CANVAS_WIDGET_KINDS.has(kind as CanvasWidgetKind)
+  ) {
+    invalidDocument();
+  }
+
+  const variant =
+    typeof widget.variant === "string" ? widget.variant.trim() : "";
+  if (variant.length > MAX_WIDGET_VARIANT_LENGTH) invalidDocument();
+
+  const text = typeof widget.text === "string" ? widget.text : "";
+  if (text.length > MAX_WIDGET_TEXT_LENGTH) invalidDocument();
+
+  const src = typeof widget.src === "string" ? widget.src.trim() : "";
+  if (src.length > MAX_WIDGET_SRC_LENGTH) invalidDocument();
+
+  let normalizedValue: number | undefined;
+  if (widget.value !== undefined) {
+    if (
+      typeof widget.value !== "number" ||
+      !Number.isFinite(widget.value)
+    ) {
+      invalidDocument();
+    }
+    normalizedValue = Math.min(100, Math.max(0, widget.value));
+  }
+
+  return {
+    kind: kind as CanvasWidgetKind,
+    ...(variant ? { variant } : {}),
+    ...(text ? { text } : {}),
+    ...(normalizedValue !== undefined
+      ? { value: normalizedValue }
+      : {}),
+    ...(src ? { src } : {}),
+  };
+}
+
 function normalizePage(value: unknown): CanvasPageDto {
   const page = readObject(value);
   const frame =
@@ -200,6 +301,7 @@ function normalizePage(value: unknown): CanvasPageDto {
   const id = readPageId(page.id);
   if (parentId === id) invalidDocument();
   const data = normalizeData(page.data);
+  const widget = normalizeWidget(page.widget);
 
   return {
     id,
@@ -211,6 +313,7 @@ function normalizePage(value: unknown): CanvasPageDto {
     ...(lockedSize !== undefined ? { lockedSize } : {}),
     ...(parentId ? { parentId } : {}),
     ...(data.length ? { data } : {}),
+    ...(widget ? { widget } : {}),
   };
 }
 
@@ -372,7 +475,7 @@ export function saveProjectCanvas(
 
   const pages = normalizePages(rawPages);
   const links = normalizeLinks(rawLinks, pages);
-  const data = JSON.stringify({ version: 2, pages, links });
+  const data = JSON.stringify({ version: 3, pages, links });
   if (data.length > MAX_CANVAS_JSON_LENGTH) {
     throw new ApiError(
       413,

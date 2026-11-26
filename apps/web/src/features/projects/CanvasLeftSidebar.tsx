@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useEffect,
   useMemo,
   useRef,
@@ -27,10 +28,14 @@ import {
   type CanvasTool,
 } from "./canvasTools";
 import {
+  COMPONENT_MARKET,
   CONTAINER_DRAG_MIME,
-  CONTAINER_MARKET,
-  type MarketContainer,
+  MARKET_CATEGORY_LABEL_KEYS,
+  MARKET_CATEGORY_ORDER,
+  type MarketCategory,
+  type MarketItem,
 } from "./componentMarket";
+import { CanvasWidgetView } from "./CanvasWidgetView";
 import styles from "./CanvasLeftSidebar.module.css";
 
 const DEFAULT_PANEL_WIDTH = 240;
@@ -200,7 +205,7 @@ export function CanvasLeftSidebar({
   const marketItems = useMemo(() => {
     const query = marketQuery.trim().toLowerCase();
 
-    return CONTAINER_MARKET.filter((item) => {
+    return COMPONENT_MARKET.filter((item) => {
       if (item.target !== "both" && item.target !== projectType) {
         return false;
       }
@@ -213,9 +218,23 @@ export function CanvasLeftSidebar({
     });
   }, [marketQuery, projectType, t]);
 
+  const marketGroups = useMemo(() => {
+    const buckets = new Map<MarketCategory, MarketItem[]>();
+    for (const category of MARKET_CATEGORY_ORDER) {
+      buckets.set(category, []);
+    }
+    for (const item of marketItems) {
+      const category: MarketCategory =
+        item.type === "container" ? "containers" : item.category;
+      buckets.get(category)?.push(item);
+    }
+
+    return [...buckets.entries()].filter(([, items]) => items.length > 0);
+  }, [marketItems]);
+
   const handleMarketDragStart = (
     event: ReactDragEvent<HTMLDivElement>,
-    item: MarketContainer,
+    item: MarketItem,
   ) => {
     event.dataTransfer.setData(CONTAINER_DRAG_MIME, item.id);
     event.dataTransfer.setData("text/plain", t(item.nameKey));
@@ -379,42 +398,67 @@ export function CanvasLeftSidebar({
                   </label>
 
                   <div className={styles.marketGrid} role="list">
-                    {marketItems.length > 0 ? (
-                      marketItems.map((item) => (
-                        <div
-                          key={item.id}
-                          className={styles.marketCard}
-                          role="listitem"
-                          draggable
-                          onDragStart={(event) =>
-                            handleMarketDragStart(event, item)
-                          }
-                        >
-                          <span
-                            className={styles.marketCover}
-                            aria-hidden="true"
-                          >
-                            {item.frame ? (
+                    {marketGroups.length > 0 ? (
+                      marketGroups.map(([category, items]) => (
+                        <Fragment key={category}>
+                          <h3 className={styles.marketGroupTitle}>
+                            {t(MARKET_CATEGORY_LABEL_KEYS[category])}
+                          </h3>
+                          {items.map((item) => (
+                            <div
+                              key={item.id}
+                              className={styles.marketCard}
+                              role="listitem"
+                              draggable
+                              onDragStart={(event) =>
+                                handleMarketDragStart(event, item)
+                              }
+                            >
                               <span
-                                className={styles.marketDevice}
-                                data-frame={item.frame}
-                                style={{
-                                  aspectRatio: `${item.width} / ${item.height}`,
-                                }}
-                              />
-                            ) : (
-                              <span className={styles.marketCoverCanvas}>
-                                <FrameIcon size={18} />
+                                className={styles.marketCover}
+                                aria-hidden="true"
+                              >
+                                {item.type === "widget" ? (
+                                  <span
+                                    className={styles.marketWidgetPreview}
+                                    style={{
+                                      aspectRatio: `${item.width} / ${item.height}`,
+                                    }}
+                                  >
+                                    <CanvasWidgetView
+                                      widget={{
+                                        ...item.widget,
+                                        ...(item.textKey
+                                          ? { text: t(item.textKey) }
+                                          : {}),
+                                      }}
+                                    />
+                                  </span>
+                                ) : item.frame ? (
+                                  <span
+                                    className={styles.marketDevice}
+                                    data-frame={item.frame}
+                                    style={{
+                                      aspectRatio: `${item.width} / ${item.height}`,
+                                    }}
+                                  />
+                                ) : (
+                                  <span
+                                    className={styles.marketCoverCanvas}
+                                  >
+                                    <FrameIcon size={18} />
+                                  </span>
+                                )}
                               </span>
-                            )}
-                          </span>
-                          <span className={styles.marketName}>
-                            {t(item.nameKey)}
-                          </span>
-                          <span className={styles.marketDescription}>
-                            {t(item.descriptionKey)}
-                          </span>
-                        </div>
+                              <span className={styles.marketName}>
+                                {t(item.nameKey)}
+                              </span>
+                              <span className={styles.marketDescription}>
+                                {t(item.descriptionKey)}
+                              </span>
+                            </div>
+                          ))}
+                        </Fragment>
                       ))
                     ) : (
                       <p className={styles.noResults}>

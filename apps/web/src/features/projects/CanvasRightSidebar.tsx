@@ -32,7 +32,14 @@ import {
   type CanvasDataType,
   type CanvasLink,
   type CanvasPage,
+  type CanvasWidget,
 } from "./canvasDocument";
+import {
+  WIDGET_SOURCE_KINDS,
+  WIDGET_TEXT_KINDS,
+  WIDGET_VALUE_KINDS,
+  WIDGET_VARIANT_OPTIONS,
+} from "./CanvasWidgetView";
 import styles from "./CanvasRightSidebar.module.css";
 
 const DEFAULT_PANEL_WIDTH = 320;
@@ -89,6 +96,7 @@ interface CanvasRightSidebarProps {
     pageId: string,
     styles: Record<string, string>,
   ) => void;
+  onUpdateWidget: (pageId: string, widget: CanvasWidget | null) => void;
   onUpdateData: (pageId: string, data: CanvasDataEntry[]) => void;
   onReorder: (
     dragId: string,
@@ -794,6 +802,7 @@ function PropertiesPanel({
   onRename,
   onRenameId,
   onUpdateStyles,
+  onUpdateWidget,
 }: {
   pages: CanvasPage[];
   page: CanvasPage | null;
@@ -803,6 +812,7 @@ function PropertiesPanel({
     pageId: string,
     styles: Record<string, string>,
   ) => void;
+  onUpdateWidget: (pageId: string, widget: CanvasWidget | null) => void;
 }) {
   const { t } = useTranslation();
   const [tab, setTab] = useState<PropertyTab>("style");
@@ -872,6 +882,29 @@ function PropertiesPanel({
 
   const inherit = t("projects.workspace.propertiesPanel.inherit");
   const seeThrough = page ? isPageSeeThrough(page) : false;
+  const widget = page?.widget ?? null;
+  const widgetVariantOptions = widget
+    ? WIDGET_VARIANT_OPTIONS[widget.kind]
+    : undefined;
+  const widgetHasText = Boolean(
+    widget &&
+      WIDGET_TEXT_KINDS.has(widget.kind) &&
+      !(widget.kind === "button" && widget.variant === "icon"),
+  );
+  const widgetHasValue = Boolean(
+    widget && WIDGET_VALUE_KINDS.has(widget.kind),
+  );
+  const widgetHasSource = Boolean(
+    widget && WIDGET_SOURCE_KINDS.has(widget.kind),
+  );
+  const hasWidgetControls = Boolean(
+    widgetVariantOptions || widgetHasText || widgetHasValue || widgetHasSource,
+  );
+
+  const updateWidget = (patch: Partial<CanvasWidget>) => {
+    if (!page?.widget) return;
+    onUpdateWidget(page.id, { ...page.widget, ...patch });
+  };
 
   const toggleSeeThrough = () => {
     if (!page) return;
@@ -980,6 +1013,68 @@ function PropertiesPanel({
                   <span className={styles.propertySwitchThumb} />
                 </button>
               </div>
+
+              {widget && hasWidgetControls ? (
+                <ControlSection
+                  title={t(
+                    "projects.workspace.propertiesPanel.sections.widget",
+                  )}
+                >
+                  {widgetVariantOptions ? (
+                    <SelectControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.widgetVariant",
+                      )}
+                      value={widget.variant}
+                      options={widgetVariantOptions}
+                      onChange={(variant) => updateWidget({ variant })}
+                    />
+                  ) : null}
+                  {widgetHasText ? (
+                    <TextControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.widgetText",
+                      )}
+                      value={widget.text}
+                      placeholder={t(
+                        "projects.workspace.propertiesPanel.widgetTextPlaceholder",
+                      )}
+                      onChange={(text) => updateWidget({ text })}
+                    />
+                  ) : null}
+                  {widgetHasValue ? (
+                    <NumberControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.widgetValue",
+                      )}
+                      value={String(widget.value ?? 50)}
+                      unit="%"
+                      min={0}
+                      max={100}
+                      onChange={(value) => {
+                        const parsed = Number.parseFloat(value);
+                        updateWidget({
+                          value: Number.isFinite(parsed)
+                            ? Math.min(100, Math.max(0, parsed))
+                            : 0,
+                        });
+                      }}
+                    />
+                  ) : null}
+                  {widgetHasSource ? (
+                    <TextControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.widgetSource",
+                      )}
+                      value={widget.src}
+                      placeholder={t(
+                        "projects.workspace.propertiesPanel.widgetSourcePlaceholder",
+                      )}
+                      onChange={(src) => updateWidget({ src })}
+                    />
+                  ) : null}
+                </ControlSection>
+              ) : null}
 
               {tableMode ? (
                 <div className={styles.styleTable}>
@@ -2106,6 +2201,7 @@ export function CanvasRightSidebar({
   onRenameId,
   onDelete,
   onUpdateStyles,
+  onUpdateWidget,
   onUpdateData,
   onReorder,
 }: CanvasRightSidebarProps) {
@@ -2322,6 +2418,7 @@ export function CanvasRightSidebar({
                 onRename={onRename}
                 onRenameId={onRenameId}
                 onUpdateStyles={onUpdateStyles}
+                onUpdateWidget={onUpdateWidget}
               />
             )}
 

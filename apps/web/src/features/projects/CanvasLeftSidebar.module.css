@@ -289,6 +289,26 @@
   overflow-y: auto;
 }
 
+.marketGroupTitle {
+  grid-column: 1 / -1;
+  margin: 2px 0 -2px;
+  color: var(--mf-text-tertiary);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.marketGroupTitle:not(:first-child) {
+  margin-top: 10px;
+}
+
+.marketWidgetPreview {
+  display: block;
+  width: 70%;
+  max-width: 100%;
+}
+
 .marketCard {
   display: flex;
   min-width: 0;

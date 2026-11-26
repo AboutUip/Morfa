@@ -33,8 +33,9 @@ import {
 } from "./canvasSnap";
 import {
   CONTAINER_DRAG_MIME,
-  getMarketContainer,
+  getMarketItem,
 } from "./componentMarket";
+import { CanvasWidgetView } from "./CanvasWidgetView";
 import styles from "./CanvasViewport.module.css";
 
 const MIN_ZOOM = 0.1;
@@ -1649,7 +1650,7 @@ export function CanvasViewport({
     event.preventDefault();
     setDropActive(false);
 
-    const item = getMarketContainer(containerId);
+    const item = getMarketItem(containerId);
     if (!item) return;
 
     const rect = event.currentTarget.getBoundingClientRect();
@@ -1658,18 +1659,40 @@ export function CanvasViewport({
       (event.clientX - rect.left - currentView.x) / currentView.zoom;
     const worldY =
       (event.clientY - rect.top - currentView.y) / currentView.zoom;
+    const widget =
+      item.type === "widget"
+        ? {
+            ...item.widget,
+            ...(item.textKey ? { text: t(item.textKey) } : {}),
+          }
+        : undefined;
     const page: CanvasPage = {
       id: createPageId(pages),
       name: uniquePageName(t(item.nameKey), pages),
       x: worldX,
       y: worldY,
-      styles: {
-        ...createPageStyles(),
-        width: `${item.width}px`,
-        height: `${item.height}px`,
-      },
-      ...(item.frame ? { frame: item.frame } : {}),
-      ...(item.lockedSize ? { lockedSize: true } : {}),
+      styles:
+        item.type === "widget"
+          ? {
+              ...createPageStyles(),
+              width: `${item.width}px`,
+              height: `${item.height}px`,
+              "background-color": "transparent",
+              "border-color": "transparent",
+              "box-shadow": "none",
+            }
+          : {
+              ...createPageStyles(),
+              width: `${item.width}px`,
+              height: `${item.height}px`,
+            },
+      ...(item.type === "container" && item.frame
+        ? { frame: item.frame }
+        : {}),
+      ...(item.type === "container" && item.lockedSize
+        ? { lockedSize: true }
+        : {}),
+      ...(widget ? { widget } : {}),
     };
 
     onCreatePage(page);
@@ -1916,6 +1939,12 @@ export function CanvasViewport({
               ) : (
                 surface
               )}
+
+              {page.widget ? (
+                <div className={styles.widgetLayer}>
+                  <CanvasWidgetView widget={page.widget} />
+                </div>
+              ) : null}
 
               {selectedIds.includes(page.id) && !page.lockedSize ? (
                 <>
