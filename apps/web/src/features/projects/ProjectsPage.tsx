@@ -10,6 +10,7 @@ import { useAuth } from "../auth/AuthProvider";
 import { VCodeSetupGate } from "../auth/VCodeSetupGate";
 import { ProjectLauncher } from "./ProjectLauncher";
 import { ProjectTopBar, type WorkspaceTab } from "./ProjectTopBar";
+import { ProjectWorkspace } from "./ProjectWorkspace";
 import styles from "./ProjectsPage.module.css";
 
 function ProjectCover({ project }: { project: ProjectSummary }) {
@@ -30,6 +31,9 @@ export function ProjectsPage() {
   const projectState = useProjects();
   const [authOpen, setAuthOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("projects");
+  const [activeProject, setActiveProject] = useState<ProjectSummary | null>(
+    null,
+  );
   const locale = i18n.resolvedLanguage === "en-US" ? "en-US" : "zh-CN";
   const dateFormatter = useMemo(
     () =>
@@ -53,6 +57,15 @@ export function ProjectsPage() {
   }, [user]);
 
   const openAuth = () => setAuthOpen(true);
+
+  if (activeProject) {
+    return (
+      <ProjectWorkspace
+        project={activeProject}
+        onExit={() => setActiveProject(null)}
+      />
+    );
+  }
 
   const renderProjects = () => {
     if (!user) {
@@ -161,6 +174,14 @@ export function ProjectsPage() {
         <div className={styles.projectGrid}>
           {projects.map((project) => (
             <article key={project.id} className={styles.projectCard}>
+              <button
+                className={styles.projectOpen}
+                type="button"
+                aria-label={t("projects.openProject", {
+                  name: project.name,
+                })}
+                onClick={() => setActiveProject(project)}
+              />
               <div className={styles.projectBody}>
                 <div className={styles.projectBadges}>
                   <span data-kind="type">

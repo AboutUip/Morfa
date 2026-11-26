@@ -1,0 +1,19 @@
+.shell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--mf-bg-app);
+}
+
+.main {
+  flex: 1;
+  min-height: 0;
+  background: var(--mf-bg-app);
+}
+
+.main:focus {
+  outline: none;
+}

@@ -35,6 +35,19 @@
     "myProjects": "我的项目",
     "projectCount": "{{count}} 个项目",
     "lastModified": "最近修改于 {{date}}",
+    "openProject": "打开项目 {{name}}",
+    "workspace": {
+      "menuBar": "{{name}} 项目菜单",
+      "menu": {
+        "project": "项目",
+        "edit": "编辑"
+      },
+      "exit": "退出此项目",
+      "emptyMenu": "暂无可用操作",
+      "loadingTitle": "正在打开项目",
+      "loadingHint": "正在准备 {{name}} 的项目工作区",
+      "loadingLabel": "准备项目工作区"
+    },
     "types": {
       "software": "软件平台",
       "website": "网站平台"
