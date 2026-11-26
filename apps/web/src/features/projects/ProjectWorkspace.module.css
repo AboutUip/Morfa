@@ -17,3 +17,10 @@
 .main:focus {
   outline: none;
 }
+
+.statusBar {
+  flex: none;
+  height: var(--mf-statusbar-height);
+  background: var(--mf-statusbar-bg);
+  color: var(--mf-statusbar-text);
+}

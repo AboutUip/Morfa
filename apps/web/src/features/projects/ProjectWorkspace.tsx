@@ -52,6 +52,8 @@ export function ProjectWorkspace({
         aria-label={project.name}
       />
 
+      <footer className={styles.statusBar} />
+
       <LoadingOverlay
         controller={controller}
         title={t("projects.workspace.loadingTitle")}
