@@ -97,6 +97,65 @@ function toHexColor(value: string | undefined) {
   return "#ffffff";
 }
 
+function useDraftValue(
+  value: string,
+  onCommit: (value: string) => void,
+) {
+  const [draft, setDraft] = useState(value);
+  const focusedRef = useRef(false);
+  const cancelRef = useRef(false);
+
+  useEffect(() => {
+    if (!focusedRef.current) {
+      setDraft(value);
+    }
+  }, [value]);
+
+  const handleFocus = () => {
+    focusedRef.current = true;
+    cancelRef.current = false;
+  };
+
+  const handleBlur = () => {
+    focusedRef.current = false;
+
+    if (cancelRef.current) {
+      cancelRef.current = false;
+      setDraft(value);
+      return;
+    }
+
+    if (draft !== value) {
+      onCommit(draft);
+    }
+  };
+
+  const handleKeyDown = (
+    event: ReactKeyboardEvent<HTMLInputElement>,
+  ) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      event.currentTarget.blur();
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      cancelRef.current = true;
+      setDraft(value);
+      event.currentTarget.blur();
+    }
+  };
+
+  return {
+    value: draft,
+    setValue: setDraft,
+    onFocus: handleFocus,
+    onBlur: handleBlur,
+    onKeyDown: handleKeyDown,
+  };
+}
+
 function NumberControl({
   label,
   value,
@@ -115,6 +174,9 @@ function NumberControl({
   step?: number;
 }) {
   const { t } = useTranslation();
+  const draft = useDraftValue(readNumeric(value), (next) => {
+    onChange(next === "" ? "" : `${next}${unit}`);
+  });
 
   return (
     <div className={styles.controlRow}>
@@ -123,18 +185,15 @@ function NumberControl({
         <input
           className={styles.controlInput}
           type="number"
-          value={readNumeric(value)}
+          value={draft.value}
           min={min}
           max={max}
           step={step}
           placeholder={t("projects.workspace.propertiesPanel.inherit")}
-          onChange={(event) =>
-            onChange(
-              event.target.value === ""
-                ? ""
-                : `${event.target.value}${unit}`,
-            )
-          }
+          onChange={(event) => draft.setValue(event.target.value)}
+          onFocus={draft.onFocus}
+          onBlur={draft.onBlur}
+          onKeyDown={draft.onKeyDown}
         />
         {unit ? <span className={styles.unit}>{unit}</span> : null}
       </span>
@@ -152,6 +211,7 @@ function ColorControl({
   onChange: (value: string) => void;
 }) {
   const { t } = useTranslation();
+  const draft = useDraftValue(value ?? "", onChange);
 
   return (
     <div className={styles.controlRow}>
@@ -160,15 +220,21 @@ function ColorControl({
         <input
           className={styles.colorInput}
           type="color"
-          value={toHexColor(value)}
+          value={toHexColor(draft.value)}
           aria-label={label}
-          onChange={(event) => onChange(event.target.value)}
+          onChange={(event) => {
+            draft.setValue(event.target.value);
+            onChange(event.target.value);
+          }}
         />
         <input
           className={styles.controlInput}
-          value={value ?? ""}
+          value={draft.value}
           placeholder={t("projects.workspace.propertiesPanel.inherit")}
-          onChange={(event) => onChange(event.target.value)}
+          onChange={(event) => draft.setValue(event.target.value)}
+          onFocus={draft.onFocus}
+          onBlur={draft.onBlur}
+          onKeyDown={draft.onKeyDown}
         />
       </span>
     </div>
@@ -222,16 +288,45 @@ function TextControl({
   onChange: (value: string) => void;
   placeholder: string;
 }) {
+  const draft = useDraftValue(value ?? "", onChange);
+
   return (
     <div className={styles.controlRow}>
       <span className={styles.controlLabel}>{label}</span>
       <input
         className={styles.controlInput}
-        value={value ?? ""}
+        value={draft.value}
         placeholder={placeholder}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) => draft.setValue(event.target.value)}
+        onFocus={draft.onFocus}
+        onBlur={draft.onBlur}
+        onKeyDown={draft.onKeyDown}
       />
     </div>
+  );
+}
+
+function StyleTableValue({
+  value,
+  ariaLabel,
+  onCommit,
+}: {
+  value: string;
+  ariaLabel: string;
+  onCommit: (value: string) => void;
+}) {
+  const draft = useDraftValue(value, onCommit);
+
+  return (
+    <input
+      className={styles.styleValueInput}
+      value={draft.value}
+      aria-label={ariaLabel}
+      onChange={(event) => draft.setValue(event.target.value)}
+      onFocus={draft.onFocus}
+      onBlur={draft.onBlur}
+      onKeyDown={draft.onKeyDown}
+    />
   );
 }
 
@@ -516,9 +611,11 @@ function LayersPanel({
 
 function PropertiesPanel({
   page,
+  onRename,
   onUpdateStyles,
 }: {
   page: CanvasPage | null;
+  onRename: (pageId: string, name: string) => void;
   onUpdateStyles: (
     pageId: string,
     styles: Record<string, string>,
@@ -529,6 +626,39 @@ function PropertiesPanel({
   const [tableMode, setTableMode] = useState(false);
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
+  const [renaming, setRenaming] = useState(false);
+  const [renameDraft, setRenameDraft] = useState("");
+  const renameCancelRef = useRef(false);
+
+  const startRename = () => {
+    if (!page) return;
+    setRenameDraft(page.name);
+    setRenaming(true);
+  };
+
+  const commitRename = () => {
+    if (!page || !renaming) return;
+    const name = renameDraft.trim();
+    if (name && name !== page.name) onRename(page.id, name);
+    setRenaming(false);
+    setRenameDraft("");
+  };
+
+  const handleRenameKeyDown = (
+    event: ReactKeyboardEvent<HTMLInputElement>,
+  ) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      event.currentTarget.blur();
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      renameCancelRef.current = true;
+      event.currentTarget.blur();
+    }
+  };
 
   const updateStyle = (key: string, value: string) => {
     if (!page) return;
@@ -587,7 +717,36 @@ function PropertiesPanel({
           {page ? (
             <>
               <div className={styles.propertyToolbar}>
-                <span className={styles.selectedName}>{page.name}</span>
+                {renaming ? (
+                  <input
+                    className={styles.pageRenameInput}
+                    value={renameDraft}
+                    autoFocus
+                    onFocus={(event) => event.currentTarget.select()}
+                    onChange={(event) =>
+                      setRenameDraft(event.target.value)
+                    }
+                    onBlur={() => {
+                      if (renameCancelRef.current) {
+                        renameCancelRef.current = false;
+                        setRenaming(false);
+                        setRenameDraft("");
+                        return;
+                      }
+                      commitRename();
+                    }}
+                    onKeyDown={handleRenameKeyDown}
+                  />
+                ) : (
+                  <button
+                    className={styles.selectedNameButton}
+                    type="button"
+                    title={t("projects.workspace.layersPanel.rename")}
+                    onClick={startRename}
+                  >
+                    {page.name}
+                  </button>
+                )}
                 <button
                   className={styles.modeButton}
                   type="button"
@@ -614,13 +773,10 @@ function PropertiesPanel({
                   {Object.entries(page.styles).map(([key, value]) => (
                     <div className={styles.styleTableRow} key={key}>
                       <code className={styles.styleKey}>{key}</code>
-                      <input
-                        className={styles.styleValueInput}
+                      <StyleTableValue
                         value={value}
-                        aria-label={key}
-                        onChange={(event) =>
-                          updateStyle(key, event.target.value)
-                        }
+                        ariaLabel={key}
+                        onCommit={(next) => updateStyle(key, next)}
                       />
                       <button
                         className={styles.removeStyle}
@@ -1089,6 +1245,7 @@ export function CanvasRightSidebar({
             ) : (
               <PropertiesPanel
                 page={selectedPage}
+                onRename={onRename}
                 onUpdateStyles={onUpdateStyles}
               />
             )}

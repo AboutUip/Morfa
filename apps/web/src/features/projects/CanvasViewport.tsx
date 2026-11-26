@@ -371,6 +371,18 @@ export function CanvasViewport({
   }, []);
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLElement>) => {
+    const activeElement = document.activeElement;
+    if (
+      activeElement instanceof HTMLElement &&
+      (activeElement.isContentEditable ||
+        activeElement.tagName === "INPUT" ||
+        activeElement.tagName === "TEXTAREA" ||
+        activeElement.tagName === "SELECT")
+    ) {
+      // 画布会阻止 pointerdown 的默认行为，需要主动让属性输入框失焦并提交。
+      activeElement.blur();
+    }
+
     const isMiddlePan = event.button === 1;
     const isHandPan = event.button === 0 && activeTool === "hand";
 
