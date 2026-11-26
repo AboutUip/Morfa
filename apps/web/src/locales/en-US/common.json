@@ -86,6 +86,7 @@
         "tableMode": "Style table",
         "controlMode": "Controls",
         "inherit": "Inherit",
+        "seeThrough": "See-through",
         "sections": {
           "layout": "Layout",
           "spacing": "Spacing",

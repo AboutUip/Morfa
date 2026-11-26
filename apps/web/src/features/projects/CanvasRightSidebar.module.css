@@ -345,6 +345,53 @@
   color: var(--mf-text-primary);
 }
 
+.propertyQuickRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 12px 10px;
+}
+
+.propertyQuickLabel {
+  color: var(--mf-text-secondary);
+  font-size: 11px;
+}
+
+.propertySwitch {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  flex: none;
+  border: 1px solid var(--mf-border-strong);
+  border-radius: var(--mf-radius-pill);
+  background: var(--mf-bg-active);
+  transition:
+    background var(--mf-transition),
+    border-color var(--mf-transition);
+}
+
+.propertySwitch[data-checked="true"] {
+  border-color: var(--mf-accent);
+  background: var(--mf-accent);
+}
+
+.propertySwitchThumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: transform var(--mf-transition);
+}
+
+.propertySwitch[data-checked="true"] .propertySwitchThumb {
+  transform: translateX(16px);
+}
+
 .controlSections {
   display: flex;
   flex-direction: column;

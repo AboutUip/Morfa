@@ -2,11 +2,27 @@ import type { CanvasPageDto } from "../../lib/api";
 
 export type CanvasPage = CanvasPageDto;
 
+export const SEE_THROUGH_STYLE_KEY = "--morfa-see-through";
+
 export const DEFAULT_PAGE_STYLES: Record<string, string> = {
   width: "800px",
   height: "800px",
   "background-color": "#ffffff",
 };
+
+export function isPageSeeThrough(page: CanvasPage) {
+  return page.styles[SEE_THROUGH_STYLE_KEY] === "1";
+}
+
+export function withPageSeeThrough(
+  styles: Record<string, string>,
+  enabled: boolean,
+) {
+  const next = { ...styles };
+  if (enabled) next[SEE_THROUGH_STYLE_KEY] = "1";
+  else delete next[SEE_THROUGH_STYLE_KEY];
+  return next;
+}
 
 export function createPageStyles(): Record<string, string> {
   return { ...DEFAULT_PAGE_STYLES };

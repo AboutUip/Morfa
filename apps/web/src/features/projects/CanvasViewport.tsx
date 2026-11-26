@@ -14,6 +14,7 @@ import {
   createPageId,
   createPageStyles,
   getPageSize,
+  isPageSeeThrough,
   uniquePageName,
   type CanvasPage,
 } from "./canvasDocument";
@@ -866,6 +867,7 @@ export function CanvasViewport({
               </span>
               <div
                 className={styles.pageSurface}
+                data-see-through={isPageSeeThrough(page)}
                 style={toReactStyle(surfaceStyles)}
               />
             </div>

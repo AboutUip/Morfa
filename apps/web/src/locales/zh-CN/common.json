@@ -86,6 +86,7 @@
         "tableMode": "样式表格",
         "controlMode": "控件",
         "inherit": "继承",
+        "seeThrough": "透视",
         "sections": {
           "layout": "布局",
           "spacing": "间距",

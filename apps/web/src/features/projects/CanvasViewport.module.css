@@ -99,6 +99,10 @@
   box-shadow: var(--mf-artboard-shadow);
 }
 
+.pageSurface[data-see-through="true"] {
+  opacity: 0.55;
+}
+
 .pageLabel {
   position: absolute;
   bottom: calc(100% + 6px);

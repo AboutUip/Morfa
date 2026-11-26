@@ -18,7 +18,11 @@ import {
   PageIcon,
   SlidersIcon,
 } from "../../components/icons";
-import type { CanvasPage } from "./canvasDocument";
+import {
+  isPageSeeThrough,
+  withPageSeeThrough,
+  type CanvasPage,
+} from "./canvasDocument";
 import styles from "./CanvasRightSidebar.module.css";
 
 const DEFAULT_PANEL_WIDTH = 240;
@@ -682,6 +686,15 @@ function PropertiesPanel({
   };
 
   const inherit = t("projects.workspace.propertiesPanel.inherit");
+  const seeThrough = page ? isPageSeeThrough(page) : false;
+
+  const toggleSeeThrough = () => {
+    if (!page) return;
+    onUpdateStyles(
+      page.id,
+      withPageSeeThrough(page.styles, !seeThrough),
+    );
+  };
 
   return (
     <div className={styles.propertiesPanel}>
@@ -755,6 +768,25 @@ function PropertiesPanel({
                   {tableMode
                     ? t("projects.workspace.propertiesPanel.controlMode")
                     : t("projects.workspace.propertiesPanel.tableMode")}
+                </button>
+              </div>
+
+              <div className={styles.propertyQuickRow}>
+                <span className={styles.propertyQuickLabel}>
+                  {t("projects.workspace.propertiesPanel.seeThrough")}
+                </span>
+                <button
+                  className={styles.propertySwitch}
+                  type="button"
+                  role="switch"
+                  aria-checked={seeThrough}
+                  aria-label={t(
+                    "projects.workspace.propertiesPanel.seeThrough",
+                  )}
+                  data-checked={seeThrough}
+                  onClick={toggleSeeThrough}
+                >
+                  <span className={styles.propertySwitchThumb} />
                 </button>
               </div>
 
