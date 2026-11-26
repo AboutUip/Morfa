@@ -1970,6 +1970,7 @@ export function CanvasViewport({
               d={item.curve.d}
               className={styles.linkHit}
               onPointerDown={(event) => {
+                blurActiveEditableElement();
                 event.preventDefault();
                 event.stopPropagation();
                 onSelectLink(item.link.id);
