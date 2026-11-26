@@ -414,7 +414,6 @@ export function collectCanvasLint(
             targetId: target.id,
             targetName: target.name,
             key: parsed.key,
-            chain: [target.name, page.name],
           });
           continue;
         }
