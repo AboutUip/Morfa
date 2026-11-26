@@ -248,6 +248,62 @@ function nearestSnap(
   return best;
 }
 
+function collectSnapLines(input: {
+  pages: CanvasPage[];
+  excludeId: string;
+  view: CanvasView;
+  viewportWidth: number;
+  viewportHeight: number;
+  settings: CanvasSnapSettings;
+}) {
+  const {
+    pages,
+    excludeId,
+    view,
+    viewportWidth,
+    viewportHeight,
+    settings,
+  } = input;
+  const xLines: number[] = [];
+  const yLines: number[] = [];
+  const addLine = (lines: number[], value: number) => {
+    if (Number.isFinite(value)) lines.push(value);
+  };
+
+  const left = -view.x / view.zoom;
+  const right = (viewportWidth - view.x) / view.zoom;
+  const top = -view.y / view.zoom;
+  const bottom = (viewportHeight - view.y) / view.zoom;
+
+  if (settings.vertical) {
+    addLine(xLines, (left + right) / 2);
+  }
+  if (settings.horizontal) {
+    addLine(yLines, (top + bottom) / 2);
+  }
+  if (settings.thirds) {
+    addLine(xLines, left + (right - left) / 3);
+    addLine(xLines, left + ((right - left) * 2) / 3);
+    addLine(yLines, top + (bottom - top) / 3);
+    addLine(yLines, top + ((bottom - top) * 2) / 3);
+  }
+
+  if (settings.componentBounds) {
+    for (const page of pages) {
+      if (page.id === excludeId) continue;
+      const size = getPageSize(page, pages);
+      addLine(xLines, page.x);
+      addLine(xLines, page.x + size.width / 2);
+      addLine(xLines, page.x + size.width);
+      addLine(yLines, page.y);
+      addLine(yLines, page.y + size.height / 2);
+      addLine(yLines, page.y + size.height);
+    }
+  }
+
+  return { xLines, yLines };
+}
+
 function resolvePageSnap(input: {
   x: number;
   y: number;
@@ -277,50 +333,22 @@ function resolvePageSnap(input: {
     return { x, y, guides: null };
   }
 
-  const xLines: number[] = [];
-  const yLines: number[] = [];
-  const addLine = (lines: number[], value: number) => {
-    if (Number.isFinite(value)) lines.push(value);
-  };
-
-  const left = -view.x / view.zoom;
-  const right = (viewportWidth - view.x) / view.zoom;
-  const top = -view.y / view.zoom;
-  const bottom = (viewportHeight - view.y) / view.zoom;
-
-  if (settings.vertical) {
-    addLine(xLines, (left + right) / 2);
-  }
-  if (settings.horizontal) {
-    addLine(yLines, (top + bottom) / 2);
-  }
-  if (settings.thirds) {
-    addLine(xLines, left + (right - left) / 3);
-    addLine(xLines, left + ((right - left) * 2) / 3);
-    addLine(yLines, top + (bottom - top) / 3);
-    addLine(yLines, top + ((bottom - top) * 2) / 3);
-  }
-
-  if (settings.componentBounds) {
-    for (const page of pages) {
-      if (page.id === movingId) continue;
-      const size = getPageSize(page, pages);
-      addLine(xLines, page.x);
-      addLine(xLines, page.x + size.width / 2);
-      addLine(xLines, page.x + size.width);
-      addLine(yLines, page.y);
-      addLine(yLines, page.y + size.height / 2);
-      addLine(yLines, page.y + size.height);
-    }
-  }
+  const { xLines, yLines } = collectSnapLines({
+    pages,
+    excludeId: movingId,
+    view,
+    viewportWidth,
+    viewportHeight,
+    settings,
+  });
 
   if (settings.grid) {
     const step = resolveGridStep(view.zoom);
     for (const anchor of [x, x + width / 2, x + width]) {
-      addLine(xLines, Math.round(anchor / step) * step);
+      xLines.push(Math.round(anchor / step) * step);
     }
     for (const anchor of [y, y + height / 2, y + height]) {
-      addLine(yLines, Math.round(anchor / step) * step);
+      yLines.push(Math.round(anchor / step) * step);
     }
   }
 
@@ -344,6 +372,79 @@ function resolvePageSnap(input: {
         ? {
             x: xSnap ? xSnap.line * view.zoom + view.x : null,
             y: ySnap ? ySnap.line * view.zoom + view.y : null,
+          }
+        : null,
+  };
+}
+
+function resolvePageResizeSnap(input: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  pages: CanvasPage[];
+  resizingId: string;
+  view: CanvasView;
+  viewportWidth: number;
+  viewportHeight: number;
+  settings?: CanvasSnapSettings;
+}) {
+  const {
+    x,
+    y,
+    width,
+    height,
+    pages,
+    resizingId,
+    view,
+    viewportWidth,
+    viewportHeight,
+    settings = DEFAULT_CANVAS_SNAP_SETTINGS,
+  } = input;
+
+  if (!settings.enabled) {
+    return { width, height, guides: null };
+  }
+
+  const { xLines, yLines } = collectSnapLines({
+    pages,
+    excludeId: resizingId,
+    view,
+    viewportWidth,
+    viewportHeight,
+    settings,
+  });
+
+  if (settings.grid) {
+    const step = resolveGridStep(view.zoom);
+    xLines.push(Math.round((x + width) / step) * step);
+    yLines.push(Math.round((y + height) / step) * step);
+  }
+
+  const threshold = SNAP_THRESHOLD_PX / view.zoom;
+  const rightSnap = nearestSnap([x + width], xLines, threshold);
+  const bottomSnap = nearestSnap([y + height], yLines, threshold);
+  const nextWidth = Math.max(
+    MIN_PAGE_SIZE,
+    width + (rightSnap?.diff ?? 0),
+  );
+  const nextHeight = Math.max(
+    MIN_PAGE_SIZE,
+    height + (bottomSnap?.diff ?? 0),
+  );
+
+  return {
+    width: nextWidth,
+    height: nextHeight,
+    guides:
+      rightSnap || bottomSnap
+        ? {
+            x: rightSnap
+              ? rightSnap.line * view.zoom + view.x
+              : null,
+            y: bottomSnap
+              ? bottomSnap.line * view.zoom + view.y
+              : null,
           }
         : null,
   };
@@ -900,6 +1001,7 @@ export function CanvasViewport({
     };
     onResizePageStart();
     setResizingPage(true);
+    setSnapGuides(null);
   };
 
   const handlePageResizeMove = (
@@ -909,18 +1011,44 @@ export function CanvasViewport({
     if (!resize || resize.pointerId !== event.pointerId) return;
 
     event.stopPropagation();
-    const width = Math.max(
+    const rawWidth = Math.max(
       MIN_PAGE_SIZE,
       resize.startWidth +
         (event.clientX - resize.startX) / resize.zoom,
     );
-    const height = Math.max(
+    const rawHeight = Math.max(
       MIN_PAGE_SIZE,
       resize.startHeight +
         (event.clientY - resize.startY) / resize.zoom,
     );
 
-    onResizePage(resize.pageId, width, height);
+    const target = pages.find((page) => page.id === resize.pageId);
+    if (!target) {
+      onResizePage(resize.pageId, rawWidth, rawHeight);
+      setSnapGuides(null);
+      return;
+    }
+
+    const viewport = viewportRef.current;
+    const resolution = resolvePageResizeSnap({
+      x: target.x,
+      y: target.y,
+      width: rawWidth,
+      height: rawHeight,
+      pages,
+      resizingId: target.id,
+      view: viewRef.current,
+      viewportWidth: viewport?.clientWidth ?? 0,
+      viewportHeight: viewport?.clientHeight ?? 0,
+      settings: snapSettings,
+    });
+
+    onResizePage(
+      resize.pageId,
+      resolution.width,
+      resolution.height,
+    );
+    setSnapGuides(resolution.guides);
   };
 
   const endPageResize = (
@@ -932,6 +1060,7 @@ export function CanvasViewport({
     event.stopPropagation();
     resizeRef.current = null;
     setResizingPage(false);
+    setSnapGuides(null);
     onResizePageEnd();
 
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -945,6 +1074,7 @@ export function CanvasViewport({
     if (resizeRef.current?.pointerId !== event.pointerId) return;
     resizeRef.current = null;
     setResizingPage(false);
+    setSnapGuides(null);
     onResizePageEnd();
   };
 
