@@ -30,8 +30,14 @@
   cursor: url("/cursors/hand-closed.svg") 12 12, grabbing;
 }
 
-.viewport[data-resizing="true"] {
+.viewport[data-resizing-corner="tl"][data-canvas-viewport],
+.viewport[data-resizing-corner="br"][data-canvas-viewport] {
   cursor: nwse-resize;
+}
+
+.viewport[data-resizing-corner="tr"][data-canvas-viewport],
+.viewport[data-resizing-corner="bl"][data-canvas-viewport] {
+  cursor: nesw-resize;
 }
 
 .viewport[data-tool="select"][data-marquee="true"] {
@@ -226,13 +232,31 @@
 
 .pageResizeAnchor {
   position: absolute;
-  top: 100%;
-  left: 100%;
   z-index: 5;
   width: 0;
   height: 0;
   transform-origin: 0 0;
   pointer-events: none;
+}
+
+.pageResizeAnchor[data-corner="tl"] {
+  top: 0;
+  left: 0;
+}
+
+.pageResizeAnchor[data-corner="tr"] {
+  top: 0;
+  left: 100%;
+}
+
+.pageResizeAnchor[data-corner="bl"] {
+  top: 100%;
+  left: 0;
+}
+
+.pageResizeAnchor[data-corner="br"] {
+  top: 100%;
+  left: 100%;
 }
 
 .pageResizeHandle {
@@ -245,9 +269,18 @@
   border-radius: 2px;
   background: var(--mf-bg-surface);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-  cursor: nwse-resize;
   pointer-events: auto;
   touch-action: none;
+}
+
+.pageResizeHandle[data-corner="tl"],
+.pageResizeHandle[data-corner="br"] {
+  cursor: nwse-resize;
+}
+
+.pageResizeHandle[data-corner="tr"],
+.pageResizeHandle[data-corner="bl"] {
+  cursor: nesw-resize;
 }
 
 .pageResizeHandle:hover {

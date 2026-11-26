@@ -170,15 +170,21 @@ export function ProjectWorkspace({
 
   const handleResizePage = (
     pageId: string,
+    x: number,
+    y: number,
     width: number,
     height: number,
   ) => {
     const target = pages.find((page) => page.id === pageId);
     if (!target || target.lockedSize) return;
 
+    const nextX = Math.round(x);
+    const nextY = Math.round(y);
     const nextWidth = `${Math.max(1, Math.round(width))}px`;
     const nextHeight = `${Math.max(1, Math.round(height))}px`;
     if (
+      target.x === nextX &&
+      target.y === nextY &&
       target.styles.width === nextWidth &&
       target.styles.height === nextHeight
     ) {
@@ -191,6 +197,8 @@ export function ProjectWorkspace({
 
         return {
           ...page,
+          x: nextX,
+          y: nextY,
           styles: {
             ...page.styles,
             width: nextWidth,

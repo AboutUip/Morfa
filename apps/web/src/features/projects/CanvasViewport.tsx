@@ -42,6 +42,12 @@ const ZOOM_SENSITIVITY = 0.0015;
 const KEYBOARD_ZOOM_STEP = 1.2;
 const SNAP_THRESHOLD_PX = 6;
 const MIN_PAGE_SIZE = 32;
+const RESIZE_CORNERS: readonly ResizeCorner[] = [
+  "tl",
+  "tr",
+  "bl",
+  "br",
+];
 
 interface CanvasView {
   x: number;
@@ -72,11 +78,16 @@ interface MoveSession {
   startY: number;
 }
 
+type ResizeCorner = "tl" | "tr" | "bl" | "br";
+
 interface ResizeSession {
   pointerId: number;
   pageId: string;
+  corner: ResizeCorner;
   startX: number;
   startY: number;
+  startPageX: number;
+  startPageY: number;
   startWidth: number;
   startHeight: number;
   zoom: number;
@@ -123,6 +134,8 @@ interface CanvasViewportProps {
   onMovePageEnd: () => void;
   onResizePage: (
     pageId: string,
+    x: number,
+    y: number,
     width: number,
     height: number,
   ) => void;
@@ -378,6 +391,7 @@ function resolvePageSnap(input: {
 }
 
 function resolvePageResizeSnap(input: {
+  corner: ResizeCorner;
   x: number;
   y: number;
   width: number;
@@ -390,6 +404,7 @@ function resolvePageResizeSnap(input: {
   settings?: CanvasSnapSettings;
 }) {
   const {
+    corner,
     x,
     y,
     width,
@@ -403,8 +418,13 @@ function resolvePageResizeSnap(input: {
   } = input;
 
   if (!settings.enabled) {
-    return { width, height, guides: null };
+    return { x, y, width, height, guides: null };
   }
+
+  const isLeft = corner === "tl" || corner === "bl";
+  const isTop = corner === "tl" || corner === "tr";
+  const movingX = isLeft ? x : x + width;
+  const movingY = isTop ? y : y + height;
 
   const { xLines, yLines } = collectSnapLines({
     pages,
@@ -417,35 +437,63 @@ function resolvePageResizeSnap(input: {
 
   if (settings.grid) {
     const step = resolveGridStep(view.zoom);
-    xLines.push(Math.round((x + width) / step) * step);
-    yLines.push(Math.round((y + height) / step) * step);
+    xLines.push(Math.round(movingX / step) * step);
+    yLines.push(Math.round(movingY / step) * step);
   }
 
   const threshold = SNAP_THRESHOLD_PX / view.zoom;
-  const rightSnap = nearestSnap([x + width], xLines, threshold);
-  const bottomSnap = nearestSnap([y + height], yLines, threshold);
-  const nextWidth = Math.max(
-    MIN_PAGE_SIZE,
-    width + (rightSnap?.diff ?? 0),
-  );
-  const nextHeight = Math.max(
-    MIN_PAGE_SIZE,
-    height + (bottomSnap?.diff ?? 0),
-  );
+  const xSnap = nearestSnap([movingX], xLines, threshold);
+  const ySnap = nearestSnap([movingY], yLines, threshold);
+  let nextX = x;
+  let nextY = y;
+  let nextWidth = width;
+  let nextHeight = height;
+  let guideX: number | null = null;
+  let guideY: number | null = null;
+
+  if (xSnap) {
+    if (isLeft) {
+      const fixedRight = x + width;
+      nextWidth = Math.max(MIN_PAGE_SIZE, fixedRight - xSnap.line);
+      nextX = fixedRight - nextWidth;
+    } else {
+      nextWidth = Math.max(MIN_PAGE_SIZE, xSnap.line - x);
+      nextX = x;
+    }
+
+    const edge = isLeft ? nextX : nextX + nextWidth;
+    if (Math.abs(edge - xSnap.line) < 0.01) {
+      guideX = xSnap.line * view.zoom + view.x;
+    }
+  }
+
+  if (ySnap) {
+    if (isTop) {
+      const fixedBottom = y + height;
+      nextHeight = Math.max(
+        MIN_PAGE_SIZE,
+        fixedBottom - ySnap.line,
+      );
+      nextY = fixedBottom - nextHeight;
+    } else {
+      nextHeight = Math.max(MIN_PAGE_SIZE, ySnap.line - y);
+      nextY = y;
+    }
+
+    const edge = isTop ? nextY : nextY + nextHeight;
+    if (Math.abs(edge - ySnap.line) < 0.01) {
+      guideY = ySnap.line * view.zoom + view.y;
+    }
+  }
 
   return {
+    x: nextX,
+    y: nextY,
     width: nextWidth,
     height: nextHeight,
     guides:
-      rightSnap || bottomSnap
-        ? {
-            x: rightSnap
-              ? rightSnap.line * view.zoom + view.x
-              : null,
-            y: bottomSnap
-              ? bottomSnap.line * view.zoom + view.y
-              : null,
-          }
+      guideX !== null || guideY !== null
+        ? { x: guideX, y: guideY }
         : null,
   };
 }
@@ -522,7 +570,8 @@ export function CanvasViewport({
   const [panning, setPanning] = useState(false);
   const [marquee, setMarquee] = useState<MarqueeRect | null>(null);
   const [movingPage, setMovingPage] = useState(false);
-  const [resizingPage, setResizingPage] = useState(false);
+  const [resizingCorner, setResizingCorner] =
+    useState<ResizeCorner | null>(null);
   const [hoveringPage, setHoveringPage] = useState(false);
   const [snapGuides, setSnapGuides] = useState<SnapGuides | null>(null);
   const [dropActive, setDropActive] = useState(false);
@@ -981,6 +1030,7 @@ export function CanvasViewport({
   const startPageResize = (
     event: ReactPointerEvent<HTMLSpanElement>,
     page: CanvasPage,
+    corner: ResizeCorner,
   ) => {
     if (page.lockedSize || event.button !== 0) return;
 
@@ -993,14 +1043,17 @@ export function CanvasViewport({
     resizeRef.current = {
       pointerId: event.pointerId,
       pageId: page.id,
+      corner,
       startX: event.clientX,
       startY: event.clientY,
+      startPageX: page.x,
+      startPageY: page.y,
       startWidth: size.width,
       startHeight: size.height,
       zoom: viewRef.current.zoom,
     };
     onResizePageStart();
-    setResizingPage(true);
+    setResizingCorner(corner);
     setSnapGuides(null);
   };
 
@@ -1011,32 +1064,36 @@ export function CanvasViewport({
     if (!resize || resize.pointerId !== event.pointerId) return;
 
     event.stopPropagation();
+    const dx = (event.clientX - resize.startX) / resize.zoom;
+    const dy = (event.clientY - resize.startY) / resize.zoom;
+    const isLeft =
+      resize.corner === "tl" || resize.corner === "bl";
+    const isTop =
+      resize.corner === "tl" || resize.corner === "tr";
     const rawWidth = Math.max(
       MIN_PAGE_SIZE,
-      resize.startWidth +
-        (event.clientX - resize.startX) / resize.zoom,
+      resize.startWidth + (isLeft ? -dx : dx),
     );
     const rawHeight = Math.max(
       MIN_PAGE_SIZE,
-      resize.startHeight +
-        (event.clientY - resize.startY) / resize.zoom,
+      resize.startHeight + (isTop ? -dy : dy),
     );
-
-    const target = pages.find((page) => page.id === resize.pageId);
-    if (!target) {
-      onResizePage(resize.pageId, rawWidth, rawHeight);
-      setSnapGuides(null);
-      return;
-    }
+    const rawX = isLeft
+      ? resize.startPageX + resize.startWidth - rawWidth
+      : resize.startPageX;
+    const rawY = isTop
+      ? resize.startPageY + resize.startHeight - rawHeight
+      : resize.startPageY;
 
     const viewport = viewportRef.current;
     const resolution = resolvePageResizeSnap({
-      x: target.x,
-      y: target.y,
+      corner: resize.corner,
+      x: rawX,
+      y: rawY,
       width: rawWidth,
       height: rawHeight,
       pages,
-      resizingId: target.id,
+      resizingId: resize.pageId,
       view: viewRef.current,
       viewportWidth: viewport?.clientWidth ?? 0,
       viewportHeight: viewport?.clientHeight ?? 0,
@@ -1045,6 +1102,8 @@ export function CanvasViewport({
 
     onResizePage(
       resize.pageId,
+      resolution.x,
+      resolution.y,
       resolution.width,
       resolution.height,
     );
@@ -1059,7 +1118,7 @@ export function CanvasViewport({
 
     event.stopPropagation();
     resizeRef.current = null;
-    setResizingPage(false);
+    setResizingCorner(null);
     setSnapGuides(null);
     onResizePageEnd();
 
@@ -1073,7 +1132,7 @@ export function CanvasViewport({
   ) => {
     if (resizeRef.current?.pointerId !== event.pointerId) return;
     resizeRef.current = null;
-    setResizingPage(false);
+    setResizingCorner(null);
     setSnapGuides(null);
     onResizePageEnd();
   };
@@ -1252,7 +1311,7 @@ export function CanvasViewport({
       data-tool={activeTool}
       data-panning={panning}
       data-moving={movingPage}
-      data-resizing={resizingPage}
+      data-resizing-corner={resizingCorner ?? undefined}
       data-hover-page={hoveringPage}
       data-marquee={marquee !== null}
       data-drop-active={dropActive}
@@ -1357,24 +1416,31 @@ export function CanvasViewport({
               )}
 
               {selectedIds.includes(page.id) && !page.lockedSize ? (
-                <span
-                  className={styles.pageResizeAnchor}
-                  style={{ transform: `scale(${1 / view.zoom})` }}
-                  aria-hidden="true"
-                >
-                  <span
-                    className={styles.pageResizeHandle}
-                    onPointerDown={(event) =>
-                      startPageResize(event, page)
-                    }
-                    onPointerMove={handlePageResizeMove}
-                    onPointerUp={endPageResize}
-                    onPointerCancel={endPageResize}
-                    onLostPointerCapture={
-                      handlePageResizeLostCapture
-                    }
-                  />
-                </span>
+                <>
+                  {RESIZE_CORNERS.map((corner) => (
+                    <span
+                      key={corner}
+                      className={styles.pageResizeAnchor}
+                      data-corner={corner}
+                      style={{ transform: `scale(${1 / view.zoom})` }}
+                      aria-hidden="true"
+                    >
+                      <span
+                        className={styles.pageResizeHandle}
+                        data-corner={corner}
+                        onPointerDown={(event) =>
+                          startPageResize(event, page, corner)
+                        }
+                        onPointerMove={handlePageResizeMove}
+                        onPointerUp={endPageResize}
+                        onPointerCancel={endPageResize}
+                        onLostPointerCapture={
+                          handlePageResizeLostCapture
+                        }
+                      />
+                    </span>
+                  ))}
+                </>
               ) : null}
             </div>
           );
