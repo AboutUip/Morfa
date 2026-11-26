@@ -16,6 +16,7 @@ const MIN_GRID_SCREEN = 12;
 const MAX_GRID_SCREEN = 72;
 const MAJOR_GRID_CELLS = 5;
 const ZOOM_SENSITIVITY = 0.0015;
+const KEYBOARD_ZOOM_STEP = 1.2;
 
 interface CanvasView {
   x: number;
@@ -151,6 +152,43 @@ export function CanvasViewport({ label }: CanvasViewportProps) {
 
     element.addEventListener("wheel", handleWheel, { passive: false });
     return () => element.removeEventListener("wheel", handleWheel);
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+      if (event.code !== "Minus" && event.code !== "NumpadSubtract") {
+        return;
+      }
+
+      const element = viewportRef.current;
+      if (!element) return;
+
+      event.preventDefault();
+      const px = element.clientWidth / 2;
+      const py = element.clientHeight / 2;
+
+      setView((current) => {
+        const zoom = clamp(
+          current.zoom / KEYBOARD_ZOOM_STEP,
+          MIN_ZOOM,
+          MAX_ZOOM,
+        );
+        if (zoom === current.zoom) return current;
+
+        const worldX = (px - current.x) / current.zoom;
+        const worldY = (py - current.y) / current.zoom;
+
+        return {
+          x: px - worldX * zoom,
+          y: py - worldY * zoom,
+          zoom,
+        };
+      });
+    };
+
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, []);
 
   useEffect(() => {
