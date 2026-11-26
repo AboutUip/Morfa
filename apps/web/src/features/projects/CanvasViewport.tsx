@@ -17,6 +17,7 @@ import {
   uniquePageName,
   type CanvasPage,
 } from "./canvasDocument";
+import type { CanvasSnapSettings } from "./canvasSnap";
 import {
   CONTAINER_DRAG_MIME,
   getMarketContainer,
@@ -31,6 +32,7 @@ const MAX_GRID_SCREEN = 72;
 const MAJOR_GRID_CELLS = 5;
 const ZOOM_SENSITIVITY = 0.0015;
 const KEYBOARD_ZOOM_STEP = 1.2;
+const SNAP_THRESHOLD_PX = 6;
 
 interface CanvasView {
   x: number;
@@ -61,6 +63,11 @@ interface MoveSession {
   startY: number;
 }
 
+interface SnapGuides {
+  x: number | null;
+  y: number | null;
+}
+
 interface MarqueeRect {
   left: number;
   top: number;
@@ -79,6 +86,7 @@ interface CanvasViewportProps {
   activeTool: CanvasTool;
   pages: CanvasPage[];
   selectedId: string | null;
+  snapSettings: CanvasSnapSettings;
   onSelectPage: (pageId: string | null) => void;
   onCreatePage: (page: CanvasPage) => void;
   onMovePage: (pageId: string, x: number, y: number) => void;
@@ -126,6 +134,127 @@ function findPageAt(
   return null;
 }
 
+function nearestSnap(
+  anchors: number[],
+  lines: number[],
+  threshold: number,
+) {
+  let best: { diff: number; line: number } | null = null;
+
+  for (const line of lines) {
+    for (const anchor of anchors) {
+      const diff = line - anchor;
+      if (Math.abs(diff) > threshold) continue;
+      if (!best || Math.abs(diff) < Math.abs(best.diff)) {
+        best = { diff, line };
+      }
+    }
+  }
+
+  return best;
+}
+
+function resolvePageSnap(input: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  pages: CanvasPage[];
+  movingId: string;
+  view: CanvasView;
+  viewportWidth: number;
+  viewportHeight: number;
+  settings: CanvasSnapSettings;
+}) {
+  const {
+    x,
+    y,
+    width,
+    height,
+    pages,
+    movingId,
+    view,
+    viewportWidth,
+    viewportHeight,
+    settings,
+  } = input;
+
+  if (!settings.enabled) {
+    return { x, y, guides: null };
+  }
+
+  const xLines: number[] = [];
+  const yLines: number[] = [];
+  const addLine = (lines: number[], value: number) => {
+    if (Number.isFinite(value)) lines.push(value);
+  };
+
+  const left = -view.x / view.zoom;
+  const right = (viewportWidth - view.x) / view.zoom;
+  const top = -view.y / view.zoom;
+  const bottom = (viewportHeight - view.y) / view.zoom;
+
+  if (settings.vertical) {
+    addLine(xLines, (left + right) / 2);
+  }
+  if (settings.horizontal) {
+    addLine(yLines, (top + bottom) / 2);
+  }
+  if (settings.thirds) {
+    addLine(xLines, left + (right - left) / 3);
+    addLine(xLines, left + ((right - left) * 2) / 3);
+    addLine(yLines, top + (bottom - top) / 3);
+    addLine(yLines, top + ((bottom - top) * 2) / 3);
+  }
+
+  if (settings.componentBounds) {
+    for (const page of pages) {
+      if (page.id === movingId) continue;
+      const size = getPageSize(page);
+      addLine(xLines, page.x);
+      addLine(xLines, page.x + size.width / 2);
+      addLine(xLines, page.x + size.width);
+      addLine(yLines, page.y);
+      addLine(yLines, page.y + size.height / 2);
+      addLine(yLines, page.y + size.height);
+    }
+  }
+
+  if (settings.grid) {
+    const step = resolveGridStep(view.zoom);
+    for (const anchor of [x, x + width / 2, x + width]) {
+      addLine(xLines, Math.round(anchor / step) * step);
+    }
+    for (const anchor of [y, y + height / 2, y + height]) {
+      addLine(yLines, Math.round(anchor / step) * step);
+    }
+  }
+
+  const threshold = SNAP_THRESHOLD_PX / view.zoom;
+  const xSnap = nearestSnap(
+    [x, x + width / 2, x + width],
+    xLines,
+    threshold,
+  );
+  const ySnap = nearestSnap(
+    [y, y + height / 2, y + height],
+    yLines,
+    threshold,
+  );
+
+  return {
+    x: x + (xSnap?.diff ?? 0),
+    y: y + (ySnap?.diff ?? 0),
+    guides:
+      xSnap || ySnap
+        ? {
+            x: xSnap ? xSnap.line * view.zoom + view.x : null,
+            y: ySnap ? ySnap.line * view.zoom + view.y : null,
+          }
+        : null,
+  };
+}
+
 function normalizeWheelDelta(
   event: WheelEvent,
   viewportHeight: number,
@@ -165,6 +294,7 @@ export function CanvasViewport({
   activeTool,
   pages,
   selectedId,
+  snapSettings,
   onSelectPage,
   onCreatePage,
   onMovePage,
@@ -185,6 +315,7 @@ export function CanvasViewport({
   const [marquee, setMarquee] = useState<MarqueeRect | null>(null);
   const [movingPage, setMovingPage] = useState(false);
   const [hoveringPage, setHoveringPage] = useState(false);
+  const [snapGuides, setSnapGuides] = useState<SnapGuides | null>(null);
   const [dropActive, setDropActive] = useState(false);
 
   useEffect(() => {
@@ -422,6 +553,7 @@ export function CanvasViewport({
       };
       setMovingPage(true);
       setHoveringPage(true);
+      setSnapGuides(null);
       return;
     }
 
@@ -466,12 +598,32 @@ export function CanvasViewport({
         (event.clientX - rect.left - currentView.x) / currentView.zoom;
       const worldY =
         (event.clientY - rect.top - currentView.y) / currentView.zoom;
+      const rawX = move.startX + (worldX - move.startWorldX);
+      const rawY = move.startY + (worldY - move.startWorldY);
+      const movingPage = pages.find((page) => page.id === move.pageId);
 
-      onMovePage(
-        move.pageId,
-        move.startX + (worldX - move.startWorldX),
-        move.startY + (worldY - move.startWorldY),
-      );
+      if (!movingPage) {
+        onMovePage(move.pageId, rawX, rawY);
+        setSnapGuides(null);
+        return;
+      }
+
+      const size = getPageSize(movingPage);
+      const resolution = resolvePageSnap({
+        x: rawX,
+        y: rawY,
+        width: size.width,
+        height: size.height,
+        pages,
+        movingId: move.pageId,
+        view: currentView,
+        viewportWidth: event.currentTarget.clientWidth,
+        viewportHeight: event.currentTarget.clientHeight,
+        settings: snapSettings,
+      });
+
+      onMovePage(move.pageId, resolution.x, resolution.y);
+      setSnapGuides(resolution.guides);
       return;
     }
 
@@ -534,6 +686,7 @@ export function CanvasViewport({
     }
     moveRef.current = null;
     setMovingPage(false);
+    setSnapGuides(null);
   };
 
   const handlePointerEnd = (event: ReactPointerEvent<HTMLElement>) => {
@@ -563,6 +716,7 @@ export function CanvasViewport({
     if (moveRef.current?.pointerId === event.pointerId) {
       moveRef.current = null;
       setMovingPage(false);
+      setSnapGuides(null);
     }
 
     if (marqueeRef.current?.pointerId === event.pointerId) {
@@ -715,6 +869,22 @@ export function CanvasViewport({
           );
         })}
       </div>
+
+      {snapGuides?.x !== null && snapGuides?.x !== undefined ? (
+        <div
+          className={styles.snapGuideVertical}
+          style={{ left: snapGuides.x }}
+          aria-hidden="true"
+        />
+      ) : null}
+
+      {snapGuides?.y !== null && snapGuides?.y !== undefined ? (
+        <div
+          className={styles.snapGuideHorizontal}
+          style={{ top: snapGuides.y }}
+          aria-hidden="true"
+        />
+      ) : null}
 
       {marquee ? (
         <div

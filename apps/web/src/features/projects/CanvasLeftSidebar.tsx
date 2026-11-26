@@ -19,6 +19,9 @@ import {
 } from "../../components/icons";
 import type { ProjectType } from "../../lib/api";
 import {
+  type CanvasSnapSettings,
+} from "./canvasSnap";
+import {
   CANVAS_TOOL_SHORTCUTS,
   type CanvasTool,
 } from "./canvasTools";
@@ -50,10 +53,38 @@ const PANEL_ITEMS = [
   { id: "canvas", Icon: FrameIcon },
 ] as const;
 
+const SNAP_OPTIONS = [
+  {
+    key: "horizontal",
+    labelKey: "projects.workspace.canvasPanel.options.horizontal",
+  },
+  {
+    key: "thirds",
+    labelKey: "projects.workspace.canvasPanel.options.thirds",
+  },
+  {
+    key: "vertical",
+    labelKey: "projects.workspace.canvasPanel.options.vertical",
+  },
+  {
+    key: "componentBounds",
+    labelKey:
+      "projects.workspace.canvasPanel.options.componentBounds",
+  },
+  {
+    key: "grid",
+    labelKey: "projects.workspace.canvasPanel.options.grid",
+  },
+] as const;
+
 interface CanvasLeftSidebarProps {
   activeTool: CanvasTool;
   onToolChange: (tool: CanvasTool) => void;
   projectType: ProjectType;
+  snapSettings: CanvasSnapSettings;
+  onSnapSettingsChange: (
+    update: (current: CanvasSnapSettings) => CanvasSnapSettings,
+  ) => void;
 }
 
 type ComponentTab = "mine" | "market";
@@ -72,6 +103,8 @@ export function CanvasLeftSidebar({
   activeTool,
   onToolChange,
   projectType,
+  snapSettings,
+  onSnapSettingsChange,
 }: CanvasLeftSidebarProps) {
   const { t } = useTranslation();
   const [activePanel, setActivePanel] = useState<SidePanel | null>(null);
@@ -431,6 +464,61 @@ export function CanvasLeftSidebar({
                   ({CANVAS_TOOL_SHORTCUTS.hand})
                 </span>
               </button>
+            </div>
+          ) : null}
+
+          {activePanel === "canvas" ? (
+            <div className={styles.canvasPanel}>
+              <div className={styles.canvasSettingRow}>
+                <span className={styles.canvasSettingLabel}>
+                  {t("projects.workspace.canvasPanel.snap")}
+                </span>
+                <button
+                  className={styles.snapSwitch}
+                  type="button"
+                  role="switch"
+                  aria-checked={snapSettings.enabled}
+                  aria-label={t(
+                    "projects.workspace.canvasPanel.snap",
+                  )}
+                  data-checked={snapSettings.enabled}
+                  onClick={() =>
+                    onSnapSettingsChange((current) => ({
+                      ...current,
+                      enabled: !current.enabled,
+                    }))
+                  }
+                >
+                  <span className={styles.snapSwitchThumb} />
+                </button>
+              </div>
+
+              <div className={styles.canvasSettingsGroup}>
+                <h3>
+                  {t("projects.workspace.canvasPanel.snapSettings")}
+                </h3>
+
+                {SNAP_OPTIONS.map(({ key, labelKey }) => (
+                  <label
+                    key={key}
+                    className={styles.canvasCheckRow}
+                    data-disabled={!snapSettings.enabled}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={snapSettings[key]}
+                      disabled={!snapSettings.enabled}
+                      onChange={(event) =>
+                        onSnapSettingsChange((current) => ({
+                          ...current,
+                          [key]: event.target.checked,
+                        }))
+                      }
+                    />
+                    <span>{t(labelKey)}</span>
+                  </label>
+                ))}
+              </div>
             </div>
           ) : null}
 

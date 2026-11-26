@@ -63,6 +63,17 @@
       "canvas": {
         "copySuffix": "副本"
       },
+      "canvasPanel": {
+        "snap": "吸附",
+        "snapSettings": "吸附设置",
+        "options": {
+          "horizontal": "水平线",
+          "thirds": "三分线",
+          "vertical": "垂直线",
+          "componentBounds": "组件边界线",
+          "grid": "网格"
+        }
+      },
       "layersPanel": {
         "rename": "重命名",
         "delete": "删除"

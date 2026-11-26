@@ -15,6 +15,7 @@ import {
   type CanvasTool,
 } from "./canvasTools";
 import type { CanvasPage } from "./canvasDocument";
+import { useCanvasSnapSettings } from "./canvasSnap";
 import { ProjectWorkspaceTopBar } from "./ProjectWorkspaceTopBar";
 import { useProjectCanvas } from "./useProjectCanvas";
 import styles from "./ProjectWorkspace.module.css";
@@ -41,6 +42,7 @@ export function ProjectWorkspace({
 }: ProjectWorkspaceProps) {
   const { t } = useTranslation();
   const [activeTool, setActiveTool] = useState<CanvasTool>("select");
+  const [snapSettings, setSnapSettings] = useCanvasSnapSettings();
   const { pages, setPages } = useProjectCanvas(project.id);
   const [selectedPageId, setSelectedPageId] = useState<string | null>(
     null,
@@ -176,6 +178,8 @@ export function ProjectWorkspace({
           activeTool={activeTool}
           onToolChange={setActiveTool}
           projectType={project.type}
+          snapSettings={snapSettings}
+          onSnapSettingsChange={setSnapSettings}
         />
 
         <CanvasViewport
@@ -183,6 +187,7 @@ export function ProjectWorkspace({
           activeTool={activeTool}
           pages={pages}
           selectedId={selectedPageId}
+          snapSettings={snapSettings}
           onSelectPage={setSelectedPageId}
           onCreatePage={handleCreatePage}
           onMovePage={handleMovePage}

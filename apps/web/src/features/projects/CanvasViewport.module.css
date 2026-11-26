@@ -112,6 +112,26 @@
   user-select: none;
 }
 
+.snapGuideVertical {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 4;
+  width: 1px;
+  background: var(--mf-accent);
+  pointer-events: none;
+}
+
+.snapGuideHorizontal {
+  position: absolute;
+  right: 0;
+  left: 0;
+  z-index: 4;
+  height: 1px;
+  background: var(--mf-accent);
+  pointer-events: none;
+}
+
 .marquee {
   position: absolute;
   z-index: 3;

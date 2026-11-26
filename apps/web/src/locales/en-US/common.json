@@ -63,6 +63,17 @@
       "canvas": {
         "copySuffix": "copy"
       },
+      "canvasPanel": {
+        "snap": "Snap",
+        "snapSettings": "Snap settings",
+        "options": {
+          "horizontal": "Horizontal line",
+          "thirds": "Thirds",
+          "vertical": "Vertical line",
+          "componentBounds": "Component bounds",
+          "grid": "Grid"
+        }
+      },
       "layersPanel": {
         "rename": "Rename",
         "delete": "Delete"
