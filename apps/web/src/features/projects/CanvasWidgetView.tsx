@@ -19,6 +19,7 @@ export const WIDGET_TEXT_KINDS: ReadonlySet<CanvasWidgetKind> = new Set([
   "card",
   "tabs",
   "alert",
+  "chart",
 ]);
 
 export const WIDGET_VALUE_KINDS: ReadonlySet<CanvasWidgetKind> = new Set([
@@ -30,6 +31,39 @@ export const WIDGET_SOURCE_KINDS: ReadonlySet<CanvasWidgetKind> = new Set([
   "image",
   "video",
   "avatar",
+  "card",
+]);
+
+export const WIDGET_DESCRIPTION_KINDS: ReadonlySet<CanvasWidgetKind> =
+  new Set(["card", "chart"]);
+
+export const WIDGET_CHECKED_KINDS: ReadonlySet<CanvasWidgetKind> = new Set([
+  "checkbox",
+  "radio",
+  "toggle",
+]);
+
+export const WIDGET_OPTIONS_KINDS: ReadonlySet<CanvasWidgetKind> = new Set([
+  "select",
+]);
+
+export const WIDGET_ACTIVE_INDEX_KINDS: ReadonlySet<CanvasWidgetKind> =
+  new Set(["select", "tabs"]);
+
+export const WIDGET_DATA_KINDS: ReadonlySet<CanvasWidgetKind> = new Set([
+  "chart",
+]);
+
+export const WIDGET_FIT_KINDS: ReadonlySet<CanvasWidgetKind> = new Set([
+  "image",
+  "video",
+]);
+
+export const WIDGET_SHOW_VALUE_KINDS: ReadonlySet<CanvasWidgetKind> =
+  new Set(["progress"]);
+
+export const WIDGET_DISABLED_KINDS: ReadonlySet<CanvasWidgetKind> = new Set([
+  "button",
 ]);
 
 export const WIDGET_VARIANT_OPTIONS: Partial<
@@ -37,6 +71,9 @@ export const WIDGET_VARIANT_OPTIONS: Partial<
 > = {
   button: ["primary", "secondary", "ghost", "icon"],
   text: ["heading", "paragraph", "label"],
+  badge: ["accent", "success", "warning", "danger"],
+  alert: ["info", "success", "warning", "error"],
+  chart: ["bar", "line"],
 };
 
 function clampValue(value: number | undefined) {
@@ -183,7 +220,11 @@ function renderWidget(widget: CanvasWidget) {
     case "button": {
       const variant = widget.variant ?? "primary";
       return (
-        <span className={styles.button} data-variant={variant}>
+        <span
+          className={styles.button}
+          data-variant={variant}
+          data-disabled={widget.disabled ? "true" : undefined}
+        >
           {variant === "icon" ? (
             <PlusIcon />
           ) : (
@@ -193,15 +234,22 @@ function renderWidget(widget: CanvasWidget) {
       );
     }
 
-    case "select":
+    case "select": {
+      const options = (widget.options ?? []).filter(Boolean);
+      const selectedIndex = Math.min(
+        Math.max(0, widget.activeIndex ?? 0),
+        Math.max(0, options.length - 1),
+      );
+      const label = options.length
+        ? options[selectedIndex]
+        : textOr(widget.text, "Select an option");
       return (
         <span className={styles.field}>
-          <span className={styles.fieldText}>
-            {textOr(widget.text, "Select an option")}
-          </span>
+          <span className={styles.fieldText}>{label}</span>
           <ChevronIcon />
         </span>
       );
+    }
 
     case "input":
       return (
@@ -254,7 +302,7 @@ function renderWidget(widget: CanvasWidget) {
         <span className={styles.progress}>
           <span className={styles.progressHeader}>
             <span>{textOr(widget.text, "Progress")}</span>
-            <span>{value}%</span>
+            {widget.showValue === false ? null : <span>{value}%</span>}
           </span>
           <span className={styles.progressTrack}>
             <span
@@ -284,34 +332,39 @@ function renderWidget(widget: CanvasWidget) {
       );
     }
 
-    case "checkbox":
+    case "checkbox": {
+      const checked = widget.checked ?? true;
       return (
         <span className={styles.choice}>
-          <span className={styles.checkBox}>
-            <CheckIcon />
+          <span className={styles.checkBox} data-checked={checked}>
+            {checked ? <CheckIcon /> : null}
           </span>
           <span className={styles.choiceLabel}>
             {textOr(widget.text, "Checkbox")}
           </span>
         </span>
       );
+    }
 
-    case "radio":
+    case "radio": {
+      const checked = widget.checked ?? true;
       return (
         <span className={styles.choice}>
-          <span className={styles.radio}>
-            <span className={styles.radioDot} />
+          <span className={styles.radio} data-checked={checked}>
+            {checked ? <span className={styles.radioDot} /> : null}
           </span>
           <span className={styles.choiceLabel}>
             {textOr(widget.text, "Radio option")}
           </span>
         </span>
       );
+    }
 
-    case "toggle":
+    case "toggle": {
+      const checked = widget.checked ?? true;
       return (
         <span className={styles.choice}>
-          <span className={styles.toggle}>
+          <span className={styles.toggle} data-checked={checked}>
             <span className={styles.toggleThumb} />
           </span>
           <span className={styles.choiceLabel}>
@@ -319,12 +372,20 @@ function renderWidget(widget: CanvasWidget) {
           </span>
         </span>
       );
+    }
 
     case "image":
       return (
         <span className={styles.media}>
           {widget.src ? (
-            <img src={widget.src} alt="" draggable={false} />
+            <img
+              src={widget.src}
+              alt=""
+              draggable={false}
+              style={{
+                objectFit: widget.fit === "contain" ? "contain" : "cover",
+              }}
+            />
           ) : (
             <span className={styles.imagePlaceholder}>
               <ImageIcon />
@@ -343,6 +404,9 @@ function renderWidget(widget: CanvasWidget) {
               muted
               playsInline
               preload="metadata"
+              style={{
+                objectFit: widget.fit === "contain" ? "contain" : "cover",
+              }}
             />
           ) : (
             <span className={styles.videoBackdrop} />
@@ -373,38 +437,54 @@ function renderWidget(widget: CanvasWidget) {
 
     case "badge":
       return (
-        <span className={styles.badge}>
+        <span className={styles.badge} data-variant={widget.variant ?? "accent"}>
           {textOr(widget.text, "New")}
         </span>
       );
 
-    case "card":
+    case "card": {
+      const description = widget.description?.trim();
       return (
         <span className={styles.card}>
           <span className={styles.cardMedia}>
-            <ImageIcon />
+            {widget.src ? (
+              <img src={widget.src} alt="" draggable={false} />
+            ) : (
+              <ImageIcon />
+            )}
           </span>
           <span className={styles.cardBody}>
             <span className={styles.cardTitle}>
               {textOr(widget.text, "Card title")}
             </span>
-            <span className={styles.cardLine} />
-            <span className={styles.cardLine} data-short="true" />
+            {description ? (
+              <span className={styles.cardDescription}>{description}</span>
+            ) : (
+              <>
+                <span className={styles.cardLine} />
+                <span className={styles.cardLine} data-short="true" />
+              </>
+            )}
           </span>
         </span>
       );
+    }
 
     case "tabs": {
       const labels = textOr(widget.text, "Overview|Details|Settings")
         .split("|")
         .map((label) => label.trim())
         .filter(Boolean);
+      const activeIndex = Math.min(
+        Math.max(0, widget.activeIndex ?? 0),
+        Math.max(0, labels.length - 1),
+      );
       return (
         <span className={styles.tabs}>
           {labels.map((label, index) => (
             <span
               className={styles.tab}
-              data-active={index === 0}
+              data-active={index === activeIndex}
               key={`${label}:${index}`}
             >
               {label}
@@ -416,7 +496,10 @@ function renderWidget(widget: CanvasWidget) {
 
     case "alert":
       return (
-        <span className={styles.alert}>
+        <span
+          className={styles.alert}
+          data-variant={widget.variant ?? "info"}
+        >
           <span className={styles.alertIcon}>
             <InfoIcon />
           </span>
@@ -431,18 +514,60 @@ function renderWidget(widget: CanvasWidget) {
       return <span className={styles.divider} />;
 
     case "chart": {
-      const bars = [36, 62, 46, 78, 58, 88];
+      const values = (
+        widget.data?.length ? widget.data : [36, 62, 46, 78, 58, 88]
+      )
+        .slice(0, 12)
+        .map((point) => Math.min(100, Math.max(0, point)));
+      const max = Math.max(...values, 1);
+      const variant = widget.variant ?? "bar";
+      const title = widget.text?.trim();
+      const description = widget.description?.trim();
+      const linePoints = values
+        .map((value, index) => {
+          const x =
+            values.length <= 1
+              ? 50
+              : (index / (values.length - 1)) * 100;
+          const y = 100 - (value / max) * 100;
+          return `${x},${y}`;
+        })
+        .join(" ");
+
       return (
         <span className={styles.chart}>
-          <span className={styles.chartGrid} />
-          <span className={styles.chartBars}>
-            {bars.map((height, index) => (
-              <span
-                className={styles.chartBar}
-                style={{ height: `${height}%` }}
-                key={index}
-              />
-            ))}
+          {title || description ? (
+            <span className={styles.chartHeader}>
+              {title ? (
+                <span className={styles.chartTitle}>{title}</span>
+              ) : null}
+              {description ? (
+                <span className={styles.chartSubtitle}>{description}</span>
+              ) : null}
+            </span>
+          ) : null}
+          <span className={styles.chartBody}>
+            <span className={styles.chartGrid} />
+            {variant === "line" ? (
+              <svg
+                className={styles.chartLine}
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+                aria-hidden="true"
+              >
+                <polyline points={linePoints} />
+              </svg>
+            ) : (
+              <span className={styles.chartBars}>
+                {values.map((value, index) => (
+                  <span
+                    className={styles.chartBar}
+                    style={{ height: `${(value / max) * 100}%` }}
+                    key={index}
+                  />
+                ))}
+              </span>
+            )}
           </span>
         </span>
       );

@@ -21,6 +21,10 @@ const MAX_LINK_WIDTH = 32;
 const MAX_WIDGET_TEXT_LENGTH = 1000;
 const MAX_WIDGET_VARIANT_LENGTH = 40;
 const MAX_WIDGET_SRC_LENGTH = 4000;
+const MAX_WIDGET_DESCRIPTION_LENGTH = 1000;
+const MAX_WIDGET_OPTIONS = 20;
+const MAX_WIDGET_OPTION_LENGTH = 100;
+const MAX_WIDGET_DATA_POINTS = 24;
 const MAX_CANVAS_JSON_LENGTH = 2_000_000;
 
 export type CanvasFrame = "iphone" | "android" | "watch";
@@ -59,6 +63,14 @@ export interface CanvasWidgetDto {
   text?: string;
   value?: number;
   src?: string;
+  checked?: boolean;
+  options?: string[];
+  activeIndex?: number;
+  data?: number[];
+  description?: string;
+  fit?: "cover" | "contain";
+  showValue?: boolean;
+  disabled?: boolean;
 }
 
 export interface CanvasDataEntryDto {
@@ -261,6 +273,12 @@ function normalizeWidget(value: unknown): CanvasWidgetDto | undefined {
   const src = typeof widget.src === "string" ? widget.src.trim() : "";
   if (src.length > MAX_WIDGET_SRC_LENGTH) invalidDocument();
 
+  const description =
+    typeof widget.description === "string" ? widget.description : "";
+  if (description.length > MAX_WIDGET_DESCRIPTION_LENGTH) {
+    invalidDocument();
+  }
+
   let normalizedValue: number | undefined;
   if (widget.value !== undefined) {
     if (
@@ -272,6 +290,61 @@ function normalizeWidget(value: unknown): CanvasWidgetDto | undefined {
     normalizedValue = Math.min(100, Math.max(0, widget.value));
   }
 
+  let options: string[] | undefined;
+  if (widget.options !== undefined) {
+    if (
+      !Array.isArray(widget.options) ||
+      widget.options.length > MAX_WIDGET_OPTIONS
+    ) {
+      invalidDocument();
+    }
+    options = [];
+    for (const rawOption of widget.options) {
+      if (typeof rawOption !== "string") invalidDocument();
+      const option = rawOption.trim();
+      if (option.length > MAX_WIDGET_OPTION_LENGTH) invalidDocument();
+      if (option) options.push(option);
+    }
+  }
+
+  let activeIndex: number | undefined;
+  if (widget.activeIndex !== undefined) {
+    if (
+      typeof widget.activeIndex !== "number" ||
+      !Number.isFinite(widget.activeIndex)
+    ) {
+      invalidDocument();
+    }
+    activeIndex = Math.max(0, Math.floor(widget.activeIndex));
+  }
+
+  let chartData: number[] | undefined;
+  if (widget.data !== undefined) {
+    if (
+      !Array.isArray(widget.data) ||
+      widget.data.length > MAX_WIDGET_DATA_POINTS
+    ) {
+      invalidDocument();
+    }
+    chartData = widget.data.map((point) => {
+      if (typeof point !== "number" || !Number.isFinite(point)) {
+        invalidDocument();
+      }
+      return Math.min(100, Math.max(0, point));
+    });
+  }
+
+  const checked =
+    typeof widget.checked === "boolean" ? widget.checked : undefined;
+  const showValue =
+    typeof widget.showValue === "boolean" ? widget.showValue : undefined;
+  const disabled =
+    typeof widget.disabled === "boolean" ? widget.disabled : undefined;
+  const fit =
+    widget.fit === "cover" || widget.fit === "contain"
+      ? widget.fit
+      : undefined;
+
   return {
     kind: kind as CanvasWidgetKind,
     ...(variant ? { variant } : {}),
@@ -280,6 +353,14 @@ function normalizeWidget(value: unknown): CanvasWidgetDto | undefined {
       ? { value: normalizedValue }
       : {}),
     ...(src ? { src } : {}),
+    ...(checked !== undefined ? { checked } : {}),
+    ...(options && options.length ? { options } : {}),
+    ...(activeIndex !== undefined ? { activeIndex } : {}),
+    ...(chartData && chartData.length ? { data: chartData } : {}),
+    ...(description ? { description } : {}),
+    ...(fit ? { fit } : {}),
+    ...(showValue !== undefined ? { showValue } : {}),
+    ...(disabled !== undefined ? { disabled } : {}),
   };
 }
 

@@ -34,8 +34,17 @@ import {
   type CanvasLink,
   type CanvasPage,
   type CanvasWidget,
+  type CanvasWidgetKind,
 } from "./canvasDocument";
 import {
+  WIDGET_ACTIVE_INDEX_KINDS,
+  WIDGET_CHECKED_KINDS,
+  WIDGET_DATA_KINDS,
+  WIDGET_DESCRIPTION_KINDS,
+  WIDGET_DISABLED_KINDS,
+  WIDGET_FIT_KINDS,
+  WIDGET_OPTIONS_KINDS,
+  WIDGET_SHOW_VALUE_KINDS,
   WIDGET_SOURCE_KINDS,
   WIDGET_TEXT_KINDS,
   WIDGET_VALUE_KINDS,
@@ -58,7 +67,7 @@ const PANEL_ID = "canvas-inspector-panel";
 const LAYER_DRAG_MIME = "application/x-morfa-layer";
 
 type RightPanel = "layers" | "properties" | "data";
-type PropertyTab = "style" | "behavior";
+type PropertyTab = "attributes" | "style" | "behavior";
 
 const PANEL_ITEMS = [
   { id: "layers", Icon: LayersIcon },
@@ -385,6 +394,33 @@ function TextControl({
   );
 }
 
+function BooleanControl({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <div className={styles.controlRow}>
+      <span className={styles.controlLabel}>{label}</span>
+      <button
+        className={styles.propertySwitch}
+        type="button"
+        role="switch"
+        aria-checked={value}
+        aria-label={label}
+        data-checked={value}
+        onClick={() => onChange(!value)}
+      >
+        <span className={styles.propertySwitchThumb} />
+      </button>
+    </div>
+  );
+}
+
 function StyleTableValue({
   value,
   ariaLabel,
@@ -455,6 +491,7 @@ function LayersPanel({
   const [contextMenu, setContextMenu] =
     useState<ContextMenuState | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const draggingIdRef = useRef<string | null>(null);
   const [dropTarget, setDropTarget] =
     useState<DropTargetState | null>(null);
 
@@ -539,6 +576,7 @@ function LayersPanel({
     event.dataTransfer.setData(LAYER_DRAG_MIME, page.id);
     event.dataTransfer.setData("text/plain", page.name);
     event.dataTransfer.effectAllowed = "move";
+    draggingIdRef.current = page.id;
     setDraggingId(page.id);
   };
 
@@ -547,8 +585,8 @@ function LayersPanel({
   ): LayerDropPosition => {
     const rect = event.currentTarget.getBoundingClientRect();
     const ratio = (event.clientY - rect.top) / rect.height;
-    if (ratio < 0.3) return "before";
-    if (ratio > 0.7) return "after";
+    if (ratio < 0.25) return "before";
+    if (ratio > 0.75) return "after";
     return "inside";
   };
 
@@ -559,7 +597,8 @@ function LayersPanel({
     event: ReactDragEvent<HTMLDivElement>,
     page: CanvasPage,
   ) => {
-    if (!draggingId || !canDropOnPage(draggingId, page.id)) return;
+    const dragId = draggingId ?? draggingIdRef.current;
+    if (!dragId || !canDropOnPage(dragId, page.id)) return;
 
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
@@ -570,6 +609,7 @@ function LayersPanel({
   };
 
   const clearDragState = () => {
+    draggingIdRef.current = null;
     setDraggingId(null);
     setDropTarget(null);
   };
@@ -580,7 +620,9 @@ function LayersPanel({
   ) => {
     event.preventDefault();
     const dragId =
-      event.dataTransfer.getData(LAYER_DRAG_MIME) || draggingId;
+      event.dataTransfer.getData(LAYER_DRAG_MIME) ||
+      draggingIdRef.current ||
+      draggingId;
     if (!dragId || !canDropOnPage(dragId, page.id)) {
       clearDragState();
       return;
@@ -593,6 +635,7 @@ function LayersPanel({
   const menuPage = contextMenu
     ? pages.find((page) => page.id === contextMenu.pageId) ?? null
     : null;
+  const activeDragId = draggingId ?? draggingIdRef.current;
 
   const renderPage = (page: CanvasPage, depth: number): ReactNode => {
     const children = childrenByPage.get(page.id) ?? [];
@@ -621,6 +664,7 @@ function LayersPanel({
           }}
           onContextMenu={(event) => openContextMenu(event, page)}
           onDragStart={(event) => handleDragStart(event, page)}
+          onDragEnter={(event) => handleDragOver(event, page)}
           onDragOver={(event) => handleDragOver(event, page)}
           onDragLeave={(event) => {
             const next = event.relatedTarget as Node | null;
@@ -654,6 +698,32 @@ function LayersPanel({
           ) : (
             <span className={styles.layerName}>{page.name}</span>
           )}
+          {activeDragId && canDropOnPage(activeDragId, page.id) ? (
+            <span
+              className={styles.layerDropHint}
+              data-active={dropPosition === "inside"}
+              title={t("projects.workspace.layersPanel.dropInside")}
+              onDragEnter={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setDropTarget({ pageId: page.id, position: "inside" });
+              }}
+              onDragOver={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                event.dataTransfer.dropEffect = "move";
+                setDropTarget({ pageId: page.id, position: "inside" });
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onReorder(activeDragId, page.id, "inside");
+                clearDragState();
+              }}
+            >
+              {t("projects.workspace.layersPanel.dropInside")}
+            </span>
+          ) : null}
         </div>
 
         {hasChildren && expanded ? (
@@ -821,6 +891,232 @@ function NodeIdControl({
   );
 }
 
+const WIDGET_TEXT_LABEL_KEYS: Partial<
+  Record<CanvasWidgetKind, string>
+> = {
+  button: "projects.workspace.propertiesPanel.fields.buttonText",
+  select: "projects.workspace.propertiesPanel.fields.selectText",
+  input: "projects.workspace.propertiesPanel.fields.placeholderText",
+  search: "projects.workspace.propertiesPanel.fields.placeholderText",
+  textarea: "projects.workspace.propertiesPanel.fields.placeholderText",
+  checkbox: "projects.workspace.propertiesPanel.fields.choiceLabel",
+  radio: "projects.workspace.propertiesPanel.fields.choiceLabel",
+  toggle: "projects.workspace.propertiesPanel.fields.choiceLabel",
+  progress: "projects.workspace.propertiesPanel.fields.progressLabel",
+  image: "projects.workspace.propertiesPanel.fields.mediaCaption",
+  video: "projects.workspace.propertiesPanel.fields.mediaCaption",
+  avatar: "projects.workspace.propertiesPanel.fields.avatarText",
+  badge: "projects.workspace.propertiesPanel.fields.badgeText",
+  card: "projects.workspace.propertiesPanel.fields.cardTitle",
+  tabs: "projects.workspace.propertiesPanel.fields.tabsText",
+  alert: "projects.workspace.propertiesPanel.fields.alertText",
+  chart: "projects.workspace.propertiesPanel.fields.chartTitle",
+};
+
+function parseChartData(value: string) {
+  return value
+    .split(/[,，\s]+/)
+    .map((point) => Number.parseFloat(point))
+    .filter((point) => Number.isFinite(point))
+    .slice(0, 12)
+    .map((point) => Math.min(100, Math.max(0, point)));
+}
+
+function parseWidgetOptions(value: string) {
+  return value
+    .split("|")
+    .map((option) => option.trim())
+    .filter(Boolean)
+    .slice(0, 20);
+}
+
+function WidgetAttributes({
+  widget,
+  onUpdate,
+}: {
+  widget: CanvasWidget;
+  onUpdate: (widget: CanvasWidget) => void;
+}) {
+  const { t } = useTranslation();
+  const variantOptions = WIDGET_VARIANT_OPTIONS[widget.kind];
+  const textLabelKey =
+    WIDGET_TEXT_LABEL_KEYS[widget.kind] ??
+    "projects.workspace.propertiesPanel.fields.widgetText";
+  const showText =
+    WIDGET_TEXT_KINDS.has(widget.kind) &&
+    !(widget.kind === "button" && widget.variant === "icon");
+  const showDescription = WIDGET_DESCRIPTION_KINDS.has(widget.kind);
+  const showSource = WIDGET_SOURCE_KINDS.has(widget.kind);
+  const showChecked = WIDGET_CHECKED_KINDS.has(widget.kind);
+  const showOptions = WIDGET_OPTIONS_KINDS.has(widget.kind);
+  const showActiveIndex = WIDGET_ACTIVE_INDEX_KINDS.has(widget.kind);
+  const showData = WIDGET_DATA_KINDS.has(widget.kind);
+  const showFit = WIDGET_FIT_KINDS.has(widget.kind);
+  const showValue = WIDGET_VALUE_KINDS.has(widget.kind);
+  const showValueSwitch = WIDGET_SHOW_VALUE_KINDS.has(widget.kind);
+  const showDisabled = WIDGET_DISABLED_KINDS.has(widget.kind);
+
+  if (widget.kind === "divider") return null;
+
+  const update = (patch: Partial<CanvasWidget>) =>
+    onUpdate({ ...widget, ...patch });
+
+  return (
+    <ControlSection
+      title={t("projects.workspace.propertiesPanel.sections.widget")}
+    >
+      {variantOptions ? (
+        <SelectControl
+          label={t(
+            "projects.workspace.propertiesPanel.fields.widgetVariant",
+          )}
+          value={widget.variant}
+          options={variantOptions}
+          onChange={(variant) => update({ variant })}
+        />
+      ) : null}
+      {showText ? (
+        <TextControl
+          label={t(textLabelKey)}
+          value={widget.text}
+          placeholder={t(
+            "projects.workspace.propertiesPanel.widgetTextPlaceholder",
+          )}
+          onChange={(text) => update({ text })}
+        />
+      ) : null}
+      {showDescription ? (
+        <TextControl
+          label={t(
+            "projects.workspace.propertiesPanel.fields.widgetDescription",
+          )}
+          value={widget.description}
+          placeholder={t(
+            "projects.workspace.propertiesPanel.widgetDescriptionPlaceholder",
+          )}
+          onChange={(description) => update({ description })}
+        />
+      ) : null}
+      {showOptions ? (
+        <TextControl
+          label={t(
+            "projects.workspace.propertiesPanel.fields.widgetOptions",
+          )}
+          value={widget.options?.join(" | ")}
+          placeholder={t(
+            "projects.workspace.propertiesPanel.widgetOptionsPlaceholder",
+          )}
+          onChange={(value) =>
+            update({ options: parseWidgetOptions(value) })
+          }
+        />
+      ) : null}
+      {showActiveIndex ? (
+        <NumberControl
+          label={t(
+            "projects.workspace.propertiesPanel.fields.widgetActiveIndex",
+          )}
+          value={String(widget.activeIndex ?? 0)}
+          unit=""
+          min={0}
+          max={20}
+          step={1}
+          onChange={(value) => {
+            const parsed = Number.parseFloat(value);
+            update({
+              activeIndex: Number.isFinite(parsed)
+                ? Math.max(0, Math.floor(parsed))
+                : 0,
+            });
+          }}
+        />
+      ) : null}
+      {showChecked ? (
+        <BooleanControl
+          label={t(
+            "projects.workspace.propertiesPanel.fields.widgetChecked",
+          )}
+          value={widget.checked ?? true}
+          onChange={(checked) => update({ checked })}
+        />
+      ) : null}
+      {showValue ? (
+        <NumberControl
+          label={t(
+            "projects.workspace.propertiesPanel.fields.widgetValue",
+          )}
+          value={String(widget.value ?? 50)}
+          unit="%"
+          min={0}
+          max={100}
+          onChange={(value) => {
+            const parsed = Number.parseFloat(value);
+            update({
+              value: Number.isFinite(parsed)
+                ? Math.min(100, Math.max(0, parsed))
+                : 0,
+            });
+          }}
+        />
+      ) : null}
+      {showValueSwitch ? (
+        <BooleanControl
+          label={t(
+            "projects.workspace.propertiesPanel.fields.widgetShowValue",
+          )}
+          value={widget.showValue ?? true}
+          onChange={(showValue) => update({ showValue })}
+        />
+      ) : null}
+      {showData ? (
+        <TextControl
+          label={t(
+            "projects.workspace.propertiesPanel.fields.widgetData",
+          )}
+          value={widget.data?.join(", ")}
+          placeholder={t(
+            "projects.workspace.propertiesPanel.widgetDataPlaceholder",
+          )}
+          onChange={(value) => update({ data: parseChartData(value) })}
+        />
+      ) : null}
+      {showFit ? (
+        <SelectControl
+          label={t(
+            "projects.workspace.propertiesPanel.fields.widgetFit",
+          )}
+          value={widget.fit}
+          options={["cover", "contain"]}
+          onChange={(value) =>
+            update({ fit: value === "contain" ? "contain" : "cover" })
+          }
+        />
+      ) : null}
+      {showSource ? (
+        <TextControl
+          label={t(
+            "projects.workspace.propertiesPanel.fields.widgetSource",
+          )}
+          value={widget.src}
+          placeholder={t(
+            "projects.workspace.propertiesPanel.widgetSourcePlaceholder",
+          )}
+          onChange={(src) => update({ src })}
+        />
+      ) : null}
+      {showDisabled ? (
+        <BooleanControl
+          label={t(
+            "projects.workspace.propertiesPanel.fields.widgetDisabled",
+          )}
+          value={widget.disabled ?? false}
+          onChange={(disabled) => update({ disabled })}
+        />
+      ) : null}
+    </ControlSection>
+  );
+}
+
 function PropertiesPanel({
   pages,
   page,
@@ -840,7 +1136,7 @@ function PropertiesPanel({
   onUpdateWidget: (pageId: string, widget: CanvasWidget | null) => void;
 }) {
   const { t } = useTranslation();
-  const [tab, setTab] = useState<PropertyTab>("style");
+  const [tab, setTab] = useState<PropertyTab>("attributes");
   const [tableMode, setTableMode] = useState(false);
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
@@ -908,28 +1204,6 @@ function PropertiesPanel({
   const inherit = t("projects.workspace.propertiesPanel.inherit");
   const seeThrough = page ? isPageSeeThrough(page) : false;
   const widget = page?.widget ?? null;
-  const widgetVariantOptions = widget
-    ? WIDGET_VARIANT_OPTIONS[widget.kind]
-    : undefined;
-  const widgetHasText = Boolean(
-    widget &&
-      WIDGET_TEXT_KINDS.has(widget.kind) &&
-      !(widget.kind === "button" && widget.variant === "icon"),
-  );
-  const widgetHasValue = Boolean(
-    widget && WIDGET_VALUE_KINDS.has(widget.kind),
-  );
-  const widgetHasSource = Boolean(
-    widget && WIDGET_SOURCE_KINDS.has(widget.kind),
-  );
-  const hasWidgetControls = Boolean(
-    widgetVariantOptions || widgetHasText || widgetHasValue || widgetHasSource,
-  );
-
-  const updateWidget = (patch: Partial<CanvasWidget>) => {
-    if (!page?.widget) return;
-    onUpdateWidget(page.id, { ...page.widget, ...patch });
-  };
 
   const toggleSeeThrough = () => {
     if (!page) return;
@@ -946,6 +1220,16 @@ function PropertiesPanel({
         role="tablist"
         aria-label={t("projects.workspace.rightPanels.properties")}
       >
+        <button
+          className={styles.propertyTab}
+          type="button"
+          role="tab"
+          aria-selected={tab === "attributes"}
+          data-active={tab === "attributes"}
+          onClick={() => setTab("attributes")}
+        >
+          {t("projects.workspace.propertiesPanel.tabs.attributes")}
+        </button>
         <button
           className={styles.propertyTab}
           type="button"
@@ -968,7 +1252,7 @@ function PropertiesPanel({
         </button>
       </div>
 
-      {tab === "style" ? (
+      {tab === "attributes" ? (
         <div className={styles.propertyBody}>
           {page ? (
             <>
@@ -1003,6 +1287,36 @@ function PropertiesPanel({
                     {page.name}
                   </button>
                 )}
+              </div>
+
+              <NodeIdControl
+                page={page}
+                pages={pages}
+                onRenameId={onRenameId}
+              />
+
+              {widget ? (
+                <WidgetAttributes
+                  widget={widget}
+                  onUpdate={(next) => onUpdateWidget(page.id, next)}
+                />
+              ) : (
+                <p className={styles.styleHint}>
+                  {t(
+                    "projects.workspace.propertiesPanel.pageAttributesHint",
+                  )}
+                </p>
+              )}
+            </>
+          ) : null}
+        </div>
+      ) : tab === "style" ? (
+        <div className={styles.propertyBody}>
+          {page ? (
+            <>
+              <div
+                className={`${styles.propertyToolbar} ${styles.propertyToolbarEnd}`}
+              >
                 <button
                   className={styles.modeButton}
                   type="button"
@@ -1013,12 +1327,6 @@ function PropertiesPanel({
                     : t("projects.workspace.propertiesPanel.tableMode")}
                 </button>
               </div>
-
-              <NodeIdControl
-                page={page}
-                pages={pages}
-                onRenameId={onRenameId}
-              />
 
               <div className={styles.propertyQuickRow}>
                 <span className={styles.propertyQuickLabel}>
@@ -1038,68 +1346,6 @@ function PropertiesPanel({
                   <span className={styles.propertySwitchThumb} />
                 </button>
               </div>
-
-              {widget && hasWidgetControls ? (
-                <ControlSection
-                  title={t(
-                    "projects.workspace.propertiesPanel.sections.widget",
-                  )}
-                >
-                  {widgetVariantOptions ? (
-                    <SelectControl
-                      label={t(
-                        "projects.workspace.propertiesPanel.fields.widgetVariant",
-                      )}
-                      value={widget.variant}
-                      options={widgetVariantOptions}
-                      onChange={(variant) => updateWidget({ variant })}
-                    />
-                  ) : null}
-                  {widgetHasText ? (
-                    <TextControl
-                      label={t(
-                        "projects.workspace.propertiesPanel.fields.widgetText",
-                      )}
-                      value={widget.text}
-                      placeholder={t(
-                        "projects.workspace.propertiesPanel.widgetTextPlaceholder",
-                      )}
-                      onChange={(text) => updateWidget({ text })}
-                    />
-                  ) : null}
-                  {widgetHasValue ? (
-                    <NumberControl
-                      label={t(
-                        "projects.workspace.propertiesPanel.fields.widgetValue",
-                      )}
-                      value={String(widget.value ?? 50)}
-                      unit="%"
-                      min={0}
-                      max={100}
-                      onChange={(value) => {
-                        const parsed = Number.parseFloat(value);
-                        updateWidget({
-                          value: Number.isFinite(parsed)
-                            ? Math.min(100, Math.max(0, parsed))
-                            : 0,
-                        });
-                      }}
-                    />
-                  ) : null}
-                  {widgetHasSource ? (
-                    <TextControl
-                      label={t(
-                        "projects.workspace.propertiesPanel.fields.widgetSource",
-                      )}
-                      value={widget.src}
-                      placeholder={t(
-                        "projects.workspace.propertiesPanel.widgetSourcePlaceholder",
-                      )}
-                      onChange={(src) => updateWidget({ src })}
-                    />
-                  ) : null}
-                </ControlSection>
-              ) : null}
 
               {tableMode ? (
                 <div className={styles.styleTable}>
@@ -1411,7 +1657,13 @@ function PropertiesPanel({
           ) : null}
         </div>
       ) : (
-        <div className={styles.propertyBody} />
+        <div className={styles.propertyBody}>
+          {page ? (
+            <p className={styles.styleHint}>
+              {t("projects.workspace.propertiesPanel.behaviorEmpty")}
+            </p>
+          ) : null}
+        </div>
       )}
     </div>
   );

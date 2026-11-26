@@ -157,6 +157,23 @@
   color: var(--mf-text-primary);
 }
 
+.layerDropHint {
+  flex: none;
+  padding: 2px 6px;
+  border-radius: var(--mf-radius-pill);
+  background: var(--mf-bg-selected);
+  color: var(--mf-accent);
+  font-size: 9px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: copy;
+}
+
+.layerDropHint[data-active="true"] {
+  background: var(--mf-accent);
+  color: #ffffff;
+}
+
 .chevron,
 .chevronOpen {
   flex: none;
@@ -292,6 +309,10 @@
   justify-content: space-between;
   gap: 8px;
   padding: 10px 12px 8px;
+}
+
+.propertyToolbarEnd {
+  justify-content: flex-end;
 }
 
 .selectedNameButton {

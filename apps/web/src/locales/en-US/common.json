@@ -86,7 +86,8 @@
       },
       "layersPanel": {
         "rename": "Rename",
-        "delete": "Delete"
+        "delete": "Delete",
+        "dropInside": "Nest inside"
       },
       "dataPanel": {
         "noSelection": "Select a node to inspect its data.",
@@ -171,6 +172,7 @@
       },
       "propertiesPanel": {
         "tabs": {
+          "attributes": "Attributes",
           "style": "Style",
           "behavior": "Behavior"
         },
@@ -193,7 +195,7 @@
           "border": "Border",
           "flex": "Flex",
           "effects": "Effects",
-          "widget": "Component"
+          "widget": "Component attributes"
         },
         "fields": {
           "nodeId": "Node ID",
@@ -217,11 +219,36 @@
           "filter": "Filter",
           "widgetVariant": "Variant",
           "widgetText": "Text",
+          "buttonText": "Button text",
+          "selectText": "Display text",
+          "placeholderText": "Placeholder",
+          "choiceLabel": "Option label",
+          "progressLabel": "Progress label",
+          "mediaCaption": "Caption",
+          "avatarText": "Avatar text",
+          "badgeText": "Badge text",
+          "cardTitle": "Card title",
+          "tabsText": "Tab labels",
+          "alertText": "Alert message",
+          "chartTitle": "Chart title",
+          "widgetDescription": "Description",
+          "widgetOptions": "Options",
+          "widgetActiveIndex": "Active index",
+          "widgetChecked": "Checked",
           "widgetValue": "Value",
-          "widgetSource": "Source URL"
+          "widgetShowValue": "Show value",
+          "widgetData": "Chart data",
+          "widgetFit": "Fit",
+          "widgetSource": "Source URL",
+          "widgetDisabled": "Disabled"
         },
         "widgetTextPlaceholder": "Text shown by this component",
+        "widgetDescriptionPlaceholder": "Supporting description",
+        "widgetOptionsPlaceholder": "Separate options with |",
+        "widgetDataPlaceholder": "Comma separated, e.g. 32, 58, 76, 45",
         "widgetSourcePlaceholder": "https://...",
+        "pageAttributesHint": "This node is a page container and has no extra component attributes.",
+        "behaviorEmpty": "This node has no behavior settings yet.",
         "table": {
           "property": "CSS property",
           "value": "Value",

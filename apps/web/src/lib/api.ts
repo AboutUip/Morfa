@@ -103,6 +103,14 @@ export interface CanvasWidgetDto {
   text?: string;
   value?: number;
   src?: string;
+  checked?: boolean;
+  options?: string[];
+  activeIndex?: number;
+  data?: number[];
+  description?: string;
+  fit?: "cover" | "contain";
+  showValue?: boolean;
+  disabled?: boolean;
 }
 
 export interface CanvasPageDto {
