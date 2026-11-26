@@ -497,7 +497,11 @@ export const WIDGET_MARKET: readonly MarketWidget[] = [
     category: "display",
     width: 320,
     height: 180,
-    widget: { kind: "chart" },
+    widget: {
+      kind: "chart",
+      data: [36, 62, 46, 78, 58, 88],
+    },
+    text: "chartTitle",
   }),
 ];
 

@@ -445,7 +445,8 @@
           "avatar": "M",
           "badge": "New",
           "card": "Card title",
-          "tabs": "Overview|Details|Settings"
+          "tabs": "Overview|Details|Settings",
+          "chartTitle": "Monthly trend"
         }
       },
       "loadingTitle": "Opening project",

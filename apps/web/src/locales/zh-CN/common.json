@@ -445,7 +445,8 @@
           "avatar": "M",
           "badge": "新功能",
           "card": "卡片标题",
-          "tabs": "概览|详情|设置"
+          "tabs": "概览|详情|设置",
+          "chartTitle": "月度趋势"
         }
       },
       "loadingTitle": "正在打开项目",
