@@ -8,8 +8,28 @@
   background: var(--mf-bg-app);
 }
 
+.body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.sidebar {
+  display: flex;
+  width: var(--mf-activitybar-width);
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 0;
+  overflow-y: auto;
+  border-right: 1px solid var(--mf-border);
+  background: var(--mf-bg-surface);
+}
+
 .main {
   flex: 1;
+  min-width: 0;
   min-height: 0;
   background: var(--mf-bg-app);
 }

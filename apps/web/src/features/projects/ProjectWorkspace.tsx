@@ -45,12 +45,19 @@ export function ProjectWorkspace({
     <div className={styles.shell} data-project-workspace="true">
       <ProjectWorkspaceTopBar project={project} onExit={onExit} />
 
-      <main
-        id="project-main"
-        className={styles.main}
-        tabIndex={-1}
-        aria-label={project.name}
-      />
+      <div className={styles.body}>
+        <aside
+          className={styles.sidebar}
+          aria-label={t("projects.workspace.sidebar")}
+        />
+
+        <main
+          id="project-main"
+          className={styles.main}
+          tabIndex={-1}
+          aria-label={project.name}
+        />
+      </div>
 
       <footer className={styles.statusBar} />
 
