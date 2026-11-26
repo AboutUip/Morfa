@@ -467,6 +467,7 @@ export function CanvasViewport({
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+      if (document.body.dataset.canvasModal === "true") return;
       if (event.code !== "Minus" && event.code !== "NumpadSubtract") {
         return;
       }

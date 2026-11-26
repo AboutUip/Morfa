@@ -229,6 +229,7 @@ export function ProjectWorkspace({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.ctrlKey || event.metaKey || event.altKey) return;
       if (isEditableTarget(event.target)) return;
+      if (document.body.dataset.canvasModal === "true") return;
 
       if (event.key === "Delete" || event.key === "Backspace") {
         if (!selectedPageId) return;
@@ -254,6 +255,7 @@ export function ProjectWorkspace({
       if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
       if (event.repeat) return;
       if (isEditableTarget(event.target)) return;
+      if (document.body.dataset.canvasModal === "true") return;
 
       const key = event.key.toLowerCase();
 

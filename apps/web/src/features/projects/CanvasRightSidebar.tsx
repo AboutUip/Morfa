@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 
 import {
   ChevronDownIcon,
+  CloseIcon,
   DatabaseIcon,
   LayersIcon,
   PageIcon,
@@ -33,7 +34,7 @@ import {
 } from "./canvasDocument";
 import styles from "./CanvasRightSidebar.module.css";
 
-const DEFAULT_PANEL_WIDTH = 240;
+const DEFAULT_PANEL_WIDTH = 320;
 const MIN_PANEL_WIDTH = 180;
 const MAX_PANEL_WIDTH = 420;
 const RESIZE_STEP = 16;
@@ -1417,6 +1418,7 @@ function DataPanel({
   const [draftValue, setDraftValue] = useState("");
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const pageId = page?.id ?? null;
 
@@ -1426,7 +1428,17 @@ function DataPanel({
     setDraftValue("");
     setEditingKey(null);
     setError("");
+    setDialogOpen(false);
   }, [pageId]);
+
+  useEffect(() => {
+    if (!dialogOpen) return;
+
+    document.body.dataset.canvasModal = "true";
+    return () => {
+      delete document.body.dataset.canvasModal;
+    };
+  }, [dialogOpen]);
 
   const pageData = page ? getPageData(page) : [];
   const inheritedData = page ? getInheritedPageData(pages, page) : [];
@@ -1496,15 +1508,27 @@ function DataPanel({
         : [...pageData, entry];
 
     onUpdateData(page.id, nextData);
+    setDialogOpen(false);
     resetDraft();
   };
 
-  const startEdit = (entry: CanvasDataEntry) => {
+  const openAddDialog = () => {
+    resetDraft();
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (entry: CanvasDataEntry) => {
     setEditingKey(entry.key);
     setDraftKey(entry.key);
     setDraftType(entry.type);
     setDraftValue(entry.value);
     setError("");
+    setDialogOpen(true);
+  };
+
+  const closeDialog = () => {
+    setDialogOpen(false);
+    resetDraft();
   };
 
   const removeEntry = (key: string) => {
@@ -1525,79 +1549,14 @@ function DataPanel({
           <span className={styles.dataCount}>{pageData.length}</span>
         </div>
 
-        <form className={styles.dataForm} onSubmit={commitDraft}>
-          <div className={styles.dataFormTitle}>
-            <span>
-              {editingKey !== null
-                ? t("projects.workspace.dataPanel.editing", {
-                    key: editingKey,
-                  })
-                : t("projects.workspace.dataPanel.add")}
-            </span>
-            {editingKey !== null ? (
-              <button
-                className={styles.dataCancelButton}
-                type="button"
-                onClick={resetDraft}
-              >
-                {t("projects.workspace.dataPanel.actions.cancel")}
-              </button>
-            ) : null}
-          </div>
-
-          <div className={styles.dataFormRow}>
-            <input
-              className={`${styles.controlInput} ${styles.dataKeyInput}`}
-              value={draftKey}
-              maxLength={64}
-              placeholder={t(
-                "projects.workspace.dataPanel.placeholders.key",
-              )}
-              aria-label={t("projects.workspace.dataPanel.fields.key")}
-              aria-required="true"
-              onChange={(event) => {
-                setDraftKey(event.target.value);
-                setError("");
-              }}
-            />
-            <select
-              className={`${styles.selectInput} ${styles.dataTypeSelect}`}
-              value={draftType}
-              aria-label={t("projects.workspace.dataPanel.fields.type")}
-              aria-required="true"
-              onChange={(event) => handleTypeChange(event.target.value)}
-            >
-              <option value="">
-                {t("projects.workspace.dataPanel.placeholders.type")}
-              </option>
-              {CANVAS_DATA_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {t(DATA_TYPE_LABEL_KEYS[type])}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className={styles.dataFormValueRow}>
-            <DataValueInput
-              type={draftType}
-              value={draftValue}
-              onChange={(value) => {
-                setDraftValue(value);
-                setError("");
-              }}
-            />
-            <button className={styles.dataCommitButton} type="submit">
-              {editingKey !== null
-                ? t("projects.workspace.dataPanel.actions.update")
-                : t("projects.workspace.dataPanel.actions.commit")}
-            </button>
-          </div>
-
-          {error ? (
-            <p className={styles.dataError}>{t(error)}</p>
-          ) : null}
-        </form>
+        <button
+          className={styles.dataAddButton}
+          type="button"
+          onClick={openAddDialog}
+        >
+          <span aria-hidden="true">+</span>
+          {t("projects.workspace.dataPanel.add")}
+        </button>
 
         {pageData.length ? (
           <div className={styles.dataList}>
@@ -1619,7 +1578,7 @@ function DataPanel({
                     <button
                       className={styles.dataEditButton}
                       type="button"
-                      onClick={() => startEdit(entry)}
+                      onClick={() => openEditDialog(entry)}
                     >
                       {t("projects.workspace.dataPanel.actions.edit")}
                     </button>
@@ -1691,6 +1650,145 @@ function DataPanel({
           {t("projects.workspace.dataPanel.inheritHint")}
         </p>
       </section>
+
+      {dialogOpen
+        ? createPortal(
+            <div
+              className={styles.dataDialogOverlay}
+              role="presentation"
+              onClick={closeDialog}
+            >
+              <div
+                className={styles.dataDialog}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="canvas-data-dialog-title"
+                onClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => {
+                  event.stopPropagation();
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    closeDialog();
+                  }
+                }}
+              >
+                <div className={styles.dataDialogHeader}>
+                  <span
+                    id="canvas-data-dialog-title"
+                    className={styles.dataDialogTitle}
+                  >
+                    {editingKey !== null
+                      ? t("projects.workspace.dataPanel.editing", {
+                          key: editingKey,
+                        })
+                      : t("projects.workspace.dataPanel.add")}
+                  </span>
+                  <button
+                    className={styles.dataDialogClose}
+                    type="button"
+                    aria-label={t(
+                      "projects.workspace.dataPanel.actions.cancel",
+                    )}
+                    onClick={closeDialog}
+                  >
+                    <CloseIcon size={14} />
+                  </button>
+                </div>
+
+                <form
+                  className={styles.dataDialogForm}
+                  onSubmit={commitDraft}
+                >
+                  <label className={styles.dataDialogField}>
+                    <span>
+                      {t("projects.workspace.dataPanel.fields.key")}
+                    </span>
+                    <input
+                      className={styles.controlInput}
+                      value={draftKey}
+                      maxLength={64}
+                      autoFocus
+                      placeholder={t(
+                        "projects.workspace.dataPanel.placeholders.key",
+                      )}
+                      aria-required="true"
+                      onChange={(event) => {
+                        setDraftKey(event.target.value);
+                        setError("");
+                      }}
+                    />
+                  </label>
+
+                  <label className={styles.dataDialogField}>
+                    <span>
+                      {t("projects.workspace.dataPanel.fields.type")}
+                    </span>
+                    <select
+                      className={styles.selectInput}
+                      value={draftType}
+                      aria-required="true"
+                      onChange={(event) =>
+                        handleTypeChange(event.target.value)
+                      }
+                    >
+                      <option value="">
+                        {t(
+                          "projects.workspace.dataPanel.placeholders.type",
+                        )}
+                      </option>
+                      {CANVAS_DATA_TYPES.map((type) => (
+                        <option key={type} value={type}>
+                          {t(DATA_TYPE_LABEL_KEYS[type])}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className={styles.dataDialogField}>
+                    <span>
+                      {t("projects.workspace.dataPanel.fields.value")}
+                    </span>
+                    <DataValueInput
+                      type={draftType}
+                      value={draftValue}
+                      onChange={(value) => {
+                        setDraftValue(value);
+                        setError("");
+                      }}
+                    />
+                  </label>
+
+                  {error ? (
+                    <p className={styles.dataError}>{t(error)}</p>
+                  ) : null}
+
+                  <div className={styles.dataDialogActions}>
+                    <button
+                      className={styles.dataDialogCancel}
+                      type="button"
+                      onClick={closeDialog}
+                    >
+                      {t(
+                        "projects.workspace.dataPanel.actions.cancel",
+                      )}
+                    </button>
+                    <button
+                      className={styles.dataDialogCommit}
+                      type="submit"
+                    >
+                      {editingKey !== null
+                        ? t("projects.workspace.dataPanel.actions.update")
+                        : t(
+                            "projects.workspace.dataPanel.actions.commit",
+                          )}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
