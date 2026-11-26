@@ -245,12 +245,19 @@ export function renameStyleReferences(
   fromId: string,
   toId: string,
 ) {
-  const fromToken = `\${${fromId}.`;
-  const toToken = `\${${toId}.`;
+  const escapedId = fromId.replace(
+    /[.*+?^${}()|[\]\\]/g,
+    "\\$&",
+  );
+  const pattern = new RegExp(
+    `\\$\\{\\s*${escapedId}\\s*\\.`,
+    "g",
+  );
+  const replacement = `\${${toId}.`;
   const next: Record<string, string> = {};
 
   for (const [key, value] of Object.entries(styles)) {
-    next[key] = value.split(fromToken).join(toToken);
+    next[key] = value.replace(pattern, replacement);
   }
 
   return next;
