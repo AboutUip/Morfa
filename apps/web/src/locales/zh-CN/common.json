@@ -69,26 +69,6 @@
           "blank": {
             "name": "空白页面",
             "description": "从一张空白页面开始搭建。"
-          },
-          "app": {
-            "name": "应用页面",
-            "description": "用于软件应用界面的页面容器。"
-          },
-          "list": {
-            "name": "列表页面",
-            "description": "用于列表与信息流内容的页面。"
-          },
-          "detail": {
-            "name": "详情页面",
-            "description": "用于展示单条内容详情的页面。"
-          },
-          "form": {
-            "name": "表单页面",
-            "description": "用于填写和提交信息的页面。"
-          },
-          "web": {
-            "name": "网页页面",
-            "description": "用于网站界面的页面容器。"
           }
         }
       },

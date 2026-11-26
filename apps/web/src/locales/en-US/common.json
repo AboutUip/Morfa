@@ -69,26 +69,6 @@
           "blank": {
             "name": "Blank page",
             "description": "Start from an empty page."
-          },
-          "app": {
-            "name": "App page",
-            "description": "A page container for software interfaces."
-          },
-          "list": {
-            "name": "List page",
-            "description": "A page for lists and feeds."
-          },
-          "detail": {
-            "name": "Detail page",
-            "description": "A page for a single item's details."
-          },
-          "form": {
-            "name": "Form page",
-            "description": "A page for entering and submitting information."
-          },
-          "web": {
-            "name": "Web page",
-            "description": "A page container for website interfaces."
           }
         }
       },

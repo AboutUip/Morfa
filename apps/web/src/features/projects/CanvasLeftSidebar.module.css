@@ -49,9 +49,28 @@
   flex: none;
 }
 
+.panelViewport {
+  flex: none;
+  min-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition:
+    width 200ms var(--mf-ease-out),
+    opacity 160ms var(--mf-ease);
+}
+
+.panelViewport[data-expanded="true"] {
+  opacity: 1;
+}
+
+.panelViewport[data-resizing="true"] {
+  transition: none;
+}
+
 .panel {
   position: relative;
   display: flex;
+  height: 100%;
   flex: none;
   flex-direction: column;
   min-height: 0;
@@ -205,15 +224,25 @@
 }
 
 .marketCoverCanvas {
-  display: block;
+  display: grid;
   width: 44%;
   aspect-ratio: 1;
+  place-items: center;
   border: 1px solid var(--mf-border-strong);
   border-radius: 3px;
   background: var(--mf-artboard);
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.12),
     0 8px 20px rgba(0, 0, 0, 0.16);
+}
+
+.marketCoverCanvas svg {
+  color: var(--mf-text-tertiary);
+  transition: color var(--mf-transition);
+}
+
+.marketCard:hover .marketCoverCanvas svg {
+  color: var(--mf-accent);
 }
 
 .marketName {
@@ -305,7 +334,7 @@
 .resizeHandle {
   position: absolute;
   top: 0;
-  right: -3px;
+  right: 0;
   bottom: 0;
   z-index: 3;
   width: 6px;
@@ -317,7 +346,7 @@
 .resizeHandle::after {
   position: absolute;
   top: 0;
-  right: 3px;
+  right: 0;
   bottom: 0;
   width: 1px;
   background: transparent;
@@ -344,6 +373,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .panelViewport,
   .railItem,
   .toolItem,
   .resizeHandle::after {

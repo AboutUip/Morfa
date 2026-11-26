@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -32,6 +33,7 @@ const DEFAULT_PANEL_WIDTH = 240;
 const MIN_PANEL_WIDTH = 180;
 const MAX_PANEL_WIDTH = 420;
 const RESIZE_STEP = 16;
+const PANEL_ANIMATION_MS = 200;
 const PANEL_ID = "canvas-side-panel";
 
 type SidePanel = "tools" | "components" | "canvas";
@@ -73,12 +75,93 @@ export function CanvasLeftSidebar({
 }: CanvasLeftSidebarProps) {
   const { t } = useTranslation();
   const [activePanel, setActivePanel] = useState<SidePanel | null>(null);
+  const [panelExpanded, setPanelExpanded] = useState(false);
   const [componentTab, setComponentTab] =
     useState<ComponentTab>("market");
   const [marketQuery, setMarketQuery] = useState("");
   const [panelWidth, setPanelWidth] = useState(DEFAULT_PANEL_WIDTH);
   const [resizing, setResizing] = useState(false);
   const resizeRef = useRef<ResizeSession | null>(null);
+  const closeTimerRef = useRef<number | null>(null);
+  const openFramesRef = useRef<number[]>([]);
+
+  const clearCloseTimer = () => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  };
+
+  const clearOpenFrames = () => {
+    for (const frame of openFramesRef.current) {
+      cancelAnimationFrame(frame);
+    }
+    openFramesRef.current = [];
+  };
+
+  const reduceMotion = () =>
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const expandPanel = () => {
+    if (reduceMotion()) {
+      setPanelExpanded(true);
+      return;
+    }
+
+    const firstFrame = requestAnimationFrame(() => {
+      const secondFrame = requestAnimationFrame(() => {
+        setPanelExpanded(true);
+        openFramesRef.current = [];
+      });
+      openFramesRef.current.push(secondFrame);
+    });
+    openFramesRef.current.push(firstFrame);
+  };
+
+  const handlePanelSelect = (panel: SidePanel) => {
+    if (activePanel === panel) {
+      if (!panelExpanded) {
+        clearCloseTimer();
+        setPanelExpanded(true);
+        return;
+      }
+
+      clearOpenFrames();
+      clearCloseTimer();
+      setPanelExpanded(false);
+
+      if (reduceMotion()) {
+        setActivePanel(null);
+        return;
+      }
+
+      closeTimerRef.current = window.setTimeout(() => {
+        closeTimerRef.current = null;
+        setActivePanel(null);
+      }, PANEL_ANIMATION_MS);
+      return;
+    }
+
+    clearCloseTimer();
+    clearOpenFrames();
+
+    if (activePanel === null) {
+      setActivePanel(panel);
+      setPanelExpanded(false);
+      expandPanel();
+      return;
+    }
+
+    setActivePanel(panel);
+    setPanelExpanded(true);
+  };
+
+  useEffect(() => {
+    return () => {
+      clearCloseTimer();
+      clearOpenFrames();
+    };
+  }, []);
 
   const marketItems = useMemo(() => {
     const query = marketQuery.trim().toLowerCase();
@@ -179,9 +262,7 @@ export function CanvasLeftSidebar({
               aria-expanded={isOpen}
               aria-controls={isOpen ? PANEL_ID : undefined}
               data-active={isOpen}
-              onClick={() =>
-                setActivePanel((current) => (current === id ? null : id))
-              }
+              onClick={() => handlePanelSelect(id)}
             >
               <Icon size={18} />
               <span>{label}</span>
@@ -191,14 +272,20 @@ export function CanvasLeftSidebar({
       </aside>
 
       {activePanel ? (
-        <aside
-          id={PANEL_ID}
-          className={styles.panel}
-          style={{ width: panelWidth }}
+        <div
+          className={styles.panelViewport}
+          style={{ width: panelExpanded ? panelWidth : 0 }}
+          data-expanded={panelExpanded}
           data-resizing={resizing}
-          data-panel={activePanel}
-          aria-label={t(PANEL_LABEL_KEYS[activePanel])}
         >
+          <aside
+            id={PANEL_ID}
+            className={styles.panel}
+            style={{ width: panelWidth }}
+            data-resizing={resizing}
+            data-panel={activePanel}
+            aria-label={t(PANEL_LABEL_KEYS[activePanel])}
+          >
           {activePanel === "components" ? (
             <div className={styles.componentsPanel}>
               <div
@@ -273,7 +360,9 @@ export function CanvasLeftSidebar({
                             className={styles.marketCover}
                             aria-hidden="true"
                           >
-                            <span className={styles.marketCoverCanvas} />
+                            <span className={styles.marketCoverCanvas}>
+                              <FrameIcon size={18} />
+                            </span>
                           </span>
                           <span className={styles.marketName}>
                             {t(item.nameKey)}
@@ -361,7 +450,8 @@ export function CanvasLeftSidebar({
             onLostPointerCapture={handleResizeLostCapture}
             onKeyDown={handleResizeKeyDown}
           />
-        </aside>
+          </aside>
+        </div>
       ) : null}
     </div>
   );
