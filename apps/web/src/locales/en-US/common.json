@@ -46,6 +46,13 @@
       "emptyMenu": "No actions yet",
       "sidebar": "Canvas tools",
       "inspector": "Canvas inspector",
+      "tools": {
+        "title": "Tools",
+        "panel": "Tools panel",
+        "select": "Select tool",
+        "hand": "Hand tool",
+        "resize": "Resize tools panel"
+      },
       "loadingTitle": "Opening project",
       "loadingHint": "Preparing the workspace for {{name}}",
       "loadingLabel": "Preparing project workspace"

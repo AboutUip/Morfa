@@ -7,6 +7,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 
+import type { CanvasTool } from "./canvasTools";
 import styles from "./CanvasViewport.module.css";
 
 const MIN_ZOOM = 0.1;
@@ -30,6 +31,21 @@ interface PanSession {
   y: number;
 }
 
+interface MarqueeSession {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  currentX: number;
+  currentY: number;
+}
+
+interface MarqueeRect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
 interface GestureSession {
   view: CanvasView;
   px: number;
@@ -38,6 +54,7 @@ interface GestureSession {
 
 interface CanvasViewportProps {
   label: string;
+  activeTool: CanvasTool;
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -78,7 +95,10 @@ function resolveGridStep(zoom: number) {
   return step;
 }
 
-export function CanvasViewport({ label }: CanvasViewportProps) {
+export function CanvasViewport({
+  label,
+  activeTool,
+}: CanvasViewportProps) {
   const viewportRef = useRef<HTMLElement>(null);
   const [view, setView] = useState<CanvasView>({
     x: 0,
@@ -87,8 +107,10 @@ export function CanvasViewport({ label }: CanvasViewportProps) {
   });
   const viewRef = useRef(view);
   const panRef = useRef<PanSession | null>(null);
+  const marqueeRef = useRef<MarqueeSession | null>(null);
   const gestureRef = useRef<GestureSession | null>(null);
   const [panning, setPanning] = useState(false);
+  const [marquee, setMarquee] = useState<MarqueeRect | null>(null);
 
   useEffect(() => {
     viewRef.current = view;
@@ -274,34 +296,77 @@ export function CanvasViewport({ label }: CanvasViewportProps) {
   }, []);
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLElement>) => {
-    // 左键暂时不绑定任何画布交互；中键用于拖拽平移视图。
-    if (event.button !== 1) return;
+    const isMiddlePan = event.button === 1;
+    const isHandPan = event.button === 0 && activeTool === "hand";
 
+    if (isMiddlePan || isHandPan) {
+      event.preventDefault();
+      event.currentTarget.setPointerCapture(event.pointerId);
+      panRef.current = {
+        pointerId: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+      };
+      setPanning(true);
+      return;
+    }
+
+    if (event.button !== 0 || activeTool !== "select") return;
+
+    // 选择工具的点击命中会在元素层接入；当前先提供框选反馈。
     event.preventDefault();
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+
     event.currentTarget.setPointerCapture(event.pointerId);
-    panRef.current = {
+    marqueeRef.current = {
       pointerId: event.pointerId,
-      x: event.clientX,
-      y: event.clientY,
+      startX: x,
+      startY: y,
+      currentX: x,
+      currentY: y,
     };
-    setPanning(true);
+    setMarquee({
+      left: x,
+      top: y,
+      width: 0,
+      height: 0,
+    });
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLElement>) => {
     const pan = panRef.current;
-    if (!pan || pan.pointerId !== event.pointerId) return;
+    if (pan && pan.pointerId === event.pointerId) {
+      const dx = event.clientX - pan.x;
+      const dy = event.clientY - pan.y;
+      if (dx === 0 && dy === 0) return;
 
-    const dx = event.clientX - pan.x;
-    const dy = event.clientY - pan.y;
-    if (dx === 0 && dy === 0) return;
+      pan.x = event.clientX;
+      pan.y = event.clientY;
+      setView((current) => ({
+        ...current,
+        x: current.x + dx,
+        y: current.y + dy,
+      }));
+      return;
+    }
 
-    pan.x = event.clientX;
-    pan.y = event.clientY;
-    setView((current) => ({
-      ...current,
-      x: current.x + dx,
-      y: current.y + dy,
-    }));
+    const selection = marqueeRef.current;
+    if (!selection || selection.pointerId !== event.pointerId) return;
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+
+    selection.currentX = x;
+    selection.currentY = y;
+    setMarquee({
+      left: Math.min(selection.startX, x),
+      top: Math.min(selection.startY, y),
+      width: Math.abs(x - selection.startX),
+      height: Math.abs(y - selection.startY),
+    });
   };
 
   const endPan = (event: ReactPointerEvent<HTMLElement>) => {
@@ -315,12 +380,40 @@ export function CanvasViewport({ label }: CanvasViewportProps) {
     setPanning(false);
   };
 
+  const endMarquee = (event: ReactPointerEvent<HTMLElement>) => {
+    const selection = marqueeRef.current;
+    if (!selection || selection.pointerId !== event.pointerId) return;
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    marqueeRef.current = null;
+    setMarquee(null);
+  };
+
+  const handlePointerEnd = (event: ReactPointerEvent<HTMLElement>) => {
+    if (panRef.current?.pointerId === event.pointerId) {
+      endPan(event);
+      return;
+    }
+
+    if (marqueeRef.current?.pointerId === event.pointerId) {
+      endMarquee(event);
+    }
+  };
+
   const handleLostPointerCapture = (
     event: ReactPointerEvent<HTMLElement>,
   ) => {
-    if (panRef.current?.pointerId !== event.pointerId) return;
-    panRef.current = null;
-    setPanning(false);
+    if (panRef.current?.pointerId === event.pointerId) {
+      panRef.current = null;
+      setPanning(false);
+    }
+
+    if (marqueeRef.current?.pointerId === event.pointerId) {
+      marqueeRef.current = null;
+      setMarquee(null);
+    }
   };
 
   const handleMouseDown = (event: ReactMouseEvent<HTMLElement>) => {
@@ -354,17 +447,32 @@ export function CanvasViewport({ label }: CanvasViewportProps) {
       tabIndex={-1}
       aria-label={label}
       data-canvas-viewport="true"
+      data-tool={activeTool}
       data-panning={panning}
+      data-marquee={marquee !== null}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
-      onPointerUp={endPan}
-      onPointerCancel={endPan}
+      onPointerUp={handlePointerEnd}
+      onPointerCancel={handlePointerEnd}
       onLostPointerCapture={handleLostPointerCapture}
       onMouseDown={handleMouseDown}
       onAuxClick={handleAuxClick}
     >
       <div className={styles.grid} style={gridStyle} aria-hidden="true" />
       <div className={styles.world} style={worldStyle} aria-hidden="true" />
+
+      {marquee ? (
+        <div
+          className={styles.marquee}
+          style={{
+            left: marquee.left,
+            top: marquee.top,
+            width: marquee.width,
+            height: marquee.height,
+          }}
+          aria-hidden="true"
+        />
+      ) : null}
     </main>
   );
 }

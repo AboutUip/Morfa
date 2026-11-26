@@ -91,6 +91,25 @@ export function CursorIcon(props: IconProps) {
   );
 }
 
+export function HandIcon(props: IconProps) {
+  return (
+    <svg {...iconProps(props)}>
+      <path d="M7.5 11.5V5.8a1.4 1.4 0 0 1 2.8 0v5" />
+      <path d="M10.3 10.8V4.6a1.4 1.4 0 0 1 2.8 0v6.2" />
+      <path d="M13.1 10.8V5.7a1.4 1.4 0 0 1 2.8 0v6.1" />
+      <path d="M15.9 11.8V8.9a1.4 1.4 0 0 1 2.8 0v5.8c0 3.4-2.2 5.8-5.6 5.8h-1c-1.8 0-3.3-.8-4.4-2.2l-3-4a1.5 1.5 0 0 1 2.3-1.9l2.2 2.2" />
+    </svg>
+  );
+}
+
+export function ToolsIcon(props: IconProps) {
+  return (
+    <svg {...iconProps(props)}>
+      <path d="M14.5 6.5a4 4 0 0 0-5.2 5.2L4 17l3 3 5.3-5.3a4 4 0 0 0 5.2-5.2l-2.3 2.3-2.5-.5-.5-2.5 2.3-2.3Z" />
+    </svg>
+  );
+}
+
 export function GlobeIcon(props: IconProps) {
   return (
     <svg {...iconProps(props)}>

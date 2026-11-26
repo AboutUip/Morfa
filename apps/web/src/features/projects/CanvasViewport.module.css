@@ -17,8 +17,16 @@
   outline: none;
 }
 
-.viewport[data-panning="true"] {
+.viewport[data-tool="hand"] {
+  cursor: grab;
+}
+
+.viewport[data-tool="hand"][data-panning="true"] {
   cursor: grabbing;
+}
+
+.viewport[data-tool="select"][data-marquee="true"] {
+  cursor: default;
 }
 
 .grid {
@@ -55,5 +63,14 @@
   width: 0;
   height: 0;
   transform-origin: 0 0;
+  pointer-events: none;
+}
+
+.marquee {
+  position: absolute;
+  z-index: 3;
+  border: 1px solid var(--mf-accent);
+  border-radius: 2px;
+  background: var(--mf-accent-soft);
   pointer-events: none;
 }
