@@ -10,9 +10,24 @@ const MAX_PAGE_ID_LENGTH = 120;
 const MAX_PAGE_NAME_LENGTH = 160;
 const MAX_STYLE_KEY_LENGTH = 100;
 const MAX_STYLE_VALUE_LENGTH = 2000;
+const MAX_PAGE_DATA_ENTRIES = 100;
+const MAX_DATA_KEY_LENGTH = 64;
+const MAX_DATA_VALUE_LENGTH = 2000;
 const MAX_CANVAS_JSON_LENGTH = 2_000_000;
 
 export type CanvasFrame = "iphone" | "android" | "watch";
+export type CanvasDataType =
+  | "text"
+  | "number"
+  | "color"
+  | "date"
+  | "boolean";
+
+export interface CanvasDataEntryDto {
+  key: string;
+  type: CanvasDataType;
+  value: string;
+}
 
 export interface CanvasPageDto {
   id: string;
@@ -22,6 +37,8 @@ export interface CanvasPageDto {
   styles: Record<string, string>;
   frame?: CanvasFrame;
   lockedSize?: boolean;
+  parentId?: string;
+  data?: CanvasDataEntryDto[];
 }
 
 export interface CanvasDocumentDto {
@@ -82,6 +99,40 @@ function normalizeStyles(value: unknown): Record<string, string> {
   return normalized;
 }
 
+function normalizeData(value: unknown): CanvasDataEntryDto[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) invalidDocument();
+  if (value.length > MAX_PAGE_DATA_ENTRIES) invalidDocument();
+
+  const entries: CanvasDataEntryDto[] = [];
+  const keys = new Set<string>();
+
+  for (const rawEntry of value) {
+    const entry = readObject(rawEntry);
+    const key = readString(entry.key, MAX_DATA_KEY_LENGTH, true);
+    if (keys.has(key)) invalidDocument();
+    keys.add(key);
+
+    const type = entry.type;
+    if (
+      type !== "text" &&
+      type !== "number" &&
+      type !== "color" &&
+      type !== "date" &&
+      type !== "boolean"
+    ) {
+      invalidDocument();
+    }
+
+    const entryValue = typeof entry.value === "string" ? entry.value : "";
+    if (entryValue.length > MAX_DATA_VALUE_LENGTH) invalidDocument();
+
+    entries.push({ key, type, value: entryValue });
+  }
+
+  return entries;
+}
+
 function normalizePage(value: unknown): CanvasPageDto {
   const page = readObject(value);
   const frame =
@@ -92,15 +143,25 @@ function normalizePage(value: unknown): CanvasPageDto {
       : undefined;
   const lockedSize =
     typeof page.lockedSize === "boolean" ? page.lockedSize : undefined;
+  const parentIdValue =
+    typeof page.parentId === "string" ? page.parentId.trim() : "";
+  const parentId = parentIdValue
+    ? readString(parentIdValue, MAX_PAGE_ID_LENGTH)
+    : undefined;
+  const id = readString(page.id, MAX_PAGE_ID_LENGTH, true);
+  if (parentId === id) invalidDocument();
+  const data = normalizeData(page.data);
 
   return {
-    id: readString(page.id, MAX_PAGE_ID_LENGTH, true),
+    id,
     name: readString(page.name, MAX_PAGE_NAME_LENGTH) || "Page",
     x: readCoordinate(page.x),
     y: readCoordinate(page.y),
     styles: normalizeStyles(page.styles),
     ...(frame ? { frame } : {}),
     ...(lockedSize !== undefined ? { lockedSize } : {}),
+    ...(parentId ? { parentId } : {}),
+    ...(data.length ? { data } : {}),
   };
 }
 

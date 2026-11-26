@@ -247,6 +247,16 @@ export function TerminalIcon(props: IconProps) {
   );
 }
 
+export function DatabaseIcon(props: IconProps) {
+  return (
+    <svg {...iconProps(props)}>
+      <ellipse cx="12" cy="5.5" rx="7" ry="2.8" />
+      <path d="M5 5.5v6c0 1.55 3.13 2.8 7 2.8s7-1.25 7-2.8v-6" />
+      <path d="M5 11.5v6c0 1.55 3.13 2.8 7 2.8s7-1.25 7-2.8v-6" />
+    </svg>
+  );
+}
+
 export function SearchIcon(props: IconProps) {
   return (
     <svg {...iconProps(props)}>

@@ -14,13 +14,20 @@ import { useTranslation } from "react-i18next";
 
 import {
   ChevronDownIcon,
+  DatabaseIcon,
   LayersIcon,
   PageIcon,
   SlidersIcon,
 } from "../../components/icons";
 import {
+  CANVAS_DATA_TYPES,
+  createDefaultDataValue,
+  getInheritedPageData,
+  getPageData,
   isPageSeeThrough,
   withPageSeeThrough,
+  type CanvasDataEntry,
+  type CanvasDataType,
   type CanvasPage,
 } from "./canvasDocument";
 import styles from "./CanvasRightSidebar.module.css";
@@ -33,18 +40,28 @@ const PANEL_ANIMATION_MS = 200;
 const PANEL_ID = "canvas-inspector-panel";
 const LAYER_DRAG_MIME = "application/x-morfa-layer";
 
-type RightPanel = "layers" | "properties";
+type RightPanel = "layers" | "properties" | "data";
 type PropertyTab = "style" | "behavior";
 type DropPosition = "before" | "after";
 
 const PANEL_ITEMS = [
   { id: "layers", Icon: LayersIcon },
   { id: "properties", Icon: SlidersIcon },
+  { id: "data", Icon: DatabaseIcon },
 ] as const;
 
 const PANEL_LABEL_KEYS: Record<RightPanel, string> = {
   layers: "projects.workspace.rightPanels.layers",
   properties: "projects.workspace.rightPanels.properties",
+  data: "projects.workspace.rightPanels.data",
+};
+
+const DATA_TYPE_LABEL_KEYS: Record<CanvasDataType, string> = {
+  text: "projects.workspace.dataPanel.types.text",
+  number: "projects.workspace.dataPanel.types.number",
+  color: "projects.workspace.dataPanel.types.color",
+  date: "projects.workspace.dataPanel.types.date",
+  boolean: "projects.workspace.dataPanel.types.boolean",
 };
 
 interface ResizeSession {
@@ -63,6 +80,7 @@ interface CanvasRightSidebarProps {
     pageId: string,
     styles: Record<string, string>,
   ) => void;
+  onUpdateData: (pageId: string, data: CanvasDataEntry[]) => void;
   onReorder: (
     dragId: string,
     targetId: string,
@@ -1118,6 +1136,411 @@ function PropertiesPanel({
   );
 }
 
+function DataValuePreview({ entry }: { entry: CanvasDataEntry }) {
+  const { t } = useTranslation();
+
+  if (entry.type === "color") {
+    return (
+      <span className={styles.dataValuePreview}>
+        <span
+          className={styles.dataColorSwatch}
+          style={{ background: toHexColor(entry.value) }}
+          aria-hidden="true"
+        />
+        <span className={styles.dataValueText}>{entry.value || "—"}</span>
+      </span>
+    );
+  }
+
+  const text =
+    entry.type === "boolean"
+      ? entry.value === "true"
+        ? t("projects.workspace.dataPanel.boolean.true")
+        : t("projects.workspace.dataPanel.boolean.false")
+      : entry.value;
+
+  return (
+    <span className={styles.dataValuePreview}>
+      <span className={styles.dataValueText}>{text || "—"}</span>
+    </span>
+  );
+}
+
+function DataValueInput({
+  type,
+  value,
+  onChange,
+}: {
+  type: CanvasDataType | "";
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const { t } = useTranslation();
+  const label = t("projects.workspace.dataPanel.fields.value");
+
+  if (!type) {
+    return (
+      <input
+        className={styles.controlInput}
+        value=""
+        placeholder={t("projects.workspace.dataPanel.placeholders.typeFirst")}
+        aria-label={label}
+        disabled
+      />
+    );
+  }
+
+  if (type === "color") {
+    return (
+      <span className={styles.colorRow}>
+        <input
+          className={styles.colorInput}
+          type="color"
+          value={toHexColor(value)}
+          aria-label={label}
+          onChange={(event) => onChange(event.target.value)}
+        />
+        <input
+          className={styles.controlInput}
+          value={value}
+          maxLength={32}
+          aria-label={label}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      </span>
+    );
+  }
+
+  if (type === "boolean") {
+    return (
+      <select
+        className={styles.selectInput}
+        value={value === "true" ? "true" : "false"}
+        aria-label={label}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        <option value="true">
+          {t("projects.workspace.dataPanel.boolean.true")}
+        </option>
+        <option value="false">
+          {t("projects.workspace.dataPanel.boolean.false")}
+        </option>
+      </select>
+    );
+  }
+
+  return (
+    <input
+      className={styles.controlInput}
+      type={
+        type === "number" ? "number" : type === "date" ? "date" : "text"
+      }
+      value={value}
+      maxLength={type === "number" ? undefined : 2000}
+      placeholder={
+        type === "text" || type === "number"
+          ? t("projects.workspace.dataPanel.placeholders.value")
+          : undefined
+      }
+      aria-label={label}
+      onChange={(event) => onChange(event.target.value)}
+    />
+  );
+}
+
+function DataPanel({
+  pages,
+  page,
+  onUpdateData,
+}: {
+  pages: CanvasPage[];
+  page: CanvasPage | null;
+  onUpdateData: (pageId: string, data: CanvasDataEntry[]) => void;
+}) {
+  const { t } = useTranslation();
+  const [draftKey, setDraftKey] = useState("");
+  const [draftType, setDraftType] = useState<CanvasDataType | "">("");
+  const [draftValue, setDraftValue] = useState("");
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [error, setError] = useState("");
+
+  const pageId = page?.id ?? null;
+
+  useEffect(() => {
+    setDraftKey("");
+    setDraftType("");
+    setDraftValue("");
+    setEditingKey(null);
+    setError("");
+  }, [pageId]);
+
+  const pageData = page ? getPageData(page) : [];
+  const inheritedData = page ? getInheritedPageData(pages, page) : [];
+
+  const resetDraft = () => {
+    setDraftKey("");
+    setDraftType("");
+    setDraftValue("");
+    setEditingKey(null);
+    setError("");
+  };
+
+  if (!page) {
+    return (
+      <div className={styles.dataPanel}>
+        <p className={styles.dataEmpty}>
+          {t("projects.workspace.dataPanel.noSelection")}
+        </p>
+      </div>
+    );
+  }
+
+  const handleTypeChange = (nextType: string) => {
+    const type = nextType as CanvasDataType | "";
+    setDraftType(type);
+    setDraftValue(type ? createDefaultDataValue(type) : "");
+    setError("");
+  };
+
+  const commitDraft = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const key = draftKey.trim();
+
+    if (!key) {
+      setError("projects.workspace.dataPanel.errors.keyRequired");
+      return;
+    }
+
+    if (!draftType) {
+      setError("projects.workspace.dataPanel.errors.typeRequired");
+      return;
+    }
+
+    if (
+      pageData.some(
+        (entry) => entry.key === key && entry.key !== editingKey,
+      )
+    ) {
+      setError("projects.workspace.dataPanel.errors.keyDuplicate");
+      return;
+    }
+
+    const entry: CanvasDataEntry = {
+      key,
+      type: draftType,
+      value: draftValue,
+    };
+    const editingIndex =
+      editingKey === null
+        ? -1
+        : pageData.findIndex((item) => item.key === editingKey);
+    const nextData =
+      editingIndex >= 0
+        ? pageData.map((item, index) =>
+            index === editingIndex ? entry : item,
+          )
+        : [...pageData, entry];
+
+    onUpdateData(page.id, nextData);
+    resetDraft();
+  };
+
+  const startEdit = (entry: CanvasDataEntry) => {
+    setEditingKey(entry.key);
+    setDraftKey(entry.key);
+    setDraftType(entry.type);
+    setDraftValue(entry.value);
+    setError("");
+  };
+
+  const removeEntry = (key: string) => {
+    onUpdateData(
+      page.id,
+      pageData.filter((entry) => entry.key !== key),
+    );
+    if (editingKey === key) resetDraft();
+  };
+
+  return (
+    <div className={styles.dataPanel}>
+      <div className={styles.dataPageName}>{page.name}</div>
+
+      <section className={styles.dataSection}>
+        <div className={styles.dataSectionHeader}>
+          <span>{t("projects.workspace.dataPanel.current")}</span>
+          <span className={styles.dataCount}>{pageData.length}</span>
+        </div>
+
+        <form className={styles.dataForm} onSubmit={commitDraft}>
+          <div className={styles.dataFormTitle}>
+            <span>
+              {editingKey !== null
+                ? t("projects.workspace.dataPanel.editing", {
+                    key: editingKey,
+                  })
+                : t("projects.workspace.dataPanel.add")}
+            </span>
+            {editingKey !== null ? (
+              <button
+                className={styles.dataCancelButton}
+                type="button"
+                onClick={resetDraft}
+              >
+                {t("projects.workspace.dataPanel.actions.cancel")}
+              </button>
+            ) : null}
+          </div>
+
+          <div className={styles.dataFormRow}>
+            <input
+              className={`${styles.controlInput} ${styles.dataKeyInput}`}
+              value={draftKey}
+              maxLength={64}
+              placeholder={t(
+                "projects.workspace.dataPanel.placeholders.key",
+              )}
+              aria-label={t("projects.workspace.dataPanel.fields.key")}
+              aria-required="true"
+              onChange={(event) => {
+                setDraftKey(event.target.value);
+                setError("");
+              }}
+            />
+            <select
+              className={`${styles.selectInput} ${styles.dataTypeSelect}`}
+              value={draftType}
+              aria-label={t("projects.workspace.dataPanel.fields.type")}
+              aria-required="true"
+              onChange={(event) => handleTypeChange(event.target.value)}
+            >
+              <option value="">
+                {t("projects.workspace.dataPanel.placeholders.type")}
+              </option>
+              {CANVAS_DATA_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {t(DATA_TYPE_LABEL_KEYS[type])}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className={styles.dataFormValueRow}>
+            <DataValueInput
+              type={draftType}
+              value={draftValue}
+              onChange={(value) => {
+                setDraftValue(value);
+                setError("");
+              }}
+            />
+            <button className={styles.dataCommitButton} type="submit">
+              {editingKey !== null
+                ? t("projects.workspace.dataPanel.actions.update")
+                : t("projects.workspace.dataPanel.actions.commit")}
+            </button>
+          </div>
+
+          {error ? (
+            <p className={styles.dataError}>{t(error)}</p>
+          ) : null}
+        </form>
+
+        {pageData.length ? (
+          <div className={styles.dataList}>
+            {pageData.map((entry) => (
+              <div
+                className={styles.dataRow}
+                key={entry.key}
+                data-editing={editingKey === entry.key}
+              >
+                <div className={styles.dataRowMain}>
+                  <code className={styles.dataKey}>{entry.key}</code>
+                  <span className={styles.dataTypeBadge}>
+                    {t(DATA_TYPE_LABEL_KEYS[entry.type])}
+                  </span>
+                </div>
+                <div className={styles.dataRowBottom}>
+                  <DataValuePreview entry={entry} />
+                  <span className={styles.dataActions}>
+                    <button
+                      className={styles.dataEditButton}
+                      type="button"
+                      onClick={() => startEdit(entry)}
+                    >
+                      {t("projects.workspace.dataPanel.actions.edit")}
+                    </button>
+                    <button
+                      className={styles.dataRemoveButton}
+                      type="button"
+                      aria-label={t(
+                        "projects.workspace.dataPanel.actions.delete",
+                      )}
+                      onClick={() => removeEntry(entry.key)}
+                    >
+                      ×
+                    </button>
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className={styles.dataEmpty}>
+            {t("projects.workspace.dataPanel.empty")}
+          </p>
+        )}
+      </section>
+
+      <section className={styles.dataSection}>
+        <div className={styles.dataSectionHeader}>
+          <span>{t("projects.workspace.dataPanel.inherited")}</span>
+          <span className={styles.dataCount}>{inheritedData.length}</span>
+        </div>
+
+        {inheritedData.length ? (
+          <div className={styles.dataList}>
+            {inheritedData.map((entry) => (
+              <div
+                className={styles.dataRow}
+                key={`${entry.sourceId}:${entry.key}`}
+                data-shadowed={entry.shadowed}
+              >
+                <div className={styles.dataRowMain}>
+                  <code className={styles.dataKey}>{entry.key}</code>
+                  <span className={styles.dataTypeBadge}>
+                    {t(DATA_TYPE_LABEL_KEYS[entry.type])}
+                  </span>
+                  {entry.shadowed ? (
+                    <span className={styles.dataShadowed}>
+                      {t("projects.workspace.dataPanel.shadowed")}
+                    </span>
+                  ) : null}
+                </div>
+                <div className={styles.dataRowBottom}>
+                  <DataValuePreview entry={entry} />
+                  <span className={styles.dataSource}>
+                    {t("projects.workspace.dataPanel.source", {
+                      name: entry.sourceName,
+                    })}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className={styles.dataEmpty}>
+            {t("projects.workspace.dataPanel.inheritedEmpty")}
+          </p>
+        )}
+
+        <p className={styles.dataHint}>
+          {t("projects.workspace.dataPanel.inheritHint")}
+        </p>
+      </section>
+    </div>
+  );
+}
+
 export function CanvasRightSidebar({
   pages,
   selectedId,
@@ -1125,6 +1548,7 @@ export function CanvasRightSidebar({
   onRename,
   onDelete,
   onUpdateStyles,
+  onUpdateData,
   onReorder,
 }: CanvasRightSidebarProps) {
   const { t } = useTranslation();
@@ -1288,9 +1712,9 @@ export function CanvasRightSidebar({
             data-panel={activePanel}
             aria-label={t(PANEL_LABEL_KEYS[activePanel])}
           >
-            {activePanel === "layers" ? (
+            {activePanel !== "properties" ? (
               <div className={styles.panelHeader}>
-                {t("projects.workspace.rightPanels.layers")}
+                {t(PANEL_LABEL_KEYS[activePanel])}
               </div>
             ) : null}
 
@@ -1302,6 +1726,12 @@ export function CanvasRightSidebar({
                 onRename={onRename}
                 onDelete={onDelete}
                 onReorder={onReorder}
+              />
+            ) : activePanel === "data" ? (
+              <DataPanel
+                pages={pages}
+                page={selectedPage}
+                onUpdateData={onUpdateData}
               />
             ) : (
               <PropertiesPanel

@@ -670,6 +670,303 @@
   background: var(--mf-accent);
 }
 
+.dataPanel {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: 14px;
+  padding: 0 8px 18px;
+  overflow-y: auto;
+}
+
+.dataPageName {
+  padding: 0 4px;
+  overflow: hidden;
+  color: var(--mf-text-primary);
+  font-size: 11px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dataSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 4px;
+}
+
+.dataSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--mf-text-tertiary);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dataCount {
+  display: inline-flex;
+  min-width: 18px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--mf-bg-active);
+  color: var(--mf-text-tertiary);
+  font-size: 8px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.dataForm {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--mf-border);
+  border-radius: 8px;
+  background: var(--mf-bg-app);
+}
+
+.dataFormTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--mf-text-tertiary);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.dataFormTitle > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dataCancelButton {
+  flex: none;
+  color: var(--mf-accent);
+  font-size: 9px;
+}
+
+.dataCancelButton:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.dataFormRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dataKeyInput {
+  min-width: 0;
+  flex: 1;
+}
+
+.dataTypeSelect {
+  width: 76px;
+  flex: none;
+}
+
+.dataFormValueRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dataFormValueRow > :first-child {
+  min-width: 0;
+  flex: 1;
+}
+
+.dataCommitButton {
+  height: 28px;
+  flex: none;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: var(--mf-accent);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 600;
+  transition:
+    filter var(--mf-transition),
+    opacity var(--mf-transition);
+}
+
+.dataCommitButton:hover {
+  filter: brightness(1.08);
+}
+
+.dataError {
+  margin: 0;
+  color: var(--mf-danger);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.dataList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dataRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 7px 8px;
+  border: 1px solid var(--mf-border);
+  border-radius: 7px;
+  background: var(--mf-bg-surface);
+  transition:
+    border-color var(--mf-transition),
+    opacity var(--mf-transition);
+}
+
+.dataRow[data-editing="true"] {
+  border-color: var(--mf-accent);
+  box-shadow: 0 0 0 2px var(--mf-accent-soft);
+}
+
+.dataRow[data-shadowed="true"] {
+  opacity: 0.55;
+}
+
+.dataRowMain {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.dataKey {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--mf-text-primary);
+  font-family: var(--mf-font-mono);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dataTypeBadge {
+  flex: none;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: var(--mf-bg-active);
+  color: var(--mf-text-tertiary);
+  font-size: 8px;
+  line-height: 1;
+}
+
+.dataShadowed {
+  flex: none;
+  color: var(--mf-danger);
+  font-size: 8px;
+}
+
+.dataRowBottom {
+  display: flex;
+  min-width: 0;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dataValuePreview {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  color: var(--mf-text-secondary);
+  font-size: 10px;
+}
+
+.dataValueText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dataColorSwatch {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border: 1px solid var(--mf-border);
+  border-radius: 3px;
+}
+
+.dataActions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+
+.dataEditButton {
+  padding: 2px 4px;
+  border-radius: 4px;
+  color: var(--mf-text-tertiary);
+  font-size: 9px;
+}
+
+.dataEditButton:hover {
+  background: var(--mf-bg-hover);
+  color: var(--mf-accent);
+}
+
+.dataRemoveButton {
+  display: flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: var(--mf-text-tertiary);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.dataRemoveButton:hover {
+  background: var(--mf-danger-soft);
+  color: var(--mf-danger);
+}
+
+.dataSource {
+  min-width: 0;
+  max-width: 48%;
+  overflow: hidden;
+  color: var(--mf-text-tertiary);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dataEmpty {
+  margin: 0;
+  padding: 6px 0;
+  color: var(--mf-text-tertiary);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.dataHint {
+  margin: 0;
+  color: var(--mf-text-tertiary);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
 @media (max-width: 640px) {
   .railItem {
     width: 40px;

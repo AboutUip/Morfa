@@ -15,7 +15,10 @@ import {
   CANVAS_TOOL_SHORTCUTS,
   type CanvasTool,
 } from "./canvasTools";
-import type { CanvasPage } from "./canvasDocument";
+import type {
+  CanvasDataEntry,
+  CanvasPage,
+} from "./canvasDocument";
 import { useCanvasSnapSettings } from "./canvasSnap";
 import { ProjectWorkspaceTopBar } from "./ProjectWorkspaceTopBar";
 import { useCanvasHistory } from "./useCanvasHistory";
@@ -96,6 +99,17 @@ export function ProjectWorkspace({
     transient((current) =>
       current.map((page) =>
         page.id === pageId ? { ...page, x, y } : page,
+      ),
+    );
+  };
+
+  const handleUpdatePageData = (
+    pageId: string,
+    data: CanvasDataEntry[],
+  ) => {
+    commit((current) =>
+      current.map((page) =>
+        page.id === pageId ? { ...page, data } : page,
       ),
     );
   };
@@ -290,6 +304,7 @@ export function ProjectWorkspace({
           onRename={handleRenamePage}
           onDelete={handleDeletePage}
           onUpdateStyles={handleUpdatePageStyles}
+          onUpdateData={handleUpdatePageData}
           onReorder={handleReorderPage}
         />
       </div>

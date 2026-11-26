@@ -58,7 +58,8 @@
       },
       "rightPanels": {
         "layers": "Layers",
-        "properties": "Properties"
+        "properties": "Properties",
+        "data": "Data"
       },
       "canvas": {
         "copySuffix": "copy",
@@ -85,6 +86,52 @@
       "layersPanel": {
         "rename": "Rename",
         "delete": "Delete"
+      },
+      "dataPanel": {
+        "noSelection": "Select a node to inspect its data.",
+        "current": "Current node",
+        "inherited": "Inherited data",
+        "add": "Add data",
+        "editing": "Editing {{key}}",
+        "empty": "This node has no data yet.",
+        "inheritedEmpty": "This node has no inherited data.",
+        "inheritHint": "Parent data with the same key is overridden by the current node.",
+        "shadowed": "Overridden",
+        "source": "From {{name}}",
+        "fields": {
+          "key": "Key",
+          "type": "Type",
+          "value": "Value"
+        },
+        "placeholders": {
+          "key": "e.g. primary-color",
+          "type": "Select type",
+          "typeFirst": "Select a type first",
+          "value": "Enter value"
+        },
+        "types": {
+          "text": "Text",
+          "number": "Number",
+          "color": "Color",
+          "date": "Date",
+          "boolean": "Boolean"
+        },
+        "boolean": {
+          "true": "True",
+          "false": "False"
+        },
+        "actions": {
+          "commit": "Commit",
+          "update": "Update",
+          "edit": "Edit",
+          "delete": "Delete",
+          "cancel": "Cancel"
+        },
+        "errors": {
+          "keyRequired": "Key is required",
+          "typeRequired": "Select a data type",
+          "keyDuplicate": "Key already exists"
+        }
       },
       "propertiesPanel": {
         "tabs": {

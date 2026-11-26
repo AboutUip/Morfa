@@ -61,6 +61,19 @@ export interface CreateProjectInput {
   requestId?: string | null;
 }
 
+export type CanvasDataType =
+  | "text"
+  | "number"
+  | "color"
+  | "date"
+  | "boolean";
+
+export interface CanvasDataEntryDto {
+  key: string;
+  type: CanvasDataType;
+  value: string;
+}
+
 export interface CanvasPageDto {
   id: string;
   name: string;
@@ -69,6 +82,8 @@ export interface CanvasPageDto {
   styles: Record<string, string>;
   frame?: "iphone" | "android" | "watch";
   lockedSize?: boolean;
+  parentId?: string;
+  data?: CanvasDataEntryDto[];
 }
 
 export interface ProjectCanvasResponse {
