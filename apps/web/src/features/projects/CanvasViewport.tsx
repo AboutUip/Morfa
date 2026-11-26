@@ -11,8 +11,10 @@ import { useTranslation } from "react-i18next";
 
 import type { CanvasTool } from "./canvasTools";
 import {
+  createPageId,
   createPageStyles,
   getPageSize,
+  uniquePageName,
   type CanvasPage,
 } from "./canvasDocument";
 import {
@@ -84,27 +86,6 @@ interface CanvasViewportProps {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
-}
-
-function createPageId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-
-  return `page-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-function uniquePageName(baseName: string, pages: CanvasPage[]) {
-  if (!pages.some((page) => page.name === baseName)) {
-    return baseName;
-  }
-
-  let index = 2;
-  while (pages.some((page) => page.name === `${baseName} ${index}`)) {
-    index += 1;
-  }
-
-  return `${baseName} ${index}`;
 }
 
 function toReactStyle(styles: Record<string, string>): CSSProperties {

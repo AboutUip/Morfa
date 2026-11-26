@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { ProjectSummary } from "../../lib/api";
+import {
+  copyPageToClipboard,
+  hasPageClipboard,
+  pastePageFromClipboard,
+} from "./canvasClipboard";
 import { CanvasLeftSidebar } from "./CanvasLeftSidebar";
 import { CanvasRightSidebar } from "./CanvasRightSidebar";
 import { CanvasViewport } from "./CanvasViewport";
@@ -33,6 +39,7 @@ export function ProjectWorkspace({
   project,
   onExit,
 }: ProjectWorkspaceProps) {
+  const { t } = useTranslation();
   const [activeTool, setActiveTool] = useState<CanvasTool>("select");
   const { pages, setPages } = useProjectCanvas(project.id);
   const [selectedPageId, setSelectedPageId] = useState<string | null>(
@@ -55,6 +62,52 @@ export function ProjectWorkspace({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+      if (event.repeat) return;
+      if (isEditableTarget(event.target)) return;
+
+      const key = event.key.toLowerCase();
+      const selectedPage = selectedPageId
+        ? pages.find((page) => page.id === selectedPageId)
+        : null;
+
+      if (key === "c") {
+        if (!selectedPage) return;
+        event.preventDefault();
+        copyPageToClipboard(selectedPage);
+        return;
+      }
+
+      if (key === "x") {
+        if (!selectedPage) return;
+        event.preventDefault();
+        copyPageToClipboard(selectedPage, "cut");
+        setPages((current) =>
+          current.filter((page) => page.id !== selectedPage.id),
+        );
+        setSelectedPageId(null);
+        return;
+      }
+
+      if (key === "v") {
+        if (!hasPageClipboard()) return;
+        event.preventDefault();
+        const pasted = pastePageFromClipboard(
+          pages,
+          t("projects.workspace.canvas.copySuffix"),
+        );
+        if (!pasted) return;
+        setPages((current) => [...current, pasted]);
+        setSelectedPageId(pasted.id);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [pages, selectedPageId, setPages, t]);
 
   const handleCreatePage = (page: CanvasPage) => {
     setPages((current) => [...current, page]);

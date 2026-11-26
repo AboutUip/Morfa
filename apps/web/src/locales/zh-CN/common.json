@@ -60,6 +60,9 @@
         "layers": "图层",
         "properties": "属性"
       },
+      "canvas": {
+        "copySuffix": "副本"
+      },
       "layersPanel": {
         "rename": "重命名",
         "delete": "删除"

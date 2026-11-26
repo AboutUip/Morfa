@@ -60,6 +60,9 @@
         "layers": "Layers",
         "properties": "Properties"
       },
+      "canvas": {
+        "copySuffix": "copy"
+      },
       "layersPanel": {
         "rename": "Rename",
         "delete": "Delete"
