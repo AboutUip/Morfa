@@ -1296,16 +1296,20 @@ function PropertiesPanel({
               />
 
               {widget ? (
-                <WidgetAttributes
-                  widget={widget}
-                  onUpdate={(next) => onUpdateWidget(page.id, next)}
-                />
+                <div className={styles.controlSections}>
+                  <WidgetAttributes
+                    widget={widget}
+                    onUpdate={(next) => onUpdateWidget(page.id, next)}
+                  />
+                </div>
               ) : (
-                <p className={styles.styleHint}>
-                  {t(
-                    "projects.workspace.propertiesPanel.pageAttributesHint",
-                  )}
-                </p>
+                <div className={styles.controlSections}>
+                  <p className={styles.styleHint}>
+                    {t(
+                      "projects.workspace.propertiesPanel.pageAttributesHint",
+                    )}
+                  </p>
+                </div>
               )}
             </>
           ) : null}
@@ -1659,9 +1663,11 @@ function PropertiesPanel({
       ) : (
         <div className={styles.propertyBody}>
           {page ? (
-            <p className={styles.styleHint}>
-              {t("projects.workspace.propertiesPanel.behaviorEmpty")}
-            </p>
+            <div className={styles.controlSections}>
+              <p className={styles.styleHint}>
+                {t("projects.workspace.propertiesPanel.behaviorEmpty")}
+              </p>
+            </div>
           ) : null}
         </div>
       )}
