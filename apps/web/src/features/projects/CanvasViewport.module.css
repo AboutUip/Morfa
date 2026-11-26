@@ -136,7 +136,9 @@
     > .deviceScreen > .pageSurface[data-see-through="true"]
   ) {
   background: transparent;
-  box-shadow: inset 0 0 0 var(--device-bezel) rgba(14, 18, 24, 0.92);
+  box-shadow:
+    inset 0 0 0 var(--device-bezel) rgba(48, 54, 65, 0.9),
+    0 12px 32px rgba(0, 0, 0, 0.28);
 }
 
 .deviceScreen {
