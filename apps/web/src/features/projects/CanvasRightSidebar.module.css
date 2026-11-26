@@ -345,6 +345,33 @@
   color: var(--mf-text-primary);
 }
 
+.nodeIdBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 12px 10px;
+}
+
+.nodeIdInput {
+  font-family: var(--mf-font-mono);
+  font-size: 10px;
+}
+
+.nodeIdError {
+  margin: 0;
+  padding-left: 84px;
+  color: var(--mf-danger);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.nodeIdHint {
+  margin: 0;
+  color: var(--mf-text-tertiary);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
 .propertyQuickRow {
   display: flex;
   align-items: center;

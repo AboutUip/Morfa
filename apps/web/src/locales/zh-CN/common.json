@@ -143,6 +143,13 @@
         "inherit": "继承",
         "seeThrough": "透视",
         "sizeLocked": "尺寸已锁定",
+        "nodeIdHint": "样式值支持变量：${self.key} 或 ${n1.key}（n1 为节点 ID，项目内唯一）。",
+        "nodeIdErrors": {
+          "required": "节点 ID 不能为空",
+          "format": "节点 ID 只能包含字母、数字、下划线和短横线，最多 64 个字符",
+          "reserved": "self 是保留 ID，请换一个",
+          "duplicate": "节点 ID 已存在"
+        },
         "sections": {
           "layout": "布局",
           "spacing": "间距",
@@ -152,6 +159,7 @@
           "effects": "效果"
         },
         "fields": {
+          "nodeId": "节点 ID",
           "width": "宽度",
           "height": "高度",
           "display": "显示",

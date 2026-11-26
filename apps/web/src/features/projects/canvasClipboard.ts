@@ -1,5 +1,6 @@
 import {
   createPageId,
+  renameStyleReferences,
   uniquePageName,
   type CanvasPage,
 } from "./canvasDocument";
@@ -49,11 +50,14 @@ export function pastePageFromClipboard(
     clipboard.mode === "copy" && copySuffix
       ? `${source.name} ${copySuffix}`
       : source.name;
+  const sourceClone = clonePage(source);
+  const id = createPageId(pages);
 
   return {
-    ...clonePage(source),
-    id: createPageId(),
+    ...sourceClone,
+    id,
     name: uniquePageName(baseName, pages),
+    styles: renameStyleReferences(sourceClone.styles, source.id, id),
     x: position ? position.x : source.x + offset,
     y: position ? position.y : source.y + offset,
   };
@@ -65,11 +69,14 @@ export function duplicatePageFrom(
   copySuffix: string,
 ): CanvasPage {
   const baseName = copySuffix ? `${page.name} ${copySuffix}` : page.name;
+  const pageClone = clonePage(page);
+  const id = createPageId(pages);
 
   return {
-    ...clonePage(page),
-    id: createPageId(),
+    ...pageClone,
+    id,
     name: uniquePageName(baseName, pages),
+    styles: renameStyleReferences(pageClone.styles, page.id, id),
     x: page.x + PASTE_OFFSET,
     y: page.y + PASTE_OFFSET,
   };

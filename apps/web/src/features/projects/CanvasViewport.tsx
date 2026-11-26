@@ -18,6 +18,7 @@ import {
   createPageStyles,
   getPageSize,
   isPageSeeThrough,
+  resolveStyleVariables,
   uniquePageName,
   type CanvasPage,
 } from "./canvasDocument";
@@ -154,7 +155,7 @@ function findPageAt(
 ) {
   for (let index = pages.length - 1; index >= 0; index -= 1) {
     const page = pages[index];
-    const { width, height } = getPageSize(page);
+    const { width, height } = getPageSize(page, pages);
 
     if (
       worldX >= page.x &&
@@ -245,7 +246,7 @@ function resolvePageSnap(input: {
   if (settings.componentBounds) {
     for (const page of pages) {
       if (page.id === movingId) continue;
-      const size = getPageSize(page);
+      const size = getPageSize(page, pages);
       addLine(xLines, page.x);
       addLine(xLines, page.x + size.width / 2);
       addLine(xLines, page.x + size.width);
@@ -690,7 +691,7 @@ export function CanvasViewport({
         return;
       }
 
-      const size = getPageSize(movingPage);
+      const size = getPageSize(movingPage, pages);
       const resolution = resolvePageSnap({
         x: rawX,
         y: rawY,
@@ -929,7 +930,7 @@ export function CanvasViewport({
     const worldY =
       (event.clientY - rect.top - currentView.y) / currentView.zoom;
     const page: CanvasPage = {
-      id: createPageId(),
+      id: createPageId(pages),
       name: uniquePageName(t(item.nameKey), pages),
       x: worldX,
       y: worldY,
@@ -1002,11 +1003,16 @@ export function CanvasViewport({
       <div className={styles.grid} style={gridStyle} aria-hidden="true" />
       <div className={styles.world} style={worldStyle}>
         {pages.map((page) => {
+          const resolvedStyles = resolveStyleVariables(
+            page.styles,
+            page,
+            pages,
+          );
           const {
             width = "800px",
             height = "800px",
             ...surfaceStyles
-          } = page.styles;
+          } = resolvedStyles;
           const seeThrough = isPageSeeThrough(page);
           const surface = (
             <div

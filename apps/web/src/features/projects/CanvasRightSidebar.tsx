@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useId,
   useRef,
   useState,
   type DragEvent as ReactDragEvent,
@@ -75,6 +76,7 @@ interface CanvasRightSidebarProps {
   selectedId: string | null;
   onSelect: (pageId: string | null) => void;
   onRename: (pageId: string, name: string) => void;
+  onRenameId: (pageId: string, nextId: string) => void;
   onDelete: (pageId: string) => void;
   onUpdateStyles: (
     pageId: string,
@@ -103,10 +105,38 @@ function clampWidth(width: number) {
   return Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, width));
 }
 
-function readNumeric(value: string | undefined) {
+function readNumericDraft(
+  value: string | undefined,
+  unit: string,
+) {
   if (!value) return "";
-  const parsed = Number.parseFloat(value);
-  return Number.isFinite(parsed) ? String(parsed) : "";
+  const trimmed = value.trim();
+
+  if (unit && trimmed.endsWith(unit)) {
+    const body = trimmed.slice(0, -unit.length).trim();
+    if (
+      body &&
+      (body.includes("${") || /^-?\d*\.?\d+$/.test(body))
+    ) {
+      return body;
+    }
+  }
+
+  if (trimmed.includes("${")) return trimmed;
+
+  const parsed = Number.parseFloat(trimmed);
+  return Number.isFinite(parsed) && /^-?\d*\.?\d+$/.test(trimmed)
+    ? String(parsed)
+    : trimmed;
+}
+
+function formatNumericValue(draft: string, unit: string) {
+  const trimmed = draft.trim();
+  if (!trimmed) return "";
+
+  const hasSuffix =
+    /[a-z%]$/i.test(trimmed) || trimmed.endsWith(")");
+  return hasSuffix ? trimmed : `${trimmed}${unit}`;
 }
 
 function toHexColor(value: string | undefined) {
@@ -198,9 +228,10 @@ function NumberControl({
   disabled?: boolean;
 }) {
   const { t } = useTranslation();
-  const draft = useDraftValue(readNumeric(value), (next) => {
-    onChange(next === "" ? "" : `${next}${unit}`);
-  });
+  const draft = useDraftValue(
+    readNumericDraft(value, unit),
+    (next) => onChange(formatNumericValue(next, unit)),
+  );
 
   return (
     <div className={styles.controlRow}>
@@ -208,7 +239,7 @@ function NumberControl({
       <span className={styles.inputWrap}>
         <input
           className={styles.controlInput}
-          type="number"
+          type="text"
           value={draft.value}
           min={min}
           max={max}
@@ -278,26 +309,28 @@ function SelectControl({
   onChange: (value: string) => void;
 }) {
   const { t } = useTranslation();
-  const hasCustomValue = Boolean(value) && !options.includes(value ?? "");
+  const listId = useId();
+  const draft = useDraftValue(value ?? "", onChange);
 
   return (
     <div className={styles.controlRow}>
       <span className={styles.controlLabel}>{label}</span>
-      <select
-        className={styles.selectInput}
-        value={value ?? ""}
-        onChange={(event) => onChange(event.target.value)}
-      >
-        <option value="">
-          {t("projects.workspace.propertiesPanel.inherit")}
-        </option>
+      <input
+        className={styles.controlInput}
+        list={listId}
+        value={draft.value}
+        placeholder={t("projects.workspace.propertiesPanel.inherit")}
+        aria-label={label}
+        onChange={(event) => draft.setValue(event.target.value)}
+        onFocus={draft.onFocus}
+        onBlur={draft.onBlur}
+        onKeyDown={draft.onKeyDown}
+      />
+      <datalist id={listId}>
         {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
+          <option key={option} value={option} />
         ))}
-        {hasCustomValue ? <option value={value}>{value}</option> : null}
-      </select>
+      </datalist>
     </div>
   );
 }
@@ -637,13 +670,128 @@ function LayersPanel({
   );
 }
 
+function NodeIdControl({
+  page,
+  pages,
+  onRenameId,
+}: {
+  page: CanvasPage;
+  pages: CanvasPage[];
+  onRenameId: (pageId: string, nextId: string) => void;
+}) {
+  const { t } = useTranslation();
+  const [draft, setDraft] = useState(page.id);
+  const [error, setError] = useState("");
+  const focusedRef = useRef(false);
+  const cancelRef = useRef(false);
+
+  useEffect(() => {
+    if (!focusedRef.current) setDraft(page.id);
+  }, [page.id]);
+
+  const validate = (value: string) => {
+    const id = value.trim();
+    if (!id) {
+      return "projects.workspace.propertiesPanel.nodeIdErrors.required";
+    }
+    if (id.toLowerCase() === "self") {
+      return "projects.workspace.propertiesPanel.nodeIdErrors.reserved";
+    }
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) {
+      return "projects.workspace.propertiesPanel.nodeIdErrors.format";
+    }
+    if (
+      pages.some((item) => item.id === id && item.id !== page.id)
+    ) {
+      return "projects.workspace.propertiesPanel.nodeIdErrors.duplicate";
+    }
+    return "";
+  };
+
+  const commit = () => {
+    const id = draft.trim();
+    const nextError = validate(id);
+
+    if (nextError) {
+      setError(nextError);
+      setDraft(page.id);
+      return;
+    }
+
+    setError("");
+    if (id !== page.id) onRenameId(page.id, id);
+  };
+
+  return (
+    <div className={styles.nodeIdBlock}>
+      <div className={styles.controlRow}>
+        <span className={styles.controlLabel}>
+          {t("projects.workspace.propertiesPanel.fields.nodeId")}
+        </span>
+        <input
+          className={`${styles.controlInput} ${styles.nodeIdInput}`}
+          value={draft}
+          maxLength={64}
+          spellCheck={false}
+          autoComplete="off"
+          aria-label={t(
+            "projects.workspace.propertiesPanel.fields.nodeId",
+          )}
+          onFocus={(event) => {
+            focusedRef.current = true;
+            cancelRef.current = false;
+            setError("");
+            event.currentTarget.select();
+          }}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={() => {
+            focusedRef.current = false;
+            if (cancelRef.current) {
+              cancelRef.current = false;
+              setDraft(page.id);
+              setError("");
+              return;
+            }
+            commit();
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              event.currentTarget.blur();
+              return;
+            }
+
+            if (event.key === "Escape") {
+              event.preventDefault();
+              cancelRef.current = true;
+              setDraft(page.id);
+              setError("");
+              event.currentTarget.blur();
+            }
+          }}
+        />
+      </div>
+
+      {error ? <p className={styles.nodeIdError}>{t(error)}</p> : null}
+
+      <p className={styles.nodeIdHint}>
+        {t("projects.workspace.propertiesPanel.nodeIdHint")}
+      </p>
+    </div>
+  );
+}
+
 function PropertiesPanel({
+  pages,
   page,
   onRename,
+  onRenameId,
   onUpdateStyles,
 }: {
+  pages: CanvasPage[];
   page: CanvasPage | null;
   onRename: (pageId: string, name: string) => void;
+  onRenameId: (pageId: string, nextId: string) => void;
   onUpdateStyles: (
     pageId: string,
     styles: Record<string, string>,
@@ -800,6 +948,12 @@ function PropertiesPanel({
                     : t("projects.workspace.propertiesPanel.tableMode")}
                 </button>
               </div>
+
+              <NodeIdControl
+                page={page}
+                pages={pages}
+                onRenameId={onRenameId}
+              />
 
               <div className={styles.propertyQuickRow}>
                 <span className={styles.propertyQuickLabel}>
@@ -1546,6 +1700,7 @@ export function CanvasRightSidebar({
   selectedId,
   onSelect,
   onRename,
+  onRenameId,
   onDelete,
   onUpdateStyles,
   onUpdateData,
@@ -1735,8 +1890,10 @@ export function CanvasRightSidebar({
               />
             ) : (
               <PropertiesPanel
+                pages={pages}
                 page={selectedPage}
                 onRename={onRename}
+                onRenameId={onRenameId}
                 onUpdateStyles={onUpdateStyles}
               />
             )}

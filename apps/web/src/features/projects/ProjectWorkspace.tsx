@@ -15,9 +15,10 @@ import {
   CANVAS_TOOL_SHORTCUTS,
   type CanvasTool,
 } from "./canvasTools";
-import type {
-  CanvasDataEntry,
-  CanvasPage,
+import {
+  renameStyleReferences,
+  type CanvasDataEntry,
+  type CanvasPage,
 } from "./canvasDocument";
 import { useCanvasSnapSettings } from "./canvasSnap";
 import { ProjectWorkspaceTopBar } from "./ProjectWorkspaceTopBar";
@@ -74,6 +75,39 @@ export function ProjectWorkspace({
         page.id === pageId ? { ...page, name } : page,
       );
     });
+  };
+
+  const handleRenamePageId = (pageId: string, nextId: string) => {
+    const id = nextId.trim();
+    if (!id || id === pageId) return;
+    if (
+      !/^[A-Za-z0-9_-]{1,64}$/.test(id) ||
+      id.toLowerCase() === "self"
+    ) {
+      return;
+    }
+    if (pages.some((page) => page.id === id)) return;
+
+    commit((current) => {
+      if (current.some((page) => page.id === id)) return current;
+
+      return current.map((page) => {
+        const renamedId = page.id === pageId ? id : page.id;
+        const parentId =
+          page.parentId === pageId ? id : page.parentId;
+
+        return {
+          ...page,
+          id: renamedId,
+          ...(parentId ? { parentId } : {}),
+          styles: renameStyleReferences(page.styles, pageId, id),
+        };
+      });
+    });
+
+    setSelectedPageId((current) =>
+      current === pageId ? id : current,
+    );
   };
 
   const handleDeletePage = (pageId: string) => {
@@ -302,6 +336,7 @@ export function ProjectWorkspace({
           selectedId={selectedPageId}
           onSelect={setSelectedPageId}
           onRename={handleRenamePage}
+          onRenameId={handleRenamePageId}
           onDelete={handleDeletePage}
           onUpdateStyles={handleUpdatePageStyles}
           onUpdateData={handleUpdatePageData}

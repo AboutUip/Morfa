@@ -143,6 +143,13 @@
         "inherit": "Inherit",
         "seeThrough": "See-through",
         "sizeLocked": "Size locked",
+        "nodeIdHint": "Style values support variables: ${self.key} or ${n1.key} (n1 is a unique node ID).",
+        "nodeIdErrors": {
+          "required": "Node ID is required",
+          "format": "Node ID may only contain letters, numbers, underscores and hyphens, up to 64 characters",
+          "reserved": "self is a reserved ID",
+          "duplicate": "Node ID already exists"
+        },
         "sections": {
           "layout": "Layout",
           "spacing": "Spacing",
@@ -152,6 +159,7 @@
           "effects": "Effects"
         },
         "fields": {
+          "nodeId": "Node ID",
           "width": "Width",
           "height": "Height",
           "display": "Display",

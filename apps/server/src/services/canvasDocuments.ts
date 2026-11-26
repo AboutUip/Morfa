@@ -99,6 +99,17 @@ function normalizeStyles(value: unknown): Record<string, string> {
   return normalized;
 }
 
+function readPageId(value: unknown) {
+  const id = readString(value, MAX_PAGE_ID_LENGTH, true);
+  if (
+    !/^[A-Za-z0-9_-]+$/.test(id) ||
+    id.toLowerCase() === "self"
+  ) {
+    invalidDocument();
+  }
+  return id;
+}
+
 function normalizeData(value: unknown): CanvasDataEntryDto[] {
   if (value === undefined) return [];
   if (!Array.isArray(value)) invalidDocument();
@@ -146,9 +157,9 @@ function normalizePage(value: unknown): CanvasPageDto {
   const parentIdValue =
     typeof page.parentId === "string" ? page.parentId.trim() : "";
   const parentId = parentIdValue
-    ? readString(parentIdValue, MAX_PAGE_ID_LENGTH)
+    ? readPageId(parentIdValue)
     : undefined;
-  const id = readString(page.id, MAX_PAGE_ID_LENGTH, true);
+  const id = readPageId(page.id);
   if (parentId === id) invalidDocument();
   const data = normalizeData(page.data);
 
@@ -174,7 +185,12 @@ function normalizePages(value: unknown): CanvasPageDto[] {
       "页面数量超出限制",
     );
   }
-  return value.map(normalizePage);
+
+  const pages = value.map(normalizePage);
+  if (new Set(pages.map((page) => page.id)).size !== pages.length) {
+    invalidDocument();
+  }
+  return pages;
 }
 
 function parseStoredDocument(data: string): CanvasPageDto[] {
