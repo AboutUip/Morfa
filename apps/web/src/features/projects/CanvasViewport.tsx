@@ -313,6 +313,16 @@ function findLinkSourcePageAt(
       continue;
     }
 
+    // 加号只允许从组件外侧边缘触发，鼠标在组件内部时跳过该组件。
+    if (
+      worldX > page.x &&
+      worldX < page.x + width &&
+      worldY > page.y &&
+      worldY < page.y + height
+    ) {
+      continue;
+    }
+
     const left = Math.abs(worldX - page.x);
     const right = Math.abs(worldX - (page.x + width));
     const top = Math.abs(worldY - page.y);
