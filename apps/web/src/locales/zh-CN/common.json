@@ -48,6 +48,7 @@
       "inspector": "画布属性栏",
       "tools": {
         "select": "选择工具",
+        "move": "移动工具",
         "hand": "抓手工具"
       },
       "sidebarPanels": {

@@ -15,6 +15,7 @@ import {
   FrameIcon,
   HandIcon,
   LayersIcon,
+  MoveIcon,
   SearchIcon,
   ToolsIcon,
 } from "../../components/icons";
@@ -501,6 +502,22 @@ export function CanvasLeftSidebar({
                 </span>
                 <span className={styles.shortcut}>
                   ({CANVAS_TOOL_SHORTCUTS.select})
+                </span>
+              </button>
+
+              <button
+                className={styles.toolItem}
+                type="button"
+                data-active={activeTool === "move"}
+                aria-pressed={activeTool === "move"}
+                onClick={() => onToolChange("move")}
+              >
+                <MoveIcon size={15} />
+                <span className={styles.toolLabel}>
+                  {t("projects.workspace.tools.move")}
+                </span>
+                <span className={styles.shortcut}>
+                  ({CANVAS_TOOL_SHORTCUTS.move})
                 </span>
               </button>
 

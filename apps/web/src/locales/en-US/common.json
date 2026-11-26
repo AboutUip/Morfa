@@ -48,6 +48,7 @@
       "inspector": "Canvas inspector",
       "tools": {
         "select": "Select tool",
+        "move": "Move tool",
         "hand": "Hand tool"
       },
       "sidebarPanels": {

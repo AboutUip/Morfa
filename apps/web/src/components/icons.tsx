@@ -102,6 +102,15 @@ export function HandIcon(props: IconProps) {
   );
 }
 
+export function MoveIcon(props: IconProps) {
+  return (
+    <svg {...iconProps(props)}>
+      <path d="M12 3v18M3 12h18" />
+      <path d="m9 6 3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3" />
+    </svg>
+  );
+}
+
 export function ToolsIcon(props: IconProps) {
   return (
     <svg {...iconProps(props)}>

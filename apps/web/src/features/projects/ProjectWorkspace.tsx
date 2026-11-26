@@ -754,6 +754,8 @@ export function ProjectWorkspace({
       const key = event.key.toUpperCase();
       if (key === CANVAS_TOOL_SHORTCUTS.select) {
         setActiveTool("select");
+      } else if (key === CANVAS_TOOL_SHORTCUTS.move) {
+        setActiveTool("move");
       } else if (key === CANVAS_TOOL_SHORTCUTS.hand) {
         setActiveTool("hand");
       }

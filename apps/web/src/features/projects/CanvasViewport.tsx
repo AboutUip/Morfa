@@ -771,6 +771,7 @@ export function CanvasViewport({
   const [resizingCorner, setResizingCorner] =
     useState<ResizeCorner | null>(null);
   const [hoveringPage, setHoveringPage] = useState(false);
+  const [moveTargetId, setMoveTargetId] = useState<string | null>(null);
   const [linkHover, setLinkHover] = useState<LinkHoverState | null>(
     null,
   );
@@ -791,6 +792,12 @@ export function CanvasViewport({
   useEffect(() => {
     viewRef.current = view;
   }, [view]);
+
+  useEffect(() => {
+    setMoveTargetId(null);
+    setHoveringPage(false);
+    setLinkHover(null);
+  }, [activeTool]);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -1104,20 +1111,28 @@ export function CanvasViewport({
       return;
     }
 
-    if (event.button !== 0 || activeTool !== "select") return;
+    if (event.button === 0 && activeTool === "move") {
+      event.preventDefault();
+      const rect = event.currentTarget.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      const currentView = viewRef.current;
+      const worldX = (x - currentView.x) / currentView.zoom;
+      const worldY = (y - currentView.y) / currentView.zoom;
+      const hit = findPageAt(pages, worldX, worldY, links);
 
-    event.preventDefault();
-    const rect = event.currentTarget.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-    const currentView = viewRef.current;
-    const worldX = (x - currentView.x) / currentView.zoom;
-    const worldY = (y - currentView.y) / currentView.zoom;
-    const hit = findPageAt(pages, worldX, worldY, links);
+      if (!hit) {
+        setMoveTargetId(null);
+        setHoveringPage(false);
+        onSelectPage(null);
+        return;
+      }
 
-    onSelectPage(hit?.id ?? null);
-    if (hit) {
       event.currentTarget.setPointerCapture(event.pointerId);
+      onSelectPage(hit.id);
+      setMoveTargetId(hit.id);
+      setHoveringPage(true);
+      setSnapGuides(null);
       moveRef.current = {
         pointerId: event.pointerId,
         pageId: hit.id,
@@ -1130,10 +1145,22 @@ export function CanvasViewport({
         started: false,
       };
       onMovePageStart();
-      setHoveringPage(true);
-      setSnapGuides(null);
       return;
     }
+
+    if (event.button !== 0 || activeTool !== "select") return;
+
+    event.preventDefault();
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const currentView = viewRef.current;
+    const worldX = (x - currentView.x) / currentView.zoom;
+    const worldY = (y - currentView.y) / currentView.zoom;
+    const hit = findPageAt(pages, worldX, worldY, links);
+
+    onSelectPage(hit?.id ?? null);
+    if (hit) return;
 
     event.currentTarget.setPointerCapture(event.pointerId);
     marqueeRef.current = {
@@ -1273,35 +1300,43 @@ export function CanvasViewport({
       return;
     }
 
-    if (activeTool === "select") {
+    if (activeTool === "select" || activeTool === "move") {
       const rect = event.currentTarget.getBoundingClientRect();
       const x = event.clientX - rect.left;
       const y = event.clientY - rect.top;
       const currentView = viewRef.current;
       const worldX = (x - currentView.x) / currentView.zoom;
       const worldY = (y - currentView.y) / currentView.zoom;
-      setHoveringPage(
-        Boolean(findPageAt(pages, worldX, worldY, links)),
-      );
-      const source = findLinkSourcePageAt(
-        pages,
-        links,
-        worldX,
-        worldY,
-        currentView,
-      );
-      setLinkHover(
-        source
-          ? {
-              pageId: source.id,
-              pageName: source.name,
-              x,
-              y,
-            }
-          : null,
-      );
+      const hit = findPageAt(pages, worldX, worldY, links);
+      setHoveringPage(Boolean(hit));
+
+      if (activeTool === "select") {
+        setMoveTargetId(null);
+        const source = findLinkSourcePageAt(
+          pages,
+          links,
+          worldX,
+          worldY,
+          currentView,
+        );
+        setLinkHover(
+          source
+            ? {
+                pageId: source.id,
+                pageName: source.name,
+                x,
+                y,
+              }
+            : null,
+        );
+      } else {
+        setMoveTargetId(hit?.id ?? null);
+        setLinkHover(null);
+      }
     } else {
       setLinkHover(null);
+      setMoveTargetId(null);
+      setHoveringPage(false);
     }
   };
 
@@ -1554,6 +1589,7 @@ export function CanvasViewport({
   const handlePointerLeave = () => {
     if (!panRef.current && !moveRef.current && !marqueeRef.current) {
       setHoveringPage(false);
+      setMoveTargetId(null);
     }
     if (!linkDragRef.current) {
       setLinkHover(null);
@@ -1898,6 +1934,9 @@ export function CanvasViewport({
               className={styles.page}
               data-page-container="true"
               data-selected={selectedIds.includes(page.id)}
+              data-move-target={
+                activeTool === "move" && moveTargetId === page.id
+              }
               style={{
                 left: page.x,
                 top: page.y,
@@ -1995,7 +2034,7 @@ export function CanvasViewport({
         })}
       </div>
 
-      <svg className={styles.linkLayer}>
+      <svg className={styles.linkLayer} data-tool={activeTool}>
         {renderedLinks.map((item) => (
           <g key={item.link.id}>
             {item.selected ? (

@@ -21,6 +21,14 @@
   cursor: url("/cursors/hand-open.svg") 12 12, grab;
 }
 
+.viewport[data-tool="move"] {
+  cursor: url("/cursors/select.svg") 5 4, default;
+}
+
+.viewport[data-tool="move"][data-hover-page="true"] {
+  cursor: url("/cursors/move.svg") 12 12, move;
+}
+
 .viewport[data-moving="true"] {
   cursor: url("/cursors/move.svg") 12 12, move;
 }
@@ -100,6 +108,16 @@
 
 .page[data-selected="true"] .pageLabel {
   color: var(--mf-accent);
+}
+
+.page[data-move-target="true"] {
+  outline: 1.5px dashed var(--mf-accent);
+  outline-offset: 4px;
+}
+
+.page[data-move-target="true"][data-selected="true"] {
+  outline: 2px solid var(--mf-accent);
+  outline-offset: 3px;
 }
 
 .pageSurface {
@@ -362,6 +380,10 @@
   stroke-width: 16;
   cursor: pointer;
   pointer-events: stroke;
+}
+
+.linkLayer[data-tool="move"] .linkHit {
+  pointer-events: none;
 }
 
 .linkPreview {
