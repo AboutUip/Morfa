@@ -100,7 +100,8 @@
 }
 
 .pageSurface[data-see-through="true"] {
-  opacity: 0.22;
+  background-color: transparent !important;
+  box-shadow: none;
 }
 
 .deviceFrame {
