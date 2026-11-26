@@ -155,7 +155,8 @@
       "lint": {
         "title": "Problems",
         "close": "Close problems panel",
-        "empty": "No problems detected.",
+        "empty": "No problems found.",
+        "noProblems": "No problems found",
         "stack": "Detection stack",
         "resize": "Resize problems panel",
         "open": "View {{count}} errors",

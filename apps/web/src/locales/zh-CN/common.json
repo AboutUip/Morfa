@@ -155,7 +155,8 @@
       "lint": {
         "title": "问题",
         "close": "关闭问题面板",
-        "empty": "没有检测到问题。",
+        "empty": "未发现问题。",
+        "noProblems": "未发现问题",
         "stack": "检测栈",
         "resize": "调整问题面板高度",
         "open": "查看 {{count}} 个错误",

@@ -759,21 +759,33 @@ export function ProjectWorkspace({
       ) : null}
 
       <footer className={styles.statusBar}>
-        {lintItems.length ? (
-          <button
-            className={styles.lintStatusButton}
-            type="button"
-            data-active={lintOpen}
-            onClick={() => setLintOpen((current) => !current)}
-            aria-expanded={lintOpen}
-            aria-label={t("projects.workspace.lint.open", {
-              count: lintItems.length,
-            })}
-          >
-            <span className={styles.lintStatusMark}>×</span>
-            <span>{lintItems.length}</span>
-          </button>
-        ) : null}
+        <button
+          className={styles.lintStatusButton}
+          type="button"
+          data-active={lintOpen}
+          data-clean={lintItems.length === 0}
+          onClick={() => setLintOpen((current) => !current)}
+          aria-expanded={lintOpen}
+          aria-label={
+            lintItems.length
+              ? t("projects.workspace.lint.open", {
+                  count: lintItems.length,
+                })
+              : t("projects.workspace.lint.noProblems")
+          }
+        >
+          {lintItems.length ? (
+            <>
+              <span className={styles.lintStatusMark}>×</span>
+              <span>{lintItems.length}</span>
+            </>
+          ) : (
+            <>
+              <span className={styles.lintStatusCheck}>✓</span>
+              <span>{t("projects.workspace.lint.noProblems")}</span>
+            </>
+          )}
+        </button>
       </footer>
     </div>
   );
