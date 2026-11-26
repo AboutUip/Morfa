@@ -30,6 +30,7 @@ import {
   withPageSeeThrough,
   type CanvasDataEntry,
   type CanvasDataType,
+  type CanvasLink,
   type CanvasPage,
 } from "./canvasDocument";
 import styles from "./CanvasRightSidebar.module.css";
@@ -74,9 +75,13 @@ interface ResizeSession {
 
 interface CanvasRightSidebarProps {
   pages: CanvasPage[];
+  links: CanvasLink[];
   selectedId: string | null;
   selectedIds: string[];
+  selectedLink: CanvasLink | null;
   onSelect: (pageId: string | null) => void;
+  onUpdateLink: (linkId: string, patch: Partial<CanvasLink>) => void;
+  onDeleteLink: (linkId: string) => void;
   onRename: (pageId: string, name: string) => void;
   onRenameId: (pageId: string, nextId: string) => void;
   onDelete: (pageId: string) => void;
@@ -1406,10 +1411,12 @@ function DataValueInput({
 
 function DataPanel({
   pages,
+  links,
   page,
   onUpdateData,
 }: {
   pages: CanvasPage[];
+  links: CanvasLink[];
   page: CanvasPage | null;
   onUpdateData: (pageId: string, data: CanvasDataEntry[]) => void;
 }) {
@@ -1471,7 +1478,9 @@ function DataPanel({
   }, [dialogOpen]);
 
   const pageData = page ? getPageData(page) : [];
-  const inheritedData = page ? getInheritedPageData(pages, page) : [];
+  const inheritedData = page
+    ? getInheritedPageData(pages, links, page)
+    : [];
 
   const resetDraft = () => {
     setDraftKey("");
@@ -1927,11 +1936,172 @@ function DataPanel({
   );
 }
 
+function LinkPropertiesPanel({
+  link,
+  pages,
+  onUpdate,
+  onDelete,
+}: {
+  link: CanvasLink;
+  pages: CanvasPage[];
+  onUpdate: (linkId: string, patch: Partial<CanvasLink>) => void;
+  onDelete: (linkId: string) => void;
+}) {
+  const { t } = useTranslation();
+  const [tab, setTab] = useState<PropertyTab>("style");
+  const fromPage = pages.find((page) => page.id === link.fromId);
+  const toPage = pages.find((page) => page.id === link.toId);
+
+  const handleWidthChange = (value: string) => {
+    const width = Number.parseFloat(value);
+    if (!Number.isFinite(width)) return;
+    onUpdate(link.id, {
+      width: Math.min(16, Math.max(1, width)),
+    });
+  };
+
+  return (
+    <div className={styles.propertiesPanel}>
+      <div
+        className={styles.propertyTabs}
+        role="tablist"
+        aria-label={t("projects.workspace.linkPanel.title")}
+      >
+        <button
+          className={styles.propertyTab}
+          type="button"
+          role="tab"
+          aria-selected={tab === "style"}
+          data-active={tab === "style"}
+          onClick={() => setTab("style")}
+        >
+          {t("projects.workspace.propertiesPanel.tabs.style")}
+        </button>
+        <button
+          className={styles.propertyTab}
+          type="button"
+          role="tab"
+          aria-selected={tab === "behavior"}
+          data-active={tab === "behavior"}
+          onClick={() => setTab("behavior")}
+        >
+          {t("projects.workspace.propertiesPanel.tabs.behavior")}
+        </button>
+      </div>
+
+      <div className={styles.propertyBody}>
+        <div className={styles.propertyToolbar}>
+          <span className={styles.linkTitle}>
+            {fromPage?.name ?? link.fromId} →{" "}
+            {toPage?.name ?? link.toId}
+          </span>
+          <button
+            className={styles.linkDeleteButton}
+            type="button"
+            onClick={() => onDelete(link.id)}
+          >
+            {t("projects.workspace.canvas.contextMenu.delete")}
+          </button>
+        </div>
+
+        {tab === "style" ? (
+          <div className={styles.controlSections}>
+            <ControlSection
+              title={t("projects.workspace.linkPanel.styleSection")}
+            >
+              <ColorControl
+                label={t("projects.workspace.linkPanel.color")}
+                value={link.color}
+                onChange={(value) =>
+                  onUpdate(link.id, { color: value })
+                }
+              />
+              <NumberControl
+                label={t("projects.workspace.linkPanel.width")}
+                value={String(link.width)}
+                unit=""
+                min={1}
+                max={16}
+                step={1}
+                onChange={handleWidthChange}
+              />
+              <div className={styles.controlRow}>
+                <span className={styles.controlLabel}>
+                  {t("projects.workspace.linkPanel.lineStyle")}
+                </span>
+                <select
+                  className={styles.selectInput}
+                  value={link.dashed ? "dashed" : "solid"}
+                  onChange={(event) =>
+                    onUpdate(link.id, {
+                      dashed: event.target.value === "dashed",
+                    })
+                  }
+                >
+                  <option value="solid">
+                    {t("projects.workspace.linkPanel.solid")}
+                  </option>
+                  <option value="dashed">
+                    {t("projects.workspace.linkPanel.dashed")}
+                  </option>
+                </select>
+              </div>
+            </ControlSection>
+          </div>
+        ) : (
+          <div className={styles.controlSections}>
+            <ControlSection
+              title={t("projects.workspace.linkPanel.behaviorSection")}
+            >
+              <div className={styles.linkDirectionRow}>
+                <span className={styles.controlLabel}>
+                  {t("projects.workspace.linkPanel.direction")}
+                </span>
+                <div className={styles.linkDirectionButtons}>
+                  <button
+                    className={styles.linkDirectionButton}
+                    type="button"
+                    data-active={link.direction === "one-way"}
+                    onClick={() =>
+                      onUpdate(link.id, { direction: "one-way" })
+                    }
+                  >
+                    {t("projects.workspace.linkPanel.oneWay")}
+                  </button>
+                  <button
+                    className={styles.linkDirectionButton}
+                    type="button"
+                    data-active={link.direction === "two-way"}
+                    onClick={() =>
+                      onUpdate(link.id, { direction: "two-way" })
+                    }
+                  >
+                    {t("projects.workspace.linkPanel.twoWay")}
+                  </button>
+                </div>
+              </div>
+              <p className={styles.linkHint}>
+                {link.direction === "one-way"
+                  ? t("projects.workspace.linkPanel.oneWayHint")
+                  : t("projects.workspace.linkPanel.twoWayHint")}
+              </p>
+            </ControlSection>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function CanvasRightSidebar({
   pages,
+  links,
   selectedId,
   selectedIds,
+  selectedLink,
   onSelect,
+  onUpdateLink,
+  onDeleteLink,
   onRename,
   onRenameId,
   onDelete,
@@ -1964,6 +2134,14 @@ export function CanvasRightSidebar({
     }
     openFramesRef.current = [];
   };
+
+  useEffect(() => {
+    if (!selectedLink) return;
+    clearCloseTimer();
+    clearOpenFrames();
+    setActivePanel("properties");
+    setPanelExpanded(true);
+  }, [selectedLink?.id]);
 
   const reduceMotion = () =>
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -2116,10 +2294,26 @@ export function CanvasRightSidebar({
                 onReorder={onReorder}
               />
             ) : activePanel === "data" ? (
-              <DataPanel
+              selectedLink ? (
+                <div className={styles.dataPanel}>
+                  <p className={styles.dataEmpty}>
+                    {t("projects.workspace.dataPanel.linkNoData")}
+                  </p>
+                </div>
+              ) : (
+                <DataPanel
+                  pages={pages}
+                  links={links}
+                  page={selectedPage}
+                  onUpdateData={onUpdateData}
+                />
+              )
+            ) : selectedLink ? (
+              <LinkPropertiesPanel
+                link={selectedLink}
                 pages={pages}
-                page={selectedPage}
-                onUpdateData={onUpdateData}
+                onUpdate={onUpdateLink}
+                onDelete={onDeleteLink}
               />
             ) : (
               <PropertiesPanel

@@ -97,6 +97,7 @@
         "inheritedEmpty": "当前节点没有可继承的父级数据。",
         "inheritHint": "与当前节点同名的父级数据会被当前值覆盖。",
         "rowHint": "悬浮查看备注，右键数据可编辑或删除。",
+        "linkNoData": "关联线没有数据。",
         "shadowed": "已覆盖",
         "source": "来自 {{name}}",
         "fields": {
@@ -134,6 +135,36 @@
           "keyRequired": "键不能为空",
           "typeRequired": "请选择数据类型",
           "keyDuplicate": "键已存在"
+        }
+      },
+      "linkPanel": {
+        "title": "关联线属性",
+        "styleSection": "关联线样式",
+        "behaviorSection": "关联行为",
+        "color": "颜色",
+        "width": "线宽",
+        "lineStyle": "线型",
+        "solid": "实线",
+        "dashed": "虚线",
+        "direction": "方向",
+        "oneWay": "单向",
+        "twoWay": "双向",
+        "oneWayHint": "目标节点可以访问源节点的数据，反向不可访问。",
+        "twoWayHint": "两端节点可以互相访问对方的数据。"
+      },
+      "lint": {
+        "title": "问题",
+        "close": "关闭问题面板",
+        "empty": "没有检测到问题。",
+        "stack": "检测栈",
+        "resize": "调整问题面板高度",
+        "open": "查看 {{count}} 个错误",
+        "codes": {
+          "malformed": "变量格式不正确",
+          "missingNode": "节点 {{id}} 不存在",
+          "noAccess": "当前节点无法访问 {{name}} 的数据",
+          "missingSelfKey": "当前节点没有数据 {{key}}",
+          "missingNodeKey": "{{name}} 没有数据 {{key}}"
         }
       },
       "propertiesPanel": {

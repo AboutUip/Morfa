@@ -87,8 +87,31 @@ export interface CanvasPageDto {
   data?: CanvasDataEntryDto[];
 }
 
+export type CanvasLinkDirection = "one-way" | "two-way";
+export type CanvasLinkEdge = "top" | "right" | "bottom" | "left";
+
+export interface CanvasLinkAnchorDto {
+  x: number;
+  y: number;
+  edge: CanvasLinkEdge;
+}
+
+export interface CanvasLinkDto {
+  id: string;
+  fromId: string;
+  toId: string;
+  direction: CanvasLinkDirection;
+  color: string;
+  width: number;
+  dashed: boolean;
+  fromAnchor: CanvasLinkAnchorDto;
+  toAnchor: CanvasLinkAnchorDto;
+  createdAt: number;
+}
+
 export interface ProjectCanvasResponse {
   pages: CanvasPageDto[];
+  links: CanvasLinkDto[];
   updatedAt: number;
 }
 
@@ -299,13 +322,17 @@ export const projectCanvasApi = {
       `/api/me/projects/${encodeURIComponent(projectId)}/canvas`,
     ),
 
-  save: (projectId: string, pages: CanvasPageDto[]) =>
+  save: (
+    projectId: string,
+    pages: CanvasPageDto[],
+    links: CanvasLinkDto[],
+  ) =>
     request<ProjectCanvasResponse>(
       `/api/me/projects/${encodeURIComponent(projectId)}/canvas`,
       {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ pages }),
+        body: JSON.stringify({ pages, links }),
       },
     ),
 };

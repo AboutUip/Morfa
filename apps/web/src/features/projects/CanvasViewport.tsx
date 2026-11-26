@@ -16,10 +16,15 @@ import type { CanvasTool } from "./canvasTools";
 import {
   createPageId,
   createPageStyles,
+  getLinkAnchorPoint,
   getPageSize,
   isPageSeeThrough,
+  projectPointToPageEdge,
   resolveStyleVariables,
   uniquePageName,
+  type CanvasLink,
+  type CanvasLinkAnchor,
+  type CanvasLinkEdge,
   type CanvasPage,
 } from "./canvasDocument";
 import {
@@ -42,6 +47,9 @@ const ZOOM_SENSITIVITY = 0.0015;
 const KEYBOARD_ZOOM_STEP = 1.2;
 const SNAP_THRESHOLD_PX = 6;
 const MIN_PAGE_SIZE = 32;
+const LINK_EDGE_BAND_PX = 12;
+const LINK_CORNER_GUARD_PX = 18;
+const LINK_TARGET_MARGIN_PX = 20;
 const RESIZE_CORNERS: readonly ResizeCorner[] = [
   "tl",
   "tr",
@@ -120,15 +128,50 @@ interface CanvasContextMenuState {
   worldY: number;
 }
 
+interface LinkHoverState {
+  pageId: string;
+  pageName: string;
+  x: number;
+  y: number;
+}
+
+interface LinkDragState {
+  pointerId: number;
+  fromId: string;
+  fromName: string;
+  fromAnchor: CanvasLinkAnchor;
+  x: number;
+  y: number;
+  targetId: string | null;
+  targetName: string | null;
+  targetAnchor: CanvasLinkAnchor | null;
+}
+
+interface LinkMenuState {
+  linkId: string;
+  x: number;
+  y: number;
+}
+
 interface CanvasViewportProps {
   label: string;
   activeTool: CanvasTool;
   pages: CanvasPage[];
+  links: CanvasLink[];
   selectedIds: string[];
+  selectedLinkId: string | null;
   snapSettings?: CanvasSnapSettings;
   onSelectPage: (pageId: string | null) => void;
   onSelectPages: (pageIds: string[]) => void;
+  onSelectLink: (linkId: string) => void;
   onCreatePage: (page: CanvasPage) => void;
+  onCreateLink: (
+    fromId: string,
+    toId: string,
+    fromAnchor: CanvasLinkAnchor,
+    toAnchor: CanvasLinkAnchor,
+  ) => void;
+  onDeleteLink: (linkId: string) => void;
   onMovePage: (pageId: string, x: number, y: number) => void;
   onMovePageStart: () => void;
   onMovePageEnd: () => void;
@@ -191,10 +234,11 @@ function findPageAt(
   pages: CanvasPage[],
   worldX: number,
   worldY: number,
+  links: CanvasLink[],
 ) {
   for (let index = pages.length - 1; index >= 0; index -= 1) {
     const page = pages[index];
-    const { width, height } = getPageSize(page, pages);
+    const { width, height } = getPageSize(page, pages, links);
 
     if (
       worldX >= page.x &&
@@ -211,6 +255,7 @@ function findPageAt(
 
 function findPageIdsInMarquee(
   pages: CanvasPage[],
+  links: CanvasLink[],
   startX: number,
   startY: number,
   endX: number,
@@ -230,7 +275,7 @@ function findPageIdsInMarquee(
 
   return pages
     .filter((page) => {
-      const { width, height } = getPageSize(page, pages);
+      const { width, height } = getPageSize(page, pages, links);
       return (
         page.x < worldRight &&
         page.x + width > worldLeft &&
@@ -239,6 +284,129 @@ function findPageIdsInMarquee(
       );
     })
     .map((page) => page.id);
+}
+
+function findLinkSourcePageAt(
+  pages: CanvasPage[],
+  links: CanvasLink[],
+  worldX: number,
+  worldY: number,
+  view: CanvasView,
+) {
+  const band = LINK_EDGE_BAND_PX / view.zoom;
+  const cornerGuard = LINK_CORNER_GUARD_PX / view.zoom;
+
+  for (let index = pages.length - 1; index >= 0; index -= 1) {
+    const page = pages[index];
+    const { width, height } = getPageSize(page, pages, links);
+    if (
+      worldX < page.x - band ||
+      worldX > page.x + width + band ||
+      worldY < page.y - band ||
+      worldY > page.y + height + band
+    ) {
+      continue;
+    }
+
+    const left = Math.abs(worldX - page.x);
+    const right = Math.abs(worldX - (page.x + width));
+    const top = Math.abs(worldY - page.y);
+    const bottom = Math.abs(worldY - (page.y + height));
+    const nearVertical = Math.min(left, right) <= band;
+    const nearHorizontal = Math.min(top, bottom) <= band;
+    if (!nearVertical && !nearHorizontal) continue;
+
+    if (
+      Math.min(left, right) <= cornerGuard &&
+      Math.min(top, bottom) <= cornerGuard
+    ) {
+      continue;
+    }
+
+    return page;
+  }
+
+  return null;
+}
+
+function findLinkTargetPageAt(
+  pages: CanvasPage[],
+  links: CanvasLink[],
+  worldX: number,
+  worldY: number,
+  excludeId: string,
+  view: CanvasView,
+) {
+  const margin = LINK_TARGET_MARGIN_PX / view.zoom;
+
+  for (let index = pages.length - 1; index >= 0; index -= 1) {
+    const page = pages[index];
+    if (page.id === excludeId) continue;
+    const { width, height } = getPageSize(page, pages, links);
+    if (
+      worldX >= page.x - margin &&
+      worldX <= page.x + width + margin &&
+      worldY >= page.y - margin &&
+      worldY <= page.y + height + margin
+    ) {
+      return page;
+    }
+  }
+
+  return null;
+}
+
+function edgeNormal(edge: CanvasLinkEdge) {
+  if (edge === "left") return { x: -1, y: 0 };
+  if (edge === "right") return { x: 1, y: 0 };
+  if (edge === "top") return { x: 0, y: -1 };
+  return { x: 0, y: 1 };
+}
+
+function buildLinkCurve(
+  from: { x: number; y: number },
+  fromEdge: CanvasLinkEdge,
+  to: { x: number; y: number },
+  toEdge: CanvasLinkEdge,
+) {
+  const distance = Math.hypot(to.x - from.x, to.y - from.y);
+  const control = Math.max(36, Math.min(220, distance * 0.35));
+  const fromNormal = edgeNormal(fromEdge);
+  const toNormal = edgeNormal(toEdge);
+  const c1 = {
+    x: from.x + fromNormal.x * control,
+    y: from.y + fromNormal.y * control,
+  };
+  const c2 = {
+    x: to.x + toNormal.x * control,
+    y: to.y + toNormal.y * control,
+  };
+
+  return {
+    c1,
+    c2,
+    d: `M ${from.x} ${from.y} C ${c1.x} ${c1.y} ${c2.x} ${c2.y} ${to.x} ${to.y}`,
+  };
+}
+
+function buildArrowPath(
+  tip: { x: number; y: number },
+  direction: { x: number; y: number },
+  size = 9,
+) {
+  const length = Math.hypot(direction.x, direction.y);
+  if (!length) return "";
+  const ux = direction.x / length;
+  const uy = direction.y / length;
+  const baseX = tip.x - ux * size;
+  const baseY = tip.y - uy * size;
+  const half = size * 0.55;
+  const px = -uy;
+  const py = ux;
+
+  return `M ${tip.x} ${tip.y} L ${baseX + px * half} ${
+    baseY + py * half
+  } L ${baseX - px * half} ${baseY - py * half} Z`;
 }
 
 function nearestSnap(
@@ -263,6 +431,7 @@ function nearestSnap(
 
 function collectSnapLines(input: {
   pages: CanvasPage[];
+  links: CanvasLink[];
   excludeId: string;
   view: CanvasView;
   viewportWidth: number;
@@ -271,6 +440,7 @@ function collectSnapLines(input: {
 }) {
   const {
     pages,
+    links,
     excludeId,
     view,
     viewportWidth,
@@ -304,7 +474,7 @@ function collectSnapLines(input: {
   if (settings.componentBounds) {
     for (const page of pages) {
       if (page.id === excludeId) continue;
-      const size = getPageSize(page, pages);
+      const size = getPageSize(page, pages, links);
       addLine(xLines, page.x);
       addLine(xLines, page.x + size.width / 2);
       addLine(xLines, page.x + size.width);
@@ -323,6 +493,7 @@ function resolvePageSnap(input: {
   width: number;
   height: number;
   pages: CanvasPage[];
+  links: CanvasLink[];
   movingId: string;
   view: CanvasView;
   viewportWidth: number;
@@ -335,6 +506,7 @@ function resolvePageSnap(input: {
     width,
     height,
     pages,
+    links,
     movingId,
     view,
     viewportWidth,
@@ -348,6 +520,7 @@ function resolvePageSnap(input: {
 
   const { xLines, yLines } = collectSnapLines({
     pages,
+    links,
     excludeId: movingId,
     view,
     viewportWidth,
@@ -397,6 +570,7 @@ function resolvePageResizeSnap(input: {
   width: number;
   height: number;
   pages: CanvasPage[];
+  links: CanvasLink[];
   resizingId: string;
   view: CanvasView;
   viewportWidth: number;
@@ -410,6 +584,7 @@ function resolvePageResizeSnap(input: {
     width,
     height,
     pages,
+    links,
     resizingId,
     view,
     viewportWidth,
@@ -428,6 +603,7 @@ function resolvePageResizeSnap(input: {
 
   const { xLines, yLines } = collectSnapLines({
     pages,
+    links,
     excludeId: resizingId,
     view,
     viewportWidth,
@@ -536,11 +712,16 @@ export function CanvasViewport({
   label,
   activeTool,
   pages,
+  links,
   selectedIds,
+  selectedLinkId,
   snapSettings = DEFAULT_CANVAS_SNAP_SETTINGS,
   onSelectPage,
   onSelectPages,
+  onSelectLink,
   onCreatePage,
+  onCreateLink,
+  onDeleteLink,
   onMovePage,
   onMovePageStart,
   onMovePageEnd,
@@ -566,6 +747,7 @@ export function CanvasViewport({
   const marqueeRef = useRef<MarqueeSession | null>(null);
   const moveRef = useRef<MoveSession | null>(null);
   const resizeRef = useRef<ResizeSession | null>(null);
+  const linkDragRef = useRef<LinkDragState | null>(null);
   const gestureRef = useRef<GestureSession | null>(null);
   const [panning, setPanning] = useState(false);
   const [marquee, setMarquee] = useState<MarqueeRect | null>(null);
@@ -573,6 +755,15 @@ export function CanvasViewport({
   const [resizingCorner, setResizingCorner] =
     useState<ResizeCorner | null>(null);
   const [hoveringPage, setHoveringPage] = useState(false);
+  const [linkHover, setLinkHover] = useState<LinkHoverState | null>(
+    null,
+  );
+  const [linkDrag, setLinkDrag] = useState<LinkDragState | null>(
+    null,
+  );
+  const [linkMenu, setLinkMenu] = useState<LinkMenuState | null>(
+    null,
+  );
   const [snapGuides, setSnapGuides] = useState<SnapGuides | null>(null);
   const [dropActive, setDropActive] = useState(false);
   const [contextMenu, setContextMenu] =
@@ -617,6 +808,44 @@ export function CanvasViewport({
       setContextMenu(null);
     }
   }, [pages, contextMenu]);
+
+  useEffect(() => {
+    if (!linkMenu) return;
+
+    const closeMenu = () => setLinkMenu(null);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeMenu();
+    };
+
+    document.addEventListener("pointerdown", closeMenu);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("blur", closeMenu);
+    window.addEventListener("resize", closeMenu);
+    window.addEventListener("wheel", closeMenu, { passive: true });
+
+    return () => {
+      document.removeEventListener("pointerdown", closeMenu);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("blur", closeMenu);
+      window.removeEventListener("resize", closeMenu);
+      window.removeEventListener("wheel", closeMenu);
+    };
+  }, [linkMenu]);
+
+  useEffect(() => {
+    if (!linkDrag) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      linkDragRef.current = null;
+      setLinkDrag(null);
+      setLinkHover(null);
+    };
+
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () =>
+      window.removeEventListener("keydown", handleKeyDown, true);
+  }, [linkDrag]);
 
   useEffect(() => {
     const element = viewportRef.current;
@@ -802,6 +1031,48 @@ export function CanvasViewport({
     // 画布会阻止 pointerdown 的默认行为，需要主动让属性输入框失焦并提交。
     blurActiveEditableElement();
 
+    if (event.button === 0 && activeTool === "select") {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      const currentView = viewRef.current;
+      const worldX = (x - currentView.x) / currentView.zoom;
+      const worldY = (y - currentView.y) / currentView.zoom;
+      const source = findLinkSourcePageAt(
+        pages,
+        links,
+        worldX,
+        worldY,
+        currentView,
+      );
+
+      if (source) {
+        event.preventDefault();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        const session: LinkDragState = {
+          pointerId: event.pointerId,
+          fromId: source.id,
+          fromName: source.name,
+          fromAnchor: projectPointToPageEdge(
+            source,
+            worldX,
+            worldY,
+            pages,
+            links,
+          ),
+          x,
+          y,
+          targetId: null,
+          targetName: null,
+          targetAnchor: null,
+        };
+        linkDragRef.current = session;
+        setLinkDrag(session);
+        setLinkHover(null);
+        return;
+      }
+    }
+
     const isMiddlePan = event.button === 1;
     const isHandPan = event.button === 0 && activeTool === "hand";
 
@@ -826,7 +1097,7 @@ export function CanvasViewport({
     const currentView = viewRef.current;
     const worldX = (x - currentView.x) / currentView.zoom;
     const worldY = (y - currentView.y) / currentView.zoom;
-    const hit = findPageAt(pages, worldX, worldY);
+    const hit = findPageAt(pages, worldX, worldY, links);
 
     onSelectPage(hit?.id ?? null);
     if (hit) {
@@ -863,6 +1134,44 @@ export function CanvasViewport({
   };
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLElement>) => {
+    const linkSession = linkDragRef.current;
+    if (linkSession && linkSession.pointerId === event.pointerId) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      const currentView = viewRef.current;
+      const worldX = (x - currentView.x) / currentView.zoom;
+      const worldY = (y - currentView.y) / currentView.zoom;
+      const target = findLinkTargetPageAt(
+        pages,
+        links,
+        worldX,
+        worldY,
+        linkSession.fromId,
+        currentView,
+      );
+      const targetAnchor = target
+        ? projectPointToPageEdge(
+            target,
+            worldX,
+            worldY,
+            pages,
+            links,
+          )
+        : null;
+      const next: LinkDragState = {
+        ...linkSession,
+        x,
+        y,
+        targetId: target?.id ?? null,
+        targetName: target?.name ?? null,
+        targetAnchor,
+      };
+      linkDragRef.current = next;
+      setLinkDrag(next);
+      return;
+    }
+
     const pan = panRef.current;
     if (pan && pan.pointerId === event.pointerId) {
       const dx = event.clientX - pan.x;
@@ -897,13 +1206,14 @@ export function CanvasViewport({
         return;
       }
 
-      const size = getPageSize(movingPage, pages);
+      const size = getPageSize(movingPage, pages, links);
       const resolution = resolvePageSnap({
         x: rawX,
         y: rawY,
         width: size.width,
         height: size.height,
         pages,
+        links,
         movingId: move.pageId,
         view: currentView,
         viewportWidth: event.currentTarget.clientWidth,
@@ -935,12 +1245,33 @@ export function CanvasViewport({
 
     if (activeTool === "select") {
       const rect = event.currentTarget.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
       const currentView = viewRef.current;
-      const worldX =
-        (event.clientX - rect.left - currentView.x) / currentView.zoom;
-      const worldY =
-        (event.clientY - rect.top - currentView.y) / currentView.zoom;
-      setHoveringPage(Boolean(findPageAt(pages, worldX, worldY)));
+      const worldX = (x - currentView.x) / currentView.zoom;
+      const worldY = (y - currentView.y) / currentView.zoom;
+      setHoveringPage(
+        Boolean(findPageAt(pages, worldX, worldY, links)),
+      );
+      const source = findLinkSourcePageAt(
+        pages,
+        links,
+        worldX,
+        worldY,
+        currentView,
+      );
+      setLinkHover(
+        source
+          ? {
+              pageId: source.id,
+              pageName: source.name,
+              x,
+              y,
+            }
+          : null,
+      );
+    } else {
+      setLinkHover(null);
     }
   };
 
@@ -968,6 +1299,7 @@ export function CanvasViewport({
     onSelectPages(
       findPageIdsInMarquee(
         pages,
+        links,
         selection.startX,
         selection.startY,
         selection.currentX,
@@ -991,6 +1323,48 @@ export function CanvasViewport({
   };
 
   const handlePointerEnd = (event: ReactPointerEvent<HTMLElement>) => {
+    const linkSession = linkDragRef.current;
+    if (linkSession && linkSession.pointerId === event.pointerId) {
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+
+      const rect = event.currentTarget.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      const currentView = viewRef.current;
+      const worldX = (x - currentView.x) / currentView.zoom;
+      const worldY = (y - currentView.y) / currentView.zoom;
+      const target = findLinkTargetPageAt(
+        pages,
+        links,
+        worldX,
+        worldY,
+        linkSession.fromId,
+        currentView,
+      );
+
+      if (target) {
+        onCreateLink(
+          linkSession.fromId,
+          target.id,
+          linkSession.fromAnchor,
+          projectPointToPageEdge(
+            target,
+            worldX,
+            worldY,
+            pages,
+            links,
+          ),
+        );
+      }
+
+      linkDragRef.current = null;
+      setLinkDrag(null);
+      setLinkHover(null);
+      return;
+    }
+
     if (panRef.current?.pointerId === event.pointerId) {
       endPan(event);
       return;
@@ -1009,6 +1383,12 @@ export function CanvasViewport({
   const handleLostPointerCapture = (
     event: ReactPointerEvent<HTMLElement>,
   ) => {
+    if (linkDragRef.current?.pointerId === event.pointerId) {
+      linkDragRef.current = null;
+      setLinkDrag(null);
+      setLinkHover(null);
+    }
+
     if (panRef.current?.pointerId === event.pointerId) {
       panRef.current = null;
       setPanning(false);
@@ -1038,7 +1418,7 @@ export function CanvasViewport({
     event.preventDefault();
     event.stopPropagation();
 
-    const size = getPageSize(page, pages);
+    const size = getPageSize(page, pages, links);
     event.currentTarget.setPointerCapture(event.pointerId);
     resizeRef.current = {
       pointerId: event.pointerId,
@@ -1093,6 +1473,7 @@ export function CanvasViewport({
       width: rawWidth,
       height: rawHeight,
       pages,
+      links,
       resizingId: resize.pageId,
       view: viewRef.current,
       viewportWidth: viewport?.clientWidth ?? 0,
@@ -1141,6 +1522,9 @@ export function CanvasViewport({
     if (!panRef.current && !moveRef.current && !marqueeRef.current) {
       setHoveringPage(false);
     }
+    if (!linkDragRef.current) {
+      setLinkHover(null);
+    }
   };
 
   const handleMouseDown = (event: ReactMouseEvent<HTMLElement>) => {
@@ -1161,7 +1545,7 @@ export function CanvasViewport({
       (event.clientX - rect.left - currentView.x) / currentView.zoom;
     const worldY =
       (event.clientY - rect.top - currentView.y) / currentView.zoom;
-    const hit = findPageAt(pages, worldX, worldY);
+    const hit = findPageAt(pages, worldX, worldY, links);
     const menuHeight = hit ? 196 : 48;
 
     if (hit) onSelectPage(hit.id);
@@ -1300,6 +1684,104 @@ export function CanvasViewport({
       ? pages.find((page) => page.id === contextMenu.pageId) ?? null
       : null;
 
+  const toScreenPoint = (point: { x: number; y: number }) => ({
+    x: point.x * view.zoom + view.x,
+    y: point.y * view.zoom + view.y,
+  });
+
+  const renderedLinks = links.flatMap((link) => {
+    const fromPage = pages.find((page) => page.id === link.fromId);
+    const toPage = pages.find((page) => page.id === link.toId);
+    if (!fromPage || !toPage) return [];
+
+    const from = toScreenPoint(
+      getLinkAnchorPoint(fromPage, link.fromAnchor, pages, links),
+    );
+    const to = toScreenPoint(
+      getLinkAnchorPoint(toPage, link.toAnchor, pages, links),
+    );
+    const curve = buildLinkCurve(
+      from,
+      link.fromAnchor.edge,
+      to,
+      link.toAnchor.edge,
+    );
+
+    return [
+      {
+        link,
+        fromPage,
+        toPage,
+        from,
+        to,
+        curve,
+        targetArrow: buildArrowPath(
+          to,
+          { x: to.x - curve.c2.x, y: to.y - curve.c2.y },
+        ),
+        sourceArrow:
+          link.direction === "two-way"
+            ? buildArrowPath(
+                from,
+                { x: from.x - curve.c1.x, y: from.y - curve.c1.y },
+              )
+            : null,
+        selected: selectedLinkId === link.id,
+      },
+    ];
+  });
+
+  const previewLink = (() => {
+    if (!linkDrag) return null;
+    const fromPage = pages.find((page) => page.id === linkDrag.fromId);
+    if (!fromPage) return null;
+    const from = toScreenPoint(
+      getLinkAnchorPoint(
+        fromPage,
+        linkDrag.fromAnchor,
+        pages,
+        links,
+      ),
+    );
+    const targetPage = linkDrag.targetId
+      ? pages.find((page) => page.id === linkDrag.targetId) ?? null
+      : null;
+    const targetAnchor = linkDrag.targetAnchor;
+    const to =
+      targetPage && targetAnchor
+        ? toScreenPoint(
+            getLinkAnchorPoint(targetPage, targetAnchor, pages, links),
+          )
+        : { x: linkDrag.x, y: linkDrag.y };
+    const toEdge =
+      targetAnchor?.edge ??
+      (to.x >= from.x ? "left" : "right");
+    return buildLinkCurve(
+      from,
+      linkDrag.fromAnchor.edge,
+      to,
+      toEdge,
+    );
+  })();
+
+  const linkCursor = linkDrag
+    ? {
+        x: linkDrag.x,
+        y: linkDrag.y,
+        label: linkDrag.targetName
+          ? `${linkDrag.fromName} -> ${linkDrag.targetName}`
+          : `${linkDrag.fromName} -> …`,
+        valid: Boolean(linkDrag.targetId),
+      }
+    : linkHover
+      ? {
+          x: linkHover.x,
+          y: linkHover.y,
+          label: linkHover.pageName,
+          valid: false,
+        }
+      : null;
+
   return (
     <main
       ref={viewportRef}
@@ -1313,6 +1795,7 @@ export function CanvasViewport({
       data-moving={movingPage}
       data-resizing-corner={resizingCorner ?? undefined}
       data-hover-page={hoveringPage}
+      data-link-cursor={linkCursor ? "true" : undefined}
       data-marquee={marquee !== null}
       data-drop-active={dropActive}
       onPointerDown={handlePointerDown}
@@ -1335,6 +1818,7 @@ export function CanvasViewport({
             page.styles,
             page,
             pages,
+            links,
           );
           const {
             width = "800px",
@@ -1446,6 +1930,100 @@ export function CanvasViewport({
           );
         })}
       </div>
+
+      <svg className={styles.linkLayer}>
+        {renderedLinks.map((item) => (
+          <g key={item.link.id}>
+            {item.selected ? (
+              <path
+                d={item.curve.d}
+                className={styles.linkSelection}
+                style={{
+                  strokeWidth: item.link.width + 7,
+                }}
+              />
+            ) : null}
+            <path
+              d={item.curve.d}
+              className={styles.linkPath}
+              style={{
+                stroke: item.link.color,
+                strokeWidth: item.link.width,
+                strokeDasharray: item.link.dashed
+                  ? "6 5"
+                  : undefined,
+              }}
+            />
+            {item.sourceArrow ? (
+              <path
+                d={item.sourceArrow}
+                fill={item.link.color}
+                className={styles.linkArrow}
+              />
+            ) : null}
+            <path
+              d={item.targetArrow}
+              fill={item.link.color}
+              className={styles.linkArrow}
+            />
+            <path
+              d={item.curve.d}
+              className={styles.linkHit}
+              onPointerDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onSelectLink(item.link.id);
+              }}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onSelectLink(item.link.id);
+                setLinkMenu({
+                  linkId: item.link.id,
+                  x: Math.max(
+                    8,
+                    Math.min(event.clientX, window.innerWidth - 172),
+                  ),
+                  y: Math.max(
+                    8,
+                    Math.min(event.clientY, window.innerHeight - 60),
+                  ),
+                });
+              }}
+            >
+              <title>
+                {item.fromPage.name} → {item.toPage.name}
+              </title>
+            </path>
+          </g>
+        ))}
+
+        {previewLink ? (
+          <path
+            d={previewLink.d}
+            className={styles.linkPreview}
+            style={{
+              stroke: linkDrag?.targetId
+                ? "var(--mf-accent)"
+                : "var(--mf-text-tertiary)",
+            }}
+          />
+        ) : null}
+      </svg>
+
+      {linkCursor ? (
+        <div
+          className={styles.linkCursor}
+          style={{ left: linkCursor.x, top: linkCursor.y }}
+          data-valid={linkCursor.valid}
+          aria-hidden="true"
+        >
+          <span className={styles.linkCursorLabel}>
+            {linkCursor.label}
+          </span>
+          <span className={styles.linkCursorPlus}>+</span>
+        </div>
+      ) : null}
 
       {snapGuides?.x !== null && snapGuides?.x !== undefined ? (
         <div
@@ -1564,6 +2142,37 @@ export function CanvasViewport({
                   {t("projects.workspace.canvas.contextMenu.paste")}
                 </button>
               )}
+            </div>,
+            document.body,
+          )
+        : null}
+
+      {linkMenu
+        ? createPortal(
+            <div
+              className={styles.contextMenu}
+              style={{ left: linkMenu.x, top: linkMenu.y }}
+              role="menu"
+              onPointerDown={(event) => event.stopPropagation()}
+              onContextMenu={(event) => event.preventDefault()}
+              onKeyDown={(event) => {
+                event.stopPropagation();
+                if (event.key === "Escape") setLinkMenu(null);
+              }}
+            >
+              <button
+                className={styles.contextMenuItem}
+                type="button"
+                role="menuitem"
+                data-danger="true"
+                autoFocus
+                onClick={() => {
+                  onDeleteLink(linkMenu.linkId);
+                  setLinkMenu(null);
+                }}
+              >
+                {t("projects.workspace.canvas.contextMenu.delete")}
+              </button>
             </div>,
             document.body,
           )

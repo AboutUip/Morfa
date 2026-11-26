@@ -104,10 +104,12 @@ export function registerProjectRoutes(app: FastifyInstance) {
     async (request) => {
       const session = requireActiveUser(readSessionToken(request));
       const { projectId } = request.params as { projectId: string };
+      const body = readBody(request);
       return saveProjectCanvas(
         session.row.id,
         projectId,
-        readBody(request).pages,
+        body.pages,
+        body.links,
       );
     },
   );

@@ -15,8 +15,190 @@
 }
 
 .statusBar {
+  display: flex;
   flex: none;
   height: var(--mf-statusbar-height);
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 8px;
   background: var(--mf-statusbar-bg);
   color: var(--mf-statusbar-text);
+}
+
+.lintStatusButton {
+  display: flex;
+  height: 20px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 7px;
+  border-radius: 4px;
+  color: var(--mf-statusbar-text);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  transition:
+    color var(--mf-transition),
+    background var(--mf-transition);
+}
+
+.lintStatusButton:hover,
+.lintStatusButton[data-active="true"] {
+  background: var(--mf-bg-hover);
+  color: var(--mf-text-primary);
+}
+
+.lintStatusMark {
+  color: var(--mf-danger);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.lintPanel {
+  display: flex;
+  flex: none;
+  min-height: 120px;
+  flex-direction: column;
+  overflow: hidden;
+  border-top: 1px solid var(--mf-border);
+  background: var(--mf-bg-panel);
+}
+
+.lintResizeHandle {
+  height: 6px;
+  flex: none;
+  border-bottom: 1px solid transparent;
+  cursor: ns-resize;
+  transition: background var(--mf-transition);
+}
+
+.lintResizeHandle:hover {
+  background: var(--mf-accent-soft);
+}
+
+.lintHeader {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 12px 8px;
+  border-bottom: 1px solid var(--mf-border);
+}
+
+.lintHeaderTitle {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  color: var(--mf-text-primary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.lintHeaderCount {
+  display: inline-flex;
+  min-width: 18px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--mf-danger-soft);
+  color: var(--mf-danger);
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.lintClose {
+  display: flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  color: var(--mf-text-tertiary);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.lintClose:hover {
+  background: var(--mf-bg-hover);
+  color: var(--mf-text-primary);
+}
+
+.lintErrorMark {
+  color: var(--mf-danger);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.lintList {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px 12px;
+  overflow-y: auto;
+}
+
+.lintItem {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px 8px;
+  border: 1px solid var(--mf-border);
+  border-left: 2px solid var(--mf-danger);
+  border-radius: 6px;
+  background: var(--mf-bg-surface);
+}
+
+.lintItemTitle {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  color: var(--mf-text-secondary);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lintExpression {
+  align-self: flex-start;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--mf-bg-app);
+  color: var(--mf-text-primary);
+  font-family: var(--mf-font-mono);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lintMessage {
+  margin: 0;
+  color: var(--mf-text-secondary);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.lintChain {
+  margin: 0;
+  color: var(--mf-text-tertiary);
+  font-size: 9px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.lintEmpty {
+  margin: 0;
+  padding: 8px 0;
+  color: var(--mf-text-tertiary);
+  font-size: 10px;
 }

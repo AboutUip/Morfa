@@ -97,6 +97,7 @@
         "inheritedEmpty": "This node has no inherited data.",
         "inheritHint": "Parent data with the same key is overridden by the current node.",
         "rowHint": "Hover to see notes; right-click to edit or delete.",
+        "linkNoData": "Links have no data.",
         "shadowed": "Overridden",
         "source": "From {{name}}",
         "fields": {
@@ -134,6 +135,36 @@
           "keyRequired": "Key is required",
           "typeRequired": "Select a data type",
           "keyDuplicate": "Key already exists"
+        }
+      },
+      "linkPanel": {
+        "title": "Link properties",
+        "styleSection": "Link style",
+        "behaviorSection": "Link behavior",
+        "color": "Color",
+        "width": "Width",
+        "lineStyle": "Line style",
+        "solid": "Solid",
+        "dashed": "Dashed",
+        "direction": "Direction",
+        "oneWay": "One-way",
+        "twoWay": "Two-way",
+        "oneWayHint": "The target can access the source's data, but not the reverse.",
+        "twoWayHint": "Both endpoints can access each other's data."
+      },
+      "lint": {
+        "title": "Problems",
+        "close": "Close problems panel",
+        "empty": "No problems detected.",
+        "stack": "Detection stack",
+        "resize": "Resize problems panel",
+        "open": "View {{count}} errors",
+        "codes": {
+          "malformed": "Invalid variable format",
+          "missingNode": "Node {{id}} does not exist",
+          "noAccess": "This node cannot access {{name}}'s data",
+          "missingSelfKey": "This node has no data key {{key}}",
+          "missingNodeKey": "{{name}} has no data key {{key}}"
         }
       },
       "propertiesPanel": {

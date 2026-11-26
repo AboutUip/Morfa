@@ -2,15 +2,22 @@ import { useEffect, useRef, useState } from "react";
 
 import { projectCanvasApi } from "../../lib/api";
 import { projectsStore } from "../../lib/projects";
-import type { CanvasPage } from "./canvasDocument";
+import type {
+  CanvasDocument,
+  CanvasLink,
+  CanvasPage,
+} from "./canvasDocument";
 
 const AUTOSAVE_DEBOUNCE_MS = 700;
 const AUTOSAVE_RETRY_MS = 2000;
 
+const EMPTY_DOCUMENT: CanvasDocument = { pages: [], links: [] };
+
 export function useProjectCanvas(projectId: string) {
-  const [pages, setPages] = useState<CanvasPage[]>([]);
+  const [document, setDocument] =
+    useState<CanvasDocument>(EMPTY_DOCUMENT);
   const [loaded, setLoaded] = useState(false);
-  const pagesRef = useRef<CanvasPage[]>([]);
+  const documentRef = useRef<CanvasDocument>(EMPTY_DOCUMENT);
   const loadedRef = useRef(false);
   const pendingRef = useRef("");
   const lastSavedRef = useRef("");
@@ -39,6 +46,7 @@ export function useProjectCanvas(projectId: string) {
     const pending = pendingRef.current;
     if (!pending || pending === lastSavedRef.current) return;
 
+    const snapshot = documentRef.current;
     void fetch(
       `/api/me/projects/${encodeURIComponent(projectId)}/canvas`,
       {
@@ -46,7 +54,10 @@ export function useProjectCanvas(projectId: string) {
         credentials: "include",
         keepalive: true,
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ pages: pagesRef.current }),
+        body: JSON.stringify({
+          pages: snapshot.pages,
+          links: snapshot.links,
+        }),
       },
     ).catch(() => {
       // 页面正在离开，无法再向用户展示保存错误
@@ -68,9 +79,11 @@ export function useProjectCanvas(projectId: string) {
         const snapshot = pendingRef.current;
         if (!snapshot) break;
 
+        const parsed = JSON.parse(snapshot) as CanvasDocument;
         const response = await projectCanvasApi.save(
           projectId,
-          JSON.parse(snapshot) as CanvasPage[],
+          parsed.pages,
+          parsed.links,
         );
         lastSavedRef.current = snapshot;
         projectsStore.touch(projectId, response.updatedAt);
@@ -97,8 +110,8 @@ export function useProjectCanvas(projectId: string) {
 
     setLoaded(false);
     loadedRef.current = false;
-    setPages([]);
-    pagesRef.current = [];
+    setDocument(EMPTY_DOCUMENT);
+    documentRef.current = EMPTY_DOCUMENT;
     pendingRef.current = "";
     lastSavedRef.current = "";
     clearSaveTimer();
@@ -109,12 +122,15 @@ export function useProjectCanvas(projectId: string) {
       .then((response) => {
         if (cancelled) return;
 
-        const nextPages = response.pages;
-        const serialized = JSON.stringify(nextPages);
-        pagesRef.current = nextPages;
+        const nextDocument: CanvasDocument = {
+          pages: response.pages,
+          links: response.links ?? [],
+        };
+        const serialized = JSON.stringify(nextDocument);
+        documentRef.current = nextDocument;
         pendingRef.current = serialized;
         lastSavedRef.current = serialized;
-        setPages(nextPages);
+        setDocument(nextDocument);
         loadedRef.current = true;
         setLoaded(true);
       })
@@ -130,10 +146,10 @@ export function useProjectCanvas(projectId: string) {
   }, [projectId]);
 
   useEffect(() => {
-    pagesRef.current = pages;
+    documentRef.current = document;
     if (!loaded) return;
 
-    const serialized = JSON.stringify(pages);
+    const serialized = JSON.stringify(document);
     pendingRef.current = serialized;
     if (serialized === lastSavedRef.current) return;
 
@@ -142,21 +158,24 @@ export function useProjectCanvas(projectId: string) {
       saveTimerRef.current = null;
       flushRef.current();
     }, AUTOSAVE_DEBOUNCE_MS);
-  }, [pages, loaded]);
+  }, [document, loaded]);
 
   useEffect(() => {
     const handlePageHide = () => sendKeepalive();
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "hidden") sendKeepalive();
+      if (window.document.visibilityState === "hidden") sendKeepalive();
     };
 
     window.addEventListener("pagehide", handlePageHide);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.document.addEventListener(
+      "visibilitychange",
+      handleVisibilityChange,
+    );
 
     return () => {
       sendKeepalive();
       window.removeEventListener("pagehide", handlePageHide);
-      document.removeEventListener(
+      window.document.removeEventListener(
         "visibilitychange",
         handleVisibilityChange,
       );
@@ -166,5 +185,10 @@ export function useProjectCanvas(projectId: string) {
     };
   }, [projectId]);
 
-  return { pages, setPages, loaded };
+  return {
+    pages: document.pages as CanvasPage[],
+    links: document.links as CanvasLink[],
+    setDocument,
+    loaded,
+  };
 }

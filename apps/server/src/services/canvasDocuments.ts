@@ -14,6 +14,10 @@ const MAX_PAGE_DATA_ENTRIES = 100;
 const MAX_DATA_KEY_LENGTH = 64;
 const MAX_DATA_VALUE_LENGTH = 2000;
 const MAX_DATA_COMMIT_LENGTH = 1000;
+const MAX_CANVAS_LINKS = 500;
+const MAX_LINK_ID_LENGTH = 120;
+const MAX_LINK_COLOR_LENGTH = 64;
+const MAX_LINK_WIDTH = 32;
 const MAX_CANVAS_JSON_LENGTH = 2_000_000;
 
 export type CanvasFrame = "iphone" | "android" | "watch";
@@ -43,8 +47,31 @@ export interface CanvasPageDto {
   data?: CanvasDataEntryDto[];
 }
 
+export type CanvasLinkDirection = "one-way" | "two-way";
+export type CanvasLinkEdge = "top" | "right" | "bottom" | "left";
+
+export interface CanvasLinkAnchorDto {
+  x: number;
+  y: number;
+  edge: CanvasLinkEdge;
+}
+
+export interface CanvasLinkDto {
+  id: string;
+  fromId: string;
+  toId: string;
+  direction: CanvasLinkDirection;
+  color: string;
+  width: number;
+  dashed: boolean;
+  fromAnchor: CanvasLinkAnchorDto;
+  toAnchor: CanvasLinkAnchorDto;
+  createdAt: number;
+}
+
 export interface CanvasDocumentDto {
   pages: CanvasPageDto[];
+  links: CanvasLinkDto[];
   updatedAt: number;
 }
 
@@ -204,17 +231,114 @@ function normalizePages(value: unknown): CanvasPageDto[] {
   return pages;
 }
 
-function parseStoredDocument(data: string): CanvasPageDto[] {
-  if (!data) return [];
+function normalizeAnchor(value: unknown): CanvasLinkAnchorDto {
+  const anchor = readObject(value);
+  const x = readCoordinate(anchor.x);
+  const y = readCoordinate(anchor.y);
+  if (x < 0 || x > 1 || y < 0 || y > 1) invalidDocument();
+
+  const edge = anchor.edge;
+  if (
+    edge !== "top" &&
+    edge !== "right" &&
+    edge !== "bottom" &&
+    edge !== "left"
+  ) {
+    invalidDocument();
+  }
+
+  return { x, y, edge };
+}
+
+function normalizeLinks(
+  value: unknown,
+  pages: CanvasPageDto[],
+): CanvasLinkDto[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) invalidDocument();
+  if (value.length > MAX_CANVAS_LINKS) {
+    throw new ApiError(
+      413,
+      "CANVAS_DOCUMENT_TOO_LARGE",
+      "关联线数量超出限制",
+    );
+  }
+
+  const pageIds = new Set(pages.map((page) => page.id));
+  const linkIds = new Set<string>();
+  const links: CanvasLinkDto[] = [];
+
+  for (const rawLink of value) {
+    const link = readObject(rawLink);
+    const id = readString(link.id, MAX_LINK_ID_LENGTH, true);
+    if (linkIds.has(id)) invalidDocument();
+    linkIds.add(id);
+
+    const fromId = readPageId(link.fromId);
+    const toId = readPageId(link.toId);
+    if (fromId === toId) invalidDocument();
+    if (!pageIds.has(fromId) || !pageIds.has(toId)) {
+      invalidDocument();
+    }
+
+    const direction = link.direction;
+    if (direction !== "one-way" && direction !== "two-way") {
+      invalidDocument();
+    }
+
+    const color = readString(link.color, MAX_LINK_COLOR_LENGTH, true);
+    const widthValue =
+      typeof link.width === "number" && Number.isFinite(link.width)
+        ? link.width
+        : 2;
+    if (widthValue < 1 || widthValue > MAX_LINK_WIDTH) {
+      invalidDocument();
+    }
+    const dashed = Boolean(link.dashed);
+    const createdAt =
+      typeof link.createdAt === "number" &&
+      Number.isFinite(link.createdAt)
+        ? link.createdAt
+        : 0;
+
+    links.push({
+      id,
+      fromId,
+      toId,
+      direction,
+      color,
+      width: widthValue,
+      dashed,
+      fromAnchor: normalizeAnchor(link.fromAnchor),
+      toAnchor: normalizeAnchor(link.toAnchor),
+      createdAt,
+    });
+  }
+
+  return links;
+}
+
+function parseStoredDocument(data: string): {
+  pages: CanvasPageDto[];
+  links: CanvasLinkDto[];
+} {
+  if (!data) return { pages: [], links: [] };
 
   try {
     const parsed = JSON.parse(data) as unknown;
-    if (!parsed || typeof parsed !== "object") return [];
+    if (!parsed || typeof parsed !== "object") {
+      return { pages: [], links: [] };
+    }
     const pages = (parsed as { pages?: unknown }).pages;
-    if (!Array.isArray(pages)) return [];
-    return normalizePages(pages);
+    if (!Array.isArray(pages)) return { pages: [], links: [] };
+    const normalizedPages = normalizePages(pages);
+    const links = normalizeLinks(
+      (parsed as { links?: unknown }).links,
+      normalizedPages,
+    );
+    return { pages: normalizedPages, links };
   } catch {
-    return [];
+    return { pages: [], links: [] };
   }
 }
 
@@ -227,8 +351,10 @@ export function getProjectCanvas(
     throw new ApiError(404, "PROJECT_NOT_FOUND", "项目不存在");
   }
 
+  const document = parseStoredDocument(row.data);
   return {
-    pages: parseStoredDocument(row.data),
+    pages: document.pages,
+    links: document.links,
     updatedAt: row.updated_at,
   };
 }
@@ -237,6 +363,7 @@ export function saveProjectCanvas(
   userId: string,
   projectId: string,
   rawPages: unknown,
+  rawLinks: unknown,
 ): CanvasDocumentDto {
   const row = findProjectDataForUser(userId, projectId);
   if (!row) {
@@ -244,7 +371,8 @@ export function saveProjectCanvas(
   }
 
   const pages = normalizePages(rawPages);
-  const data = JSON.stringify({ version: 1, pages });
+  const links = normalizeLinks(rawLinks, pages);
+  const data = JSON.stringify({ version: 2, pages, links });
   if (data.length > MAX_CANVAS_JSON_LENGTH) {
     throw new ApiError(
       413,
@@ -256,5 +384,5 @@ export function saveProjectCanvas(
   const updatedAt = Date.now();
   updateProjectData(projectId, data, updatedAt);
 
-  return { pages, updatedAt };
+  return { pages, links, updatedAt };
 }

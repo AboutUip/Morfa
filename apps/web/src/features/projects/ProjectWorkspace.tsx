@@ -1,4 +1,11 @@
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type SetStateAction,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ProjectSummary } from "../../lib/api";
@@ -16,8 +23,15 @@ import {
   type CanvasTool,
 } from "./canvasTools";
 import {
+  clearStyleVariableFallbackCache,
+  collectCanvasLint,
+  createLinkId,
+  renameLinkReferences,
   renameStyleReferences,
   type CanvasDataEntry,
+  type CanvasLink,
+  type CanvasLinkAnchor,
+  type CanvasLintItem,
   type CanvasPage,
 } from "./canvasDocument";
 import { useCanvasSnapSettings } from "./canvasSnap";
@@ -25,6 +39,9 @@ import { ProjectWorkspaceTopBar } from "./ProjectWorkspaceTopBar";
 import { useCanvasHistory } from "./useCanvasHistory";
 import { useProjectCanvas } from "./useProjectCanvas";
 import styles from "./ProjectWorkspace.module.css";
+
+const DEFAULT_LINK_COLOR = "#8b8ff0";
+const MIN_LINT_PANEL_HEIGHT = 120;
 
 function isEditableTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
@@ -34,6 +51,172 @@ function isEditableTarget(target: EventTarget | null) {
     target.tagName === "INPUT" ||
     target.tagName === "TEXTAREA" ||
     target.tagName === "SELECT"
+  );
+}
+
+function LintMessage({ item }: { item: CanvasLintItem }) {
+  const { t } = useTranslation();
+
+  switch (item.code) {
+    case "malformed":
+      return <>{t("projects.workspace.lint.codes.malformed")}</>;
+    case "missing-node":
+      return (
+        <>
+          {t("projects.workspace.lint.codes.missingNode", {
+            id: item.targetId ?? "",
+          })}
+        </>
+      );
+    case "no-access":
+      return (
+        <>
+          {t("projects.workspace.lint.codes.noAccess", {
+            name: item.targetName ?? item.targetId ?? "",
+          })}
+        </>
+      );
+    case "missing-self-key":
+      return (
+        <>
+          {t("projects.workspace.lint.codes.missingSelfKey", {
+            key: item.key ?? "",
+          })}
+        </>
+      );
+    case "missing-node-key":
+      return (
+        <>
+          {t("projects.workspace.lint.codes.missingNodeKey", {
+            name: item.targetName ?? item.targetId ?? "",
+            key: item.key ?? "",
+          })}
+        </>
+      );
+  }
+}
+
+function CanvasLintPanel({
+  items,
+  height,
+  onHeightChange,
+  onClose,
+}: {
+  items: CanvasLintItem[];
+  height: number;
+  onHeightChange: (height: number) => void;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const resizeRef = useRef<{
+    pointerId: number;
+    startY: number;
+    startHeight: number;
+  } | null>(null);
+
+  const startResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    resizeRef.current = {
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      startHeight: height,
+    };
+  };
+
+  const handleResizeMove = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    const resize = resizeRef.current;
+    if (!resize || resize.pointerId !== event.pointerId) return;
+
+    const maxHeight = Math.max(
+      MIN_LINT_PANEL_HEIGHT,
+      window.innerHeight * 0.6,
+    );
+    const nextHeight = Math.min(
+      maxHeight,
+      Math.max(
+        MIN_LINT_PANEL_HEIGHT,
+        resize.startHeight + resize.startY - event.clientY,
+      ),
+    );
+    onHeightChange(nextHeight);
+  };
+
+  const endResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (resizeRef.current?.pointerId !== event.pointerId) return;
+    resizeRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  return (
+    <section
+      className={styles.lintPanel}
+      style={{ height }}
+      aria-label={t("projects.workspace.lint.title")}
+    >
+      <div
+        className={styles.lintResizeHandle}
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label={t("projects.workspace.lint.resize")}
+        onPointerDown={startResize}
+        onPointerMove={handleResizeMove}
+        onPointerUp={endResize}
+        onPointerCancel={endResize}
+        onLostPointerCapture={endResize}
+      />
+
+      <header className={styles.lintHeader}>
+        <div className={styles.lintHeaderTitle}>
+          <span className={styles.lintErrorMark}>×</span>
+          <span>{t("projects.workspace.lint.title")}</span>
+          <span className={styles.lintHeaderCount}>{items.length}</span>
+        </div>
+        <button
+          className={styles.lintClose}
+          type="button"
+          aria-label={t("projects.workspace.lint.close")}
+          onClick={onClose}
+        >
+          ×
+        </button>
+      </header>
+
+      <div className={styles.lintList}>
+        {items.length ? (
+          items.map((item) => (
+            <article className={styles.lintItem} key={item.id}>
+              <div className={styles.lintItemTitle}>
+                <span className={styles.lintErrorMark}>×</span>
+                <span>
+                  {item.pageName} · {item.styleKey}
+                </span>
+              </div>
+              <code className={styles.lintExpression}>
+                {item.expression}
+              </code>
+              <p className={styles.lintMessage}>
+                <LintMessage item={item} />
+              </p>
+              {item.chain?.length ? (
+                <p className={styles.lintChain}>
+                  {t("projects.workspace.lint.stack")}:{" "}
+                  {item.chain.join(" → ")}
+                </p>
+              ) : null}
+            </article>
+          ))
+        ) : (
+          <p className={styles.lintEmpty}>
+            {t("projects.workspace.lint.empty")}
+          </p>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -49,7 +232,7 @@ export function ProjectWorkspace({
   const { t } = useTranslation();
   const [activeTool, setActiveTool] = useState<CanvasTool>("select");
   const [snapSettings, setSnapSettings] = useCanvasSnapSettings();
-  const { pages, setPages } = useProjectCanvas(project.id);
+  const { pages, links, setDocument } = useProjectCanvas(project.id);
   const {
     commit,
     transient,
@@ -57,25 +240,87 @@ export function ProjectWorkspace({
     endTransaction,
     undo,
     redo,
-  } = useCanvasHistory(pages, setPages, project.id);
+  } = useCanvasHistory({ pages, links }, setDocument, project.id);
   const [selectedPageIds, setSelectedPageIds] = useState<string[]>([]);
+  const [selectedLinkId, setSelectedLinkId] = useState<string | null>(
+    null,
+  );
+  const [lintOpen, setLintOpen] = useState(false);
+  const [lintHeight, setLintHeight] = useState(220);
   const selectedPageId =
     selectedPageIds[selectedPageIds.length - 1] ?? null;
+  const lintItems = useMemo(
+    () => collectCanvasLint(pages, links),
+    [pages, links],
+  );
+
+  useEffect(() => {
+    clearStyleVariableFallbackCache();
+  }, [project.id]);
+
+  const commitPages = (update: SetStateAction<CanvasPage[]>) => {
+    commit((current) => {
+      const nextPages =
+        typeof update === "function"
+          ? (update as (items: CanvasPage[]) => CanvasPage[])(
+              current.pages,
+            )
+          : update;
+      return nextPages === current.pages
+        ? current
+        : { ...current, pages: nextPages };
+    });
+  };
+
+  const transientPages = (update: SetStateAction<CanvasPage[]>) => {
+    transient((current) => {
+      const nextPages =
+        typeof update === "function"
+          ? (update as (items: CanvasPage[]) => CanvasPage[])(
+              current.pages,
+            )
+          : update;
+      return nextPages === current.pages
+        ? current
+        : { ...current, pages: nextPages };
+    });
+  };
+
+  const commitLinks = (update: SetStateAction<CanvasLink[]>) => {
+    commit((current) => {
+      const nextLinks =
+        typeof update === "function"
+          ? (update as (items: CanvasLink[]) => CanvasLink[])(
+              current.links,
+            )
+          : update;
+      return nextLinks === current.links
+        ? current
+        : { ...current, links: nextLinks };
+    });
+  };
 
   const selectPage = (pageId: string | null) => {
+    setSelectedLinkId(null);
     setSelectedPageIds(pageId ? [pageId] : []);
   };
 
   const selectPages = (pageIds: string[]) => {
+    setSelectedLinkId(null);
     setSelectedPageIds(Array.from(new Set(pageIds)));
   };
 
+  const selectLink = (linkId: string) => {
+    setSelectedPageIds([]);
+    setSelectedLinkId(linkId);
+  };
+
   const handleCreatePage = (page: CanvasPage) => {
-    commit((current) => [...current, page]);
+    commitPages((current) => [...current, page]);
   };
 
   const handleRenamePage = (pageId: string, name: string) => {
-    commit((current) => {
+    commitPages((current) => {
       const target = current.find((page) => page.id === pageId);
       if (!target || target.name === name) return current;
 
@@ -97,20 +342,23 @@ export function ProjectWorkspace({
     if (pages.some((page) => page.id === id)) return;
 
     commit((current) => {
-      if (current.some((page) => page.id === id)) return current;
+      if (current.pages.some((page) => page.id === id)) return current;
 
-      return current.map((page) => {
-        const renamedId = page.id === pageId ? id : page.id;
-        const parentId =
-          page.parentId === pageId ? id : page.parentId;
+      return {
+        pages: current.pages.map((page) => {
+          const renamedId = page.id === pageId ? id : page.id;
+          const parentId =
+            page.parentId === pageId ? id : page.parentId;
 
-        return {
-          ...page,
-          id: renamedId,
-          ...(parentId ? { parentId } : {}),
-          styles: renameStyleReferences(page.styles, pageId, id),
-        };
-      });
+          return {
+            ...page,
+            id: renamedId,
+            ...(parentId ? { parentId } : {}),
+            styles: renameStyleReferences(page.styles, pageId, id),
+          };
+        }),
+        links: renameLinkReferences(current.links, pageId, id),
+      };
     });
 
     setSelectedPageIds((current) =>
@@ -120,21 +368,36 @@ export function ProjectWorkspace({
     );
   };
 
-  const handleDeletePage = (pageId: string) => {
+  const deletePages = (pageIds: string[]) => {
+    if (!pageIds.length) return;
+    const deleting = new Set(pageIds);
     commit((current) => {
-      if (!current.some((page) => page.id === pageId)) return current;
-      return current.filter((page) => page.id !== pageId);
+      const nextPages = current.pages.filter(
+        (page) => !deleting.has(page.id),
+      );
+      if (nextPages.length === current.pages.length) return current;
+      return {
+        pages: nextPages,
+        links: current.links.filter(
+          (link) =>
+            !deleting.has(link.fromId) && !deleting.has(link.toId),
+        ),
+      };
     });
     setSelectedPageIds((current) =>
-      current.filter((selectedId) => selectedId !== pageId),
+      current.filter((id) => !deleting.has(id)),
     );
+  };
+
+  const handleDeletePage = (pageId: string) => {
+    deletePages([pageId]);
   };
 
   const handleUpdatePageStyles = (
     pageId: string,
     styles: Record<string, string>,
   ) => {
-    commit((current) =>
+    commitPages((current) =>
       current.map((page) =>
         page.id === pageId ? { ...page, styles } : page,
       ),
@@ -142,7 +405,7 @@ export function ProjectWorkspace({
   };
 
   const handleMovePage = (pageId: string, x: number, y: number) => {
-    transient((current) =>
+    transientPages((current) =>
       current.map((page) =>
         page.id === pageId ? { ...page, x, y } : page,
       ),
@@ -153,7 +416,7 @@ export function ProjectWorkspace({
     pageId: string,
     data: CanvasDataEntry[],
   ) => {
-    commit((current) =>
+    commitPages((current) =>
       current.map((page) =>
         page.id === pageId ? { ...page, data } : page,
       ),
@@ -191,7 +454,7 @@ export function ProjectWorkspace({
       return;
     }
 
-    transient((current) =>
+    transientPages((current) =>
       current.map((page) => {
         if (page.id !== pageId || page.lockedSize) return page;
 
@@ -224,7 +487,7 @@ export function ProjectWorkspace({
   ) => {
     if (dragId === targetId) return;
 
-    commit((current) => {
+    commitPages((current) => {
       const fromIndex = current.findIndex((page) => page.id === dragId);
       if (fromIndex < 0) return current;
 
@@ -260,7 +523,8 @@ export function ProjectWorkspace({
     );
     if (!pasted) return;
 
-    commit((current) => [...current, pasted]);
+    commitPages((current) => [...current, pasted]);
+    setSelectedLinkId(null);
     setSelectedPageIds([pasted.id]);
   };
 
@@ -273,8 +537,54 @@ export function ProjectWorkspace({
       pages,
       t("projects.workspace.canvas.copySuffix"),
     );
-    commit((current) => [...current, duplicate]);
+    commitPages((current) => [...current, duplicate]);
+    setSelectedLinkId(null);
     setSelectedPageIds([duplicate.id]);
+  };
+
+  const handleCreateLink = (
+    fromId: string,
+    toId: string,
+    fromAnchor: CanvasLinkAnchor,
+    toAnchor: CanvasLinkAnchor,
+  ) => {
+    if (fromId === toId) return;
+    const id = createLinkId(links);
+    commitLinks((current) => [
+      ...current,
+      {
+        id,
+        fromId,
+        toId,
+        direction: "one-way",
+        color: DEFAULT_LINK_COLOR,
+        width: 2,
+        dashed: false,
+        fromAnchor,
+        toAnchor,
+        createdAt: Date.now(),
+      },
+    ]);
+    setSelectedPageIds([]);
+    setSelectedLinkId(id);
+  };
+
+  const handleUpdateLink = (
+    linkId: string,
+    patch: Partial<CanvasLink>,
+  ) => {
+    commitLinks((current) =>
+      current.map((link) =>
+        link.id === linkId ? { ...link, ...patch } : link,
+      ),
+    );
+  };
+
+  const handleDeleteLink = (linkId: string) => {
+    commitLinks((current) =>
+      current.filter((link) => link.id !== linkId),
+    );
+    setSelectedLinkId((current) => (current === linkId ? null : current));
   };
 
   useEffect(() => {
@@ -287,22 +597,30 @@ export function ProjectWorkspace({
   }, [pages]);
 
   useEffect(() => {
+    if (
+      selectedLinkId &&
+      !links.some((link) => link.id === selectedLinkId)
+    ) {
+      setSelectedLinkId(null);
+    }
+  }, [links, selectedLinkId]);
+
+  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.ctrlKey || event.metaKey || event.altKey) return;
       if (isEditableTarget(event.target)) return;
       if (document.body.dataset.canvasModal === "true") return;
 
       if (event.key === "Delete" || event.key === "Backspace") {
+        if (selectedLinkId) {
+          event.preventDefault();
+          handleDeleteLink(selectedLinkId);
+          return;
+        }
+
         if (!selectedPageIds.length) return;
         event.preventDefault();
-        const deleting = new Set(selectedPageIds);
-        commit((current) => {
-          if (!current.some((page) => deleting.has(page.id))) {
-            return current;
-          }
-          return current.filter((page) => !deleting.has(page.id));
-        });
-        setSelectedPageIds([]);
+        deletePages(selectedPageIds);
         return;
       }
 
@@ -316,7 +634,7 @@ export function ProjectWorkspace({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedPageIds]);
+  }, [selectedLinkId, selectedPageIds]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -369,6 +687,9 @@ export function ProjectWorkspace({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [pages, selectedPageId, t]);
 
+  const selectedLink =
+    links.find((link) => link.id === selectedLinkId) ?? null;
+
   return (
     <div className={styles.shell} data-project-workspace="true">
       <ProjectWorkspaceTopBar project={project} onExit={onExit} />
@@ -386,11 +707,16 @@ export function ProjectWorkspace({
           label={project.name}
           activeTool={activeTool}
           pages={pages}
+          links={links}
           selectedIds={selectedPageIds}
+          selectedLinkId={selectedLinkId}
           snapSettings={snapSettings}
           onSelectPage={selectPage}
           onSelectPages={selectPages}
+          onSelectLink={selectLink}
           onCreatePage={handleCreatePage}
+          onCreateLink={handleCreateLink}
+          onDeleteLink={handleDeleteLink}
           onMovePage={handleMovePage}
           onMovePageStart={handleMovePageStart}
           onMovePageEnd={handleMovePageEnd}
@@ -407,9 +733,13 @@ export function ProjectWorkspace({
 
         <CanvasRightSidebar
           pages={pages}
+          links={links}
           selectedId={selectedPageId}
           selectedIds={selectedPageIds}
+          selectedLink={selectedLink}
           onSelect={selectPage}
+          onUpdateLink={handleUpdateLink}
+          onDeleteLink={handleDeleteLink}
           onRename={handleRenamePage}
           onRenameId={handleRenamePageId}
           onDelete={handleDeletePage}
@@ -419,7 +749,32 @@ export function ProjectWorkspace({
         />
       </div>
 
-      <footer className={styles.statusBar} />
+      {lintOpen ? (
+        <CanvasLintPanel
+          items={lintItems}
+          height={lintHeight}
+          onHeightChange={setLintHeight}
+          onClose={() => setLintOpen(false)}
+        />
+      ) : null}
+
+      <footer className={styles.statusBar}>
+        {lintItems.length ? (
+          <button
+            className={styles.lintStatusButton}
+            type="button"
+            data-active={lintOpen}
+            onClick={() => setLintOpen((current) => !current)}
+            aria-expanded={lintOpen}
+            aria-label={t("projects.workspace.lint.open", {
+              count: lintItems.length,
+            })}
+          >
+            <span className={styles.lintStatusMark}>×</span>
+            <span>{lintItems.length}</span>
+          </button>
+        ) : null}
+      </footer>
     </div>
   );
 }

@@ -5,23 +5,23 @@ import {
   type SetStateAction,
 } from "react";
 
-import type { CanvasPage } from "./canvasDocument";
+import type { CanvasDocument } from "./canvasDocument";
 
 const MAX_HISTORY = 100;
 
 export function useCanvasHistory(
-  pages: CanvasPage[],
-  setPages: Dispatch<SetStateAction<CanvasPage[]>>,
+  document: CanvasDocument,
+  setDocument: Dispatch<SetStateAction<CanvasDocument>>,
   resetKey: string,
 ) {
-  const pagesRef = useRef(pages);
-  const undoRef = useRef<CanvasPage[][]>([]);
-  const redoRef = useRef<CanvasPage[][]>([]);
-  const transactionRef = useRef<CanvasPage[] | null>(null);
+  const documentRef = useRef(document);
+  const undoRef = useRef<CanvasDocument[]>([]);
+  const redoRef = useRef<CanvasDocument[]>([]);
+  const transactionRef = useRef<CanvasDocument | null>(null);
 
   useEffect(() => {
-    pagesRef.current = pages;
-  }, [pages]);
+    documentRef.current = document;
+  }, [document]);
 
   useEffect(() => {
     undoRef.current = [];
@@ -29,21 +29,21 @@ export function useCanvasHistory(
     transactionRef.current = null;
   }, [resetKey]);
 
-  const applyPages = (next: CanvasPage[]) => {
-    pagesRef.current = next;
-    setPages(next);
+  const applyDocument = (next: CanvasDocument) => {
+    documentRef.current = next;
+    setDocument(next);
   };
 
-  const resolveNext = (update: SetStateAction<CanvasPage[]>) => {
+  const resolveNext = (update: SetStateAction<CanvasDocument>) => {
     return typeof update === "function"
-      ? (update as (current: CanvasPage[]) => CanvasPage[])(
-          pagesRef.current,
+      ? (update as (current: CanvasDocument) => CanvasDocument)(
+          documentRef.current,
         )
       : update;
   };
 
-  const commit = (update: SetStateAction<CanvasPage[]>) => {
-    const current = pagesRef.current;
+  const commit = (update: SetStateAction<CanvasDocument>) => {
+    const current = documentRef.current;
     const next = resolveNext(update);
     if (next === current) return false;
 
@@ -52,24 +52,24 @@ export function useCanvasHistory(
       undoRef.current.shift();
     }
     redoRef.current = [];
-    applyPages(next);
+    applyDocument(next);
     return true;
   };
 
-  const transient = (update: SetStateAction<CanvasPage[]>) => {
+  const transient = (update: SetStateAction<CanvasDocument>) => {
     const next = resolveNext(update);
-    if (next === pagesRef.current) return;
-    applyPages(next);
+    if (next === documentRef.current) return;
+    applyDocument(next);
   };
 
   const beginTransaction = () => {
-    transactionRef.current = pagesRef.current;
+    transactionRef.current = documentRef.current;
   };
 
   const endTransaction = () => {
     const snapshot = transactionRef.current;
     transactionRef.current = null;
-    if (!snapshot || snapshot === pagesRef.current) return;
+    if (!snapshot || snapshot === documentRef.current) return;
 
     undoRef.current.push(snapshot);
     if (undoRef.current.length > MAX_HISTORY) {
@@ -82,9 +82,9 @@ export function useCanvasHistory(
     const previous = undoRef.current.pop();
     if (!previous) return false;
 
-    redoRef.current.push(pagesRef.current);
+    redoRef.current.push(documentRef.current);
     transactionRef.current = null;
-    applyPages(previous);
+    applyDocument(previous);
     return true;
   };
 
@@ -92,9 +92,9 @@ export function useCanvasHistory(
     const next = redoRef.current.pop();
     if (!next) return false;
 
-    undoRef.current.push(pagesRef.current);
+    undoRef.current.push(documentRef.current);
     transactionRef.current = null;
-    applyPages(next);
+    applyDocument(next);
     return true;
   };
 
