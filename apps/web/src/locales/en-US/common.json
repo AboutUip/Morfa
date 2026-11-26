@@ -60,6 +60,56 @@
         "layers": "Layers",
         "properties": "Properties"
       },
+      "layersPanel": {
+        "rename": "Rename",
+        "delete": "Delete"
+      },
+      "propertiesPanel": {
+        "tabs": {
+          "style": "Style",
+          "behavior": "Behavior"
+        },
+        "tableMode": "Style table",
+        "controlMode": "Controls",
+        "inherit": "Inherit",
+        "sections": {
+          "layout": "Layout",
+          "spacing": "Spacing",
+          "appearance": "Appearance",
+          "border": "Border",
+          "flex": "Flex",
+          "effects": "Effects"
+        },
+        "fields": {
+          "width": "Width",
+          "height": "Height",
+          "display": "Display",
+          "overflow": "Overflow",
+          "boxSizing": "Box sizing",
+          "padding": "Padding",
+          "gap": "Gap",
+          "background": "Background",
+          "opacity": "Opacity",
+          "radius": "Radius",
+          "borderWidth": "Border width",
+          "borderStyle": "Border style",
+          "borderColor": "Border color",
+          "flexDirection": "Flex direction",
+          "justifyContent": "Justify content",
+          "alignItems": "Align items",
+          "boxShadow": "Box shadow",
+          "filter": "Filter"
+        },
+        "table": {
+          "property": "CSS property",
+          "value": "Value",
+          "addProperty": "Property",
+          "addValue": "Value",
+          "add": "Add",
+          "remove": "Remove",
+          "inheritHint": "Leave empty to inherit"
+        }
+      },
       "componentsPanel": {
         "tabs": {
           "mine": "My components",

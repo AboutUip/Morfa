@@ -60,6 +60,56 @@
         "layers": "图层",
         "properties": "属性"
       },
+      "layersPanel": {
+        "rename": "重命名",
+        "delete": "删除"
+      },
+      "propertiesPanel": {
+        "tabs": {
+          "style": "样式",
+          "behavior": "行为"
+        },
+        "tableMode": "样式表格",
+        "controlMode": "控件",
+        "inherit": "继承",
+        "sections": {
+          "layout": "布局",
+          "spacing": "间距",
+          "appearance": "外观",
+          "border": "边框",
+          "flex": "弹性",
+          "effects": "效果"
+        },
+        "fields": {
+          "width": "宽度",
+          "height": "高度",
+          "display": "显示",
+          "overflow": "溢出",
+          "boxSizing": "盒模型",
+          "padding": "内边距",
+          "gap": "间距",
+          "background": "背景色",
+          "opacity": "不透明度",
+          "radius": "圆角",
+          "borderWidth": "边框宽度",
+          "borderStyle": "边框样式",
+          "borderColor": "边框颜色",
+          "flexDirection": "主轴方向",
+          "justifyContent": "主轴对齐",
+          "alignItems": "交叉轴对齐",
+          "boxShadow": "阴影",
+          "filter": "滤镜"
+        },
+        "table": {
+          "property": "CSS 属性",
+          "value": "值",
+          "addProperty": "属性名",
+          "addValue": "样式值",
+          "add": "添加",
+          "remove": "删除",
+          "inheritHint": "留空表示继承"
+        }
+      },
       "componentsPanel": {
         "tabs": {
           "mine": "我的组件",

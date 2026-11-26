@@ -75,6 +75,15 @@
   position: absolute;
 }
 
+.page[data-selected="true"] {
+  outline: 2px solid var(--mf-accent);
+  outline-offset: 3px;
+}
+
+.page[data-selected="true"] .pageLabel {
+  color: var(--mf-accent);
+}
+
 .pageSurface {
   position: absolute;
   inset: 0;

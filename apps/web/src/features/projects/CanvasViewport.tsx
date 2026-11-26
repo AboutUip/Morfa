@@ -11,6 +11,11 @@ import { useTranslation } from "react-i18next";
 
 import type { CanvasTool } from "./canvasTools";
 import {
+  createPageStyles,
+  getPageSize,
+  type CanvasPage,
+} from "./canvasDocument";
+import {
   CONTAINER_DRAG_MIME,
   getMarketContainer,
 } from "./componentMarket";
@@ -24,7 +29,6 @@ const MAX_GRID_SCREEN = 72;
 const MAJOR_GRID_CELLS = 5;
 const ZOOM_SENSITIVITY = 0.0015;
 const KEYBOARD_ZOOM_STEP = 1.2;
-const DEFAULT_PAGE_SIZE = 800;
 
 interface CanvasView {
   x: number;
@@ -53,15 +57,6 @@ interface MarqueeRect {
   height: number;
 }
 
-interface PageContainer {
-  id: string;
-  name: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
 interface GestureSession {
   view: CanvasView;
   px: number;
@@ -71,6 +66,10 @@ interface GestureSession {
 interface CanvasViewportProps {
   label: string;
   activeTool: CanvasTool;
+  pages: CanvasPage[];
+  selectedId: string | null;
+  onSelectPage: (pageId: string | null) => void;
+  onCreatePage: (page: CanvasPage) => void;
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -85,7 +84,7 @@ function createPageId() {
   return `page-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-function uniquePageName(baseName: string, pages: PageContainer[]) {
+function uniquePageName(baseName: string, pages: CanvasPage[]) {
   if (!pages.some((page) => page.name === baseName)) {
     return baseName;
   }
@@ -96,6 +95,28 @@ function uniquePageName(baseName: string, pages: PageContainer[]) {
   }
 
   return `${baseName} ${index}`;
+}
+
+function findPageAt(
+  pages: CanvasPage[],
+  worldX: number,
+  worldY: number,
+) {
+  for (let index = pages.length - 1; index >= 0; index -= 1) {
+    const page = pages[index];
+    const { width, height } = getPageSize(page);
+
+    if (
+      worldX >= page.x &&
+      worldX <= page.x + width &&
+      worldY >= page.y &&
+      worldY <= page.y + height
+    ) {
+      return page;
+    }
+  }
+
+  return null;
 }
 
 function normalizeWheelDelta(
@@ -135,6 +156,10 @@ function resolveGridStep(zoom: number) {
 export function CanvasViewport({
   label,
   activeTool,
+  pages,
+  selectedId,
+  onSelectPage,
+  onCreatePage,
 }: CanvasViewportProps) {
   const { t } = useTranslation();
   const viewportRef = useRef<HTMLElement>(null);
@@ -149,7 +174,6 @@ export function CanvasViewport({
   const gestureRef = useRef<GestureSession | null>(null);
   const [panning, setPanning] = useState(false);
   const [marquee, setMarquee] = useState<MarqueeRect | null>(null);
-  const [pages, setPages] = useState<PageContainer[]>([]);
   const [dropActive, setDropActive] = useState(false);
 
   useEffect(() => {
@@ -353,11 +377,17 @@ export function CanvasViewport({
 
     if (event.button !== 0 || activeTool !== "select") return;
 
-    // 选择工具的点击命中会在元素层接入；当前先提供框选反馈。
     event.preventDefault();
     const rect = event.currentTarget.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
+    const currentView = viewRef.current;
+    const worldX = (x - currentView.x) / currentView.zoom;
+    const worldY = (y - currentView.y) / currentView.zoom;
+    const hit = findPageAt(pages, worldX, worldY);
+
+    onSelectPage(hit?.id ?? null);
+    if (hit) return;
 
     event.currentTarget.setPointerCapture(event.pointerId);
     marqueeRef.current = {
@@ -499,19 +529,16 @@ export function CanvasViewport({
       (event.clientX - rect.left - currentView.x) / currentView.zoom;
     const worldY =
       (event.clientY - rect.top - currentView.y) / currentView.zoom;
-    const baseName = t(item.nameKey);
+    const page: CanvasPage = {
+      id: createPageId(),
+      name: uniquePageName(t(item.nameKey), pages),
+      x: worldX,
+      y: worldY,
+      styles: createPageStyles(),
+    };
 
-    setPages((current) => [
-      ...current,
-      {
-        id: createPageId(),
-        name: uniquePageName(baseName, current),
-        x: worldX,
-        y: worldY,
-        width: DEFAULT_PAGE_SIZE,
-        height: DEFAULT_PAGE_SIZE,
-      },
-    ]);
+    onCreatePage(page);
+    onSelectPage(page.id);
   };
 
   useEffect(() => {
@@ -560,27 +587,39 @@ export function CanvasViewport({
     >
       <div className={styles.grid} style={gridStyle} aria-hidden="true" />
       <div className={styles.world} style={worldStyle} aria-hidden="true">
-        {pages.map((page) => (
-          <div
-            key={page.id}
-            className={styles.page}
-            data-page-container="true"
-            style={{
-              left: page.x,
-              top: page.y,
-              width: page.width,
-              height: page.height,
-            }}
-          >
-            <span
-              className={styles.pageLabel}
-              style={{ transform: `scale(${1 / view.zoom})` }}
+        {pages.map((page) => {
+          const {
+            width = "800px",
+            height = "800px",
+            ...surfaceStyles
+          } = page.styles;
+
+          return (
+            <div
+              key={page.id}
+              className={styles.page}
+              data-page-container="true"
+              data-selected={selectedId === page.id}
+              style={{
+                left: page.x,
+                top: page.y,
+                width,
+                height,
+              }}
             >
-              {page.name}
-            </span>
-            <div className={styles.pageSurface} />
-          </div>
-        ))}
+              <span
+                className={styles.pageLabel}
+                style={{ transform: `scale(${1 / view.zoom})` }}
+              >
+                {page.name}
+              </span>
+              <div
+                className={styles.pageSurface}
+                style={surfaceStyles as CSSProperties}
+              />
+            </div>
+          );
+        })}
       </div>
 
       {marquee ? (

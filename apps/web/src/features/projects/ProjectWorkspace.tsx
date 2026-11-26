@@ -8,6 +8,7 @@ import {
   CANVAS_TOOL_SHORTCUTS,
   type CanvasTool,
 } from "./canvasTools";
+import type { CanvasPage } from "./canvasDocument";
 import { ProjectWorkspaceTopBar } from "./ProjectWorkspaceTopBar";
 import styles from "./ProjectWorkspace.module.css";
 
@@ -32,6 +33,10 @@ export function ProjectWorkspace({
   onExit,
 }: ProjectWorkspaceProps) {
   const [activeTool, setActiveTool] = useState<CanvasTool>("select");
+  const [pages, setPages] = useState<CanvasPage[]>([]);
+  const [selectedPageId, setSelectedPageId] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -50,6 +55,56 @@ export function ProjectWorkspace({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  const handleCreatePage = (page: CanvasPage) => {
+    setPages((current) => [...current, page]);
+  };
+
+  const handleRenamePage = (pageId: string, name: string) => {
+    setPages((current) =>
+      current.map((page) =>
+        page.id === pageId ? { ...page, name } : page,
+      ),
+    );
+  };
+
+  const handleDeletePage = (pageId: string) => {
+    setPages((current) => current.filter((page) => page.id !== pageId));
+    setSelectedPageId((current) => (current === pageId ? null : current));
+  };
+
+  const handleUpdatePageStyles = (
+    pageId: string,
+    styles: Record<string, string>,
+  ) => {
+    setPages((current) =>
+      current.map((page) =>
+        page.id === pageId ? { ...page, styles } : page,
+      ),
+    );
+  };
+
+  const handleReorderPage = (
+    dragId: string,
+    targetId: string,
+    position: "before" | "after",
+  ) => {
+    if (dragId === targetId) return;
+
+    setPages((current) => {
+      const fromIndex = current.findIndex((page) => page.id === dragId);
+      if (fromIndex < 0) return current;
+
+      const next = [...current];
+      const [moved] = next.splice(fromIndex, 1);
+      let targetIndex = next.findIndex((page) => page.id === targetId);
+      if (targetIndex < 0) return current;
+
+      if (position === "after") targetIndex += 1;
+      next.splice(targetIndex, 0, moved);
+      return next;
+    });
+  };
+
   return (
     <div className={styles.shell} data-project-workspace="true">
       <ProjectWorkspaceTopBar project={project} onExit={onExit} />
@@ -61,9 +116,24 @@ export function ProjectWorkspace({
           projectType={project.type}
         />
 
-        <CanvasViewport label={project.name} activeTool={activeTool} />
+        <CanvasViewport
+          label={project.name}
+          activeTool={activeTool}
+          pages={pages}
+          selectedId={selectedPageId}
+          onSelectPage={setSelectedPageId}
+          onCreatePage={handleCreatePage}
+        />
 
-        <CanvasRightSidebar />
+        <CanvasRightSidebar
+          pages={pages}
+          selectedId={selectedPageId}
+          onSelect={setSelectedPageId}
+          onRename={handleRenamePage}
+          onDelete={handleDeletePage}
+          onUpdateStyles={handleUpdatePageStyles}
+          onReorder={handleReorderPage}
+        />
       </div>
 
       <footer className={styles.statusBar} />
