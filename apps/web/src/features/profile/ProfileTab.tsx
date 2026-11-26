@@ -12,6 +12,7 @@ import { ApiError, profileApi } from "../../lib/api";
 import { apiErrorMessage } from "../../lib/apiErrors";
 import { useAuth } from "../auth/AuthProvider";
 import styles from "./ProfilePanel.module.css";
+import tabStyles from "./ProfileTab.module.css";
 import type { RequestPassword, RequestVCode } from "./types";
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
@@ -341,6 +342,16 @@ export function ProfileTab({
 
         {resetTicket ? (
           <form className={styles.form} onSubmit={handleResetSubmit}>
+            <input
+              className={tabStyles.hiddenUsername}
+              type="text"
+              name="username"
+              value={user.loginAccount}
+              autoComplete="username"
+              aria-label={t("profile.loginAccount")}
+              readOnly
+              tabIndex={-1}
+            />
             <p className={styles.infoText}>
               {t("profile.password.resetHint")}
             </p>
@@ -395,6 +406,16 @@ export function ProfileTab({
           </form>
         ) : (
           <form className={styles.form} onSubmit={handlePasswordSubmit}>
+            <input
+              className={tabStyles.hiddenUsername}
+              type="text"
+              name="username"
+              value={user.loginAccount}
+              autoComplete="username"
+              aria-label={t("profile.loginAccount")}
+              readOnly
+              tabIndex={-1}
+            />
             <div className={styles.inlineForm}>
               <label className={`${styles.field} ${styles.grow}`}>
                 <span className={styles.label}>
