@@ -158,10 +158,6 @@ export function ProjectsPage() {
         role="tabpanel"
         aria-labelledby="tab-projects"
       >
-        <header className={styles.projectsHeader}>
-          <p>{t("projects.projectCount", { count: projects.length })}</p>
-        </header>
-
         <div className={styles.projectGrid}>
           {projects.map((project) => (
             <article key={project.id} className={styles.projectCard}>
