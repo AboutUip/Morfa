@@ -59,6 +59,7 @@ export function ProjectWorkspace({
         <CanvasLeftSidebar
           activeTool={activeTool}
           onToolChange={setActiveTool}
+          projectType={project.type}
         />
 
         <CanvasViewport label={project.name} activeTool={activeTool} />

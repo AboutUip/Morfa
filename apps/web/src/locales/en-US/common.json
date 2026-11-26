@@ -56,6 +56,42 @@
         "canvas": "Canvas",
         "resize": "Resize sidebar"
       },
+      "componentsPanel": {
+        "tabs": {
+          "mine": "My components",
+          "market": "Component market"
+        },
+        "searchPlaceholder": "Search components",
+        "noResults": "No components found"
+      },
+      "componentMarket": {
+        "items": {
+          "blank": {
+            "name": "Blank page",
+            "description": "Start from an empty page."
+          },
+          "app": {
+            "name": "App page",
+            "description": "A page container for software interfaces."
+          },
+          "list": {
+            "name": "List page",
+            "description": "A page for lists and feeds."
+          },
+          "detail": {
+            "name": "Detail page",
+            "description": "A page for a single item's details."
+          },
+          "form": {
+            "name": "Form page",
+            "description": "A page for entering and submitting information."
+          },
+          "web": {
+            "name": "Web page",
+            "description": "A page container for website interfaces."
+          }
+        }
+      },
       "loadingTitle": "Opening project",
       "loadingHint": "Preparing the workspace for {{name}}",
       "loadingLabel": "Preparing project workspace"

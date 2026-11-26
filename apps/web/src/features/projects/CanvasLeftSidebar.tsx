@@ -1,6 +1,8 @@
 import {
+  useMemo,
   useRef,
   useState,
+  type DragEvent as ReactDragEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
@@ -11,12 +13,19 @@ import {
   FrameIcon,
   HandIcon,
   LayersIcon,
+  SearchIcon,
   ToolsIcon,
 } from "../../components/icons";
+import type { ProjectType } from "../../lib/api";
 import {
   CANVAS_TOOL_SHORTCUTS,
   type CanvasTool,
 } from "./canvasTools";
+import {
+  CONTAINER_DRAG_MIME,
+  CONTAINER_MARKET,
+  type MarketContainer,
+} from "./componentMarket";
 import styles from "./CanvasLeftSidebar.module.css";
 
 const DEFAULT_PANEL_WIDTH = 240;
@@ -42,7 +51,10 @@ const PANEL_ITEMS = [
 interface CanvasLeftSidebarProps {
   activeTool: CanvasTool;
   onToolChange: (tool: CanvasTool) => void;
+  projectType: ProjectType;
 }
+
+type ComponentTab = "mine" | "market";
 
 interface ResizeSession {
   pointerId: number;
@@ -57,12 +69,41 @@ function clampWidth(width: number) {
 export function CanvasLeftSidebar({
   activeTool,
   onToolChange,
+  projectType,
 }: CanvasLeftSidebarProps) {
   const { t } = useTranslation();
   const [activePanel, setActivePanel] = useState<SidePanel | null>(null);
+  const [componentTab, setComponentTab] =
+    useState<ComponentTab>("market");
+  const [marketQuery, setMarketQuery] = useState("");
   const [panelWidth, setPanelWidth] = useState(DEFAULT_PANEL_WIDTH);
   const [resizing, setResizing] = useState(false);
   const resizeRef = useRef<ResizeSession | null>(null);
+
+  const marketItems = useMemo(() => {
+    const query = marketQuery.trim().toLowerCase();
+
+    return CONTAINER_MARKET.filter((item) => {
+      if (item.target !== "both" && item.target !== projectType) {
+        return false;
+      }
+      if (!query) return true;
+
+      return (
+        t(item.nameKey).toLowerCase().includes(query) ||
+        t(item.descriptionKey).toLowerCase().includes(query)
+      );
+    });
+  }, [marketQuery, projectType, t]);
+
+  const handleMarketDragStart = (
+    event: ReactDragEvent<HTMLDivElement>,
+    item: MarketContainer,
+  ) => {
+    event.dataTransfer.setData(CONTAINER_DRAG_MIME, item.id);
+    event.dataTransfer.setData("text/plain", t(item.nameKey));
+    event.dataTransfer.effectAllowed = "copy";
+  };
 
   const endResize = (event: ReactPointerEvent<HTMLDivElement>) => {
     const resize = resizeRef.current;
@@ -158,9 +199,111 @@ export function CanvasLeftSidebar({
           data-panel={activePanel}
           aria-label={t(PANEL_LABEL_KEYS[activePanel])}
         >
-          <div className={styles.panelHeader}>
-            {t(PANEL_LABEL_KEYS[activePanel])}
-          </div>
+          {activePanel === "components" ? (
+            <div className={styles.componentsPanel}>
+              <div
+                className={styles.panelTabs}
+                role="tablist"
+                aria-label={t(PANEL_LABEL_KEYS.components)}
+              >
+                <button
+                  className={styles.panelTab}
+                  id="components-tab-mine"
+                  type="button"
+                  role="tab"
+                  aria-selected={componentTab === "mine"}
+                  aria-controls="components-panel-mine"
+                  data-active={componentTab === "mine"}
+                  onClick={() => setComponentTab("mine")}
+                >
+                  {t("projects.workspace.componentsPanel.tabs.mine")}
+                </button>
+                <button
+                  className={styles.panelTab}
+                  id="components-tab-market"
+                  type="button"
+                  role="tab"
+                  aria-selected={componentTab === "market"}
+                  aria-controls="components-panel-market"
+                  data-active={componentTab === "market"}
+                  onClick={() => setComponentTab("market")}
+                >
+                  {t("projects.workspace.componentsPanel.tabs.market")}
+                </button>
+              </div>
+
+              {componentTab === "market" ? (
+                <div
+                  className={styles.marketPanel}
+                  id="components-panel-market"
+                  role="tabpanel"
+                  aria-labelledby="components-tab-market"
+                >
+                  <label className={styles.searchBox}>
+                    <SearchIcon size={13} />
+                    <input
+                      className={styles.searchInput}
+                      type="search"
+                      value={marketQuery}
+                      onChange={(event) =>
+                        setMarketQuery(event.target.value)
+                      }
+                      placeholder={t(
+                        "projects.workspace.componentsPanel.searchPlaceholder",
+                      )}
+                      aria-label={t(
+                        "projects.workspace.componentsPanel.searchPlaceholder",
+                      )}
+                    />
+                  </label>
+
+                  <div className={styles.marketGrid} role="list">
+                    {marketItems.length > 0 ? (
+                      marketItems.map((item) => (
+                        <div
+                          key={item.id}
+                          className={styles.marketCard}
+                          role="listitem"
+                          draggable
+                          onDragStart={(event) =>
+                            handleMarketDragStart(event, item)
+                          }
+                        >
+                          <span
+                            className={styles.marketCover}
+                            aria-hidden="true"
+                          >
+                            <span className={styles.marketCoverCanvas} />
+                          </span>
+                          <span className={styles.marketName}>
+                            {t(item.nameKey)}
+                          </span>
+                          <span className={styles.marketDescription}>
+                            {t(item.descriptionKey)}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <p className={styles.noResults}>
+                        {t("projects.workspace.componentsPanel.noResults")}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className={styles.minePanel}
+                  id="components-panel-mine"
+                  role="tabpanel"
+                  aria-labelledby="components-tab-mine"
+                />
+              )}
+            </div>
+          ) : (
+            <div className={styles.panelHeader}>
+              {t(PANEL_LABEL_KEYS[activePanel])}
+            </div>
+          )}
 
           {activePanel === "tools" ? (
             <div

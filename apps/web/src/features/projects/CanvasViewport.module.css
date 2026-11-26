@@ -29,6 +29,11 @@
   cursor: default;
 }
 
+.viewport[data-drop-active="true"] {
+  outline: 2px dashed var(--mf-accent);
+  outline-offset: -4px;
+}
+
 .grid {
   position: absolute;
   inset: 0;
@@ -64,6 +69,33 @@
   height: 0;
   transform-origin: 0 0;
   pointer-events: none;
+}
+
+.page {
+  position: absolute;
+}
+
+.pageSurface {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border: 1px solid var(--mf-artboard-border);
+  border-radius: 2px;
+  background: var(--mf-artboard);
+  box-shadow: var(--mf-artboard-shadow);
+}
+
+.pageLabel {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  color: var(--mf-text-secondary);
+  font-size: 10px;
+  line-height: 1;
+  transform-origin: bottom left;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
 }
 
 .marquee {

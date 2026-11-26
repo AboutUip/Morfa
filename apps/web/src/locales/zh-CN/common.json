@@ -56,6 +56,42 @@
         "canvas": "画布",
         "resize": "调整侧栏宽度"
       },
+      "componentsPanel": {
+        "tabs": {
+          "mine": "我的组件",
+          "market": "组件市场"
+        },
+        "searchPlaceholder": "搜索组件",
+        "noResults": "没有找到组件"
+      },
+      "componentMarket": {
+        "items": {
+          "blank": {
+            "name": "空白页面",
+            "description": "从一张空白页面开始搭建。"
+          },
+          "app": {
+            "name": "应用页面",
+            "description": "用于软件应用界面的页面容器。"
+          },
+          "list": {
+            "name": "列表页面",
+            "description": "用于列表与信息流内容的页面。"
+          },
+          "detail": {
+            "name": "详情页面",
+            "description": "用于展示单条内容详情的页面。"
+          },
+          "form": {
+            "name": "表单页面",
+            "description": "用于填写和提交信息的页面。"
+          },
+          "web": {
+            "name": "网页页面",
+            "description": "用于网站界面的页面容器。"
+          }
+        }
+      },
       "loadingTitle": "正在打开项目",
       "loadingHint": "正在准备 {{name}} 的项目工作区",
       "loadingLabel": "准备项目工作区"

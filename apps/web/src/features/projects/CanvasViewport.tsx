@@ -3,11 +3,17 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type DragEvent as ReactDragEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { CanvasTool } from "./canvasTools";
+import {
+  CONTAINER_DRAG_MIME,
+  getMarketContainer,
+} from "./componentMarket";
 import styles from "./CanvasViewport.module.css";
 
 const MIN_ZOOM = 0.1;
@@ -18,6 +24,7 @@ const MAX_GRID_SCREEN = 72;
 const MAJOR_GRID_CELLS = 5;
 const ZOOM_SENSITIVITY = 0.0015;
 const KEYBOARD_ZOOM_STEP = 1.2;
+const DEFAULT_PAGE_SIZE = 800;
 
 interface CanvasView {
   x: number;
@@ -46,6 +53,15 @@ interface MarqueeRect {
   height: number;
 }
 
+interface PageContainer {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 interface GestureSession {
   view: CanvasView;
   px: number;
@@ -59,6 +75,27 @@ interface CanvasViewportProps {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function createPageId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `page-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function uniquePageName(baseName: string, pages: PageContainer[]) {
+  if (!pages.some((page) => page.name === baseName)) {
+    return baseName;
+  }
+
+  let index = 2;
+  while (pages.some((page) => page.name === `${baseName} ${index}`)) {
+    index += 1;
+  }
+
+  return `${baseName} ${index}`;
 }
 
 function normalizeWheelDelta(
@@ -99,6 +136,7 @@ export function CanvasViewport({
   label,
   activeTool,
 }: CanvasViewportProps) {
+  const { t } = useTranslation();
   const viewportRef = useRef<HTMLElement>(null);
   const [view, setView] = useState<CanvasView>({
     x: 0,
@@ -111,6 +149,8 @@ export function CanvasViewport({
   const gestureRef = useRef<GestureSession | null>(null);
   const [panning, setPanning] = useState(false);
   const [marquee, setMarquee] = useState<MarqueeRect | null>(null);
+  const [pages, setPages] = useState<PageContainer[]>([]);
+  const [dropActive, setDropActive] = useState(false);
 
   useEffect(() => {
     viewRef.current = view;
@@ -424,6 +464,62 @@ export function CanvasViewport({
     if (event.button === 1) event.preventDefault();
   };
 
+  const handleDragOver = (event: ReactDragEvent<HTMLElement>) => {
+    if (
+      !Array.from(event.dataTransfer.types).includes(CONTAINER_DRAG_MIME)
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    setDropActive(true);
+  };
+
+  const handleDragLeave = (event: ReactDragEvent<HTMLElement>) => {
+    const nextTarget = event.relatedTarget as Node | null;
+    if (!nextTarget || !event.currentTarget.contains(nextTarget)) {
+      setDropActive(false);
+    }
+  };
+
+  const handleDrop = (event: ReactDragEvent<HTMLElement>) => {
+    const containerId = event.dataTransfer.getData(CONTAINER_DRAG_MIME);
+    if (!containerId) return;
+
+    event.preventDefault();
+    setDropActive(false);
+
+    const item = getMarketContainer(containerId);
+    if (!item) return;
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const currentView = viewRef.current;
+    const worldX =
+      (event.clientX - rect.left - currentView.x) / currentView.zoom;
+    const worldY =
+      (event.clientY - rect.top - currentView.y) / currentView.zoom;
+    const baseName = t(item.nameKey);
+
+    setPages((current) => [
+      ...current,
+      {
+        id: createPageId(),
+        name: uniquePageName(baseName, current),
+        x: worldX,
+        y: worldY,
+        width: DEFAULT_PAGE_SIZE,
+        height: DEFAULT_PAGE_SIZE,
+      },
+    ]);
+  };
+
+  useEffect(() => {
+    const handleDragEnd = () => setDropActive(false);
+    window.addEventListener("dragend", handleDragEnd);
+    return () => window.removeEventListener("dragend", handleDragEnd);
+  }, []);
+
   const gridStep = resolveGridStep(view.zoom);
   const minorGridSize = gridStep * view.zoom;
   const majorGridSize = minorGridSize * MAJOR_GRID_CELLS;
@@ -450,6 +546,7 @@ export function CanvasViewport({
       data-tool={activeTool}
       data-panning={panning}
       data-marquee={marquee !== null}
+      data-drop-active={dropActive}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerEnd}
@@ -457,9 +554,34 @@ export function CanvasViewport({
       onLostPointerCapture={handleLostPointerCapture}
       onMouseDown={handleMouseDown}
       onAuxClick={handleAuxClick}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
       <div className={styles.grid} style={gridStyle} aria-hidden="true" />
-      <div className={styles.world} style={worldStyle} aria-hidden="true" />
+      <div className={styles.world} style={worldStyle} aria-hidden="true">
+        {pages.map((page) => (
+          <div
+            key={page.id}
+            className={styles.page}
+            data-page-container="true"
+            style={{
+              left: page.x,
+              top: page.y,
+              width: page.width,
+              height: page.height,
+            }}
+          >
+            <span
+              className={styles.pageLabel}
+              style={{ transform: `scale(${1 / view.zoom})` }}
+            >
+              {page.name}
+            </span>
+            <div className={styles.pageSurface} />
+          </div>
+        ))}
+      </div>
 
       {marquee ? (
         <div
