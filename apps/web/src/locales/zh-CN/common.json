@@ -87,6 +87,7 @@
         "controlMode": "控件",
         "inherit": "继承",
         "seeThrough": "透视",
+        "sizeLocked": "尺寸已锁定",
         "sections": {
           "layout": "布局",
           "spacing": "间距",
@@ -138,7 +139,51 @@
           "blank": {
             "name": "空白页面",
             "description": "从一张空白页面开始搭建。"
+          },
+          "iphone15ProMax": {
+            "name": "iPhone 15 Pro Max"
+          },
+          "iphone15Pro": {
+            "name": "iPhone 15 Pro"
+          },
+          "iphone15": {
+            "name": "iPhone 15"
+          },
+          "iphone15Plus": {
+            "name": "iPhone 15 Plus"
+          },
+          "iphoneSE": {
+            "name": "iPhone SE"
+          },
+          "pixel8Pro": {
+            "name": "Pixel 8 Pro"
+          },
+          "pixel8": {
+            "name": "Pixel 8"
+          },
+          "galaxyS24Ultra": {
+            "name": "Galaxy S24 Ultra"
+          },
+          "galaxyS24": {
+            "name": "Galaxy S24"
+          },
+          "androidStandard": {
+            "name": "标准安卓"
+          },
+          "appleWatchUltra": {
+            "name": "Apple Watch Ultra"
+          },
+          "appleWatch45": {
+            "name": "Apple Watch 45mm"
+          },
+          "galaxyWatch": {
+            "name": "Galaxy Watch"
           }
+        },
+        "descriptions": {
+          "iphone": "iPhone 尺寸的固定屏幕容器。",
+          "android": "安卓手机尺寸的固定屏幕容器。",
+          "watch": "手表尺寸的固定屏幕容器。"
         }
       },
       "loadingTitle": "正在打开项目",

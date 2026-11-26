@@ -103,6 +103,90 @@
   opacity: 0.55;
 }
 
+.deviceFrame {
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 38px;
+  background: linear-gradient(145deg, #3a3f4a, #0b0d12 58%, #262b35);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 14px 40px rgba(0, 0, 0, 0.42);
+}
+
+.deviceFrame[data-frame="android"] {
+  border-radius: 24px;
+  background: linear-gradient(145deg, #31363f, #0b0d12 60%, #20252d);
+}
+
+.deviceFrame[data-frame="watch"] {
+  border-radius: 30px;
+  background: linear-gradient(145deg, #40454f, #0b0d12 60%, #2a2f38);
+}
+
+.deviceScreen {
+  position: absolute;
+  inset: 9px;
+  overflow: hidden;
+  border-radius: 29px;
+  background: var(--mf-artboard);
+}
+
+.deviceFrame[data-frame="android"] .deviceScreen {
+  inset: 7px;
+  border-radius: 18px;
+}
+
+.deviceFrame[data-frame="watch"] .deviceScreen {
+  inset: 7px;
+  border-radius: 23px;
+}
+
+.deviceFrame .pageSurface {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.deviceNotch {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 3;
+  width: 32%;
+  height: 18px;
+  border-radius: 0 0 12px 12px;
+  background: #050608;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.deviceCamera {
+  position: absolute;
+  top: 5px;
+  left: 50%;
+  z-index: 3;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #050608;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.deviceCrown {
+  position: absolute;
+  top: 50%;
+  right: -4px;
+  z-index: 2;
+  width: 4px;
+  height: 30px;
+  border-radius: 2px;
+  background: #4a4f5a;
+  transform: translateY(-50%);
+}
+
 .pageLabel {
   position: absolute;
   bottom: calc(100% + 6px);

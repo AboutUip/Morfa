@@ -783,7 +783,13 @@ export function CanvasViewport({
       name: uniquePageName(t(item.nameKey), pages),
       x: worldX,
       y: worldY,
-      styles: createPageStyles(),
+      styles: {
+        ...createPageStyles(),
+        width: `${item.width}px`,
+        height: `${item.height}px`,
+      },
+      ...(item.frame ? { frame: item.frame } : {}),
+      ...(item.lockedSize ? { lockedSize: true } : {}),
     };
 
     onCreatePage(page);
@@ -845,6 +851,13 @@ export function CanvasViewport({
             height = "800px",
             ...surfaceStyles
           } = page.styles;
+          const surface = (
+            <div
+              className={styles.pageSurface}
+              data-see-through={isPageSeeThrough(page)}
+              style={toReactStyle(surfaceStyles)}
+            />
+          );
 
           return (
             <div
@@ -865,11 +878,25 @@ export function CanvasViewport({
               >
                 {page.name}
               </span>
-              <div
-                className={styles.pageSurface}
-                data-see-through={isPageSeeThrough(page)}
-                style={toReactStyle(surfaceStyles)}
-              />
+
+              {page.frame ? (
+                <div className={styles.deviceFrame} data-frame={page.frame}>
+                  <div className={styles.deviceScreen}>
+                    {surface}
+                    {page.frame === "iphone" ? (
+                      <span className={styles.deviceNotch} />
+                    ) : null}
+                    {page.frame === "android" ? (
+                      <span className={styles.deviceCamera} />
+                    ) : null}
+                  </div>
+                  {page.frame === "watch" ? (
+                    <span className={styles.deviceCrown} />
+                  ) : null}
+                </div>
+              ) : (
+                surface
+              )}
             </div>
           );
         })}

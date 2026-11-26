@@ -394,9 +394,19 @@ export function CanvasLeftSidebar({
                             className={styles.marketCover}
                             aria-hidden="true"
                           >
-                            <span className={styles.marketCoverCanvas}>
-                              <FrameIcon size={18} />
-                            </span>
+                            {item.frame ? (
+                              <span
+                                className={styles.marketDevice}
+                                data-frame={item.frame}
+                                style={{
+                                  aspectRatio: `${item.width} / ${item.height}`,
+                                }}
+                              />
+                            ) : (
+                              <span className={styles.marketCoverCanvas}>
+                                <FrameIcon size={18} />
+                              </span>
+                            )}
                           </span>
                           <span className={styles.marketName}>
                             {t(item.nameKey)}

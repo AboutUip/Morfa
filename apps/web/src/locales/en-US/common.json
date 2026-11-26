@@ -87,6 +87,7 @@
         "controlMode": "Controls",
         "inherit": "Inherit",
         "seeThrough": "See-through",
+        "sizeLocked": "Size locked",
         "sections": {
           "layout": "Layout",
           "spacing": "Spacing",
@@ -138,7 +139,51 @@
           "blank": {
             "name": "Blank page",
             "description": "Start from an empty page."
+          },
+          "iphone15ProMax": {
+            "name": "iPhone 15 Pro Max"
+          },
+          "iphone15Pro": {
+            "name": "iPhone 15 Pro"
+          },
+          "iphone15": {
+            "name": "iPhone 15"
+          },
+          "iphone15Plus": {
+            "name": "iPhone 15 Plus"
+          },
+          "iphoneSE": {
+            "name": "iPhone SE"
+          },
+          "pixel8Pro": {
+            "name": "Pixel 8 Pro"
+          },
+          "pixel8": {
+            "name": "Pixel 8"
+          },
+          "galaxyS24Ultra": {
+            "name": "Galaxy S24 Ultra"
+          },
+          "galaxyS24": {
+            "name": "Galaxy S24"
+          },
+          "androidStandard": {
+            "name": "Standard Android"
+          },
+          "appleWatchUltra": {
+            "name": "Apple Watch Ultra"
+          },
+          "appleWatch45": {
+            "name": "Apple Watch 45mm"
+          },
+          "galaxyWatch": {
+            "name": "Galaxy Watch"
           }
+        },
+        "descriptions": {
+          "iphone": "Fixed screen container sized for iPhone.",
+          "android": "Fixed screen container sized for Android phones.",
+          "watch": "Fixed screen container sized for watches."
         }
       },
       "loadingTitle": "Opening project",

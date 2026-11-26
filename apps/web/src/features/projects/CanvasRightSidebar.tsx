@@ -168,6 +168,7 @@ function NumberControl({
   min,
   max,
   step = 1,
+  disabled = false,
 }: {
   label: string;
   value: string | undefined;
@@ -176,6 +177,7 @@ function NumberControl({
   min?: number;
   max?: number;
   step?: number;
+  disabled?: boolean;
 }) {
   const { t } = useTranslation();
   const draft = useDraftValue(readNumeric(value), (next) => {
@@ -194,6 +196,7 @@ function NumberControl({
           max={max}
           step={step}
           placeholder={t("projects.workspace.propertiesPanel.inherit")}
+          disabled={disabled}
           onChange={(event) => draft.setValue(event.target.value)}
           onFocus={draft.onFocus}
           onBlur={draft.onBlur}
@@ -313,10 +316,12 @@ function TextControl({
 function StyleTableValue({
   value,
   ariaLabel,
+  disabled = false,
   onCommit,
 }: {
   value: string;
   ariaLabel: string;
+  disabled?: boolean;
   onCommit: (value: string) => void;
 }) {
   const draft = useDraftValue(value, onCommit);
@@ -326,6 +331,7 @@ function StyleTableValue({
       className={styles.styleValueInput}
       value={draft.value}
       aria-label={ariaLabel}
+      disabled={disabled}
       onChange={(event) => draft.setValue(event.target.value)}
       onFocus={draft.onFocus}
       onBlur={draft.onBlur}
@@ -680,6 +686,12 @@ function PropertiesPanel({
     event.preventDefault();
     const key = newKey.trim();
     if (!key) return;
+    if (
+      page?.lockedSize &&
+      (key === "width" || key === "height")
+    ) {
+      return;
+    }
     updateStyle(key, newValue);
     setNewKey("");
     setNewValue("");
@@ -802,26 +814,34 @@ function PropertiesPanel({
                     <span />
                   </div>
 
-                  {Object.entries(page.styles).map(([key, value]) => (
-                    <div className={styles.styleTableRow} key={key}>
-                      <code className={styles.styleKey}>{key}</code>
-                      <StyleTableValue
-                        value={value}
-                        ariaLabel={key}
-                        onCommit={(next) => updateStyle(key, next)}
-                      />
-                      <button
-                        className={styles.removeStyle}
-                        type="button"
-                        aria-label={t(
-                          "projects.workspace.propertiesPanel.table.remove",
-                        )}
-                        onClick={() => removeStyle(key)}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
+                  {Object.entries(page.styles).map(([key, value]) => {
+                    const sizeLocked =
+                      page.lockedSize &&
+                      (key === "width" || key === "height");
+
+                    return (
+                      <div className={styles.styleTableRow} key={key}>
+                        <code className={styles.styleKey}>{key}</code>
+                        <StyleTableValue
+                          value={value}
+                          ariaLabel={key}
+                          disabled={sizeLocked}
+                          onCommit={(next) => updateStyle(key, next)}
+                        />
+                        <button
+                          className={styles.removeStyle}
+                          type="button"
+                          aria-label={t(
+                            "projects.workspace.propertiesPanel.table.remove",
+                          )}
+                          disabled={sizeLocked}
+                          onClick={() => removeStyle(key)}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    );
+                  })}
 
                   <p className={styles.styleHint}>
                     {t(
@@ -869,6 +889,7 @@ function PropertiesPanel({
                         "projects.workspace.propertiesPanel.fields.width",
                       )}
                       value={page.styles.width}
+                      disabled={page.lockedSize}
                       onChange={(value) => updateStyle("width", value)}
                     />
                     <NumberControl
@@ -876,8 +897,16 @@ function PropertiesPanel({
                         "projects.workspace.propertiesPanel.fields.height",
                       )}
                       value={page.styles.height}
+                      disabled={page.lockedSize}
                       onChange={(value) => updateStyle("height", value)}
                     />
+                    {page.lockedSize ? (
+                      <p className={styles.lockHint}>
+                        {t(
+                          "projects.workspace.propertiesPanel.sizeLocked",
+                        )}
+                      </p>
+                    ) : null}
                     <SelectControl
                       label={t(
                         "projects.workspace.propertiesPanel.fields.display",

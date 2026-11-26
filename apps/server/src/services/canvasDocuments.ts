@@ -12,12 +12,16 @@ const MAX_STYLE_KEY_LENGTH = 100;
 const MAX_STYLE_VALUE_LENGTH = 2000;
 const MAX_CANVAS_JSON_LENGTH = 2_000_000;
 
+export type CanvasFrame = "iphone" | "android" | "watch";
+
 export interface CanvasPageDto {
   id: string;
   name: string;
   x: number;
   y: number;
   styles: Record<string, string>;
+  frame?: CanvasFrame;
+  lockedSize?: boolean;
 }
 
 export interface CanvasDocumentDto {
@@ -80,12 +84,23 @@ function normalizeStyles(value: unknown): Record<string, string> {
 
 function normalizePage(value: unknown): CanvasPageDto {
   const page = readObject(value);
+  const frame =
+    page.frame === "iphone" ||
+    page.frame === "android" ||
+    page.frame === "watch"
+      ? page.frame
+      : undefined;
+  const lockedSize =
+    typeof page.lockedSize === "boolean" ? page.lockedSize : undefined;
+
   return {
     id: readString(page.id, MAX_PAGE_ID_LENGTH, true),
     name: readString(page.name, MAX_PAGE_NAME_LENGTH) || "Page",
     x: readCoordinate(page.x),
     y: readCoordinate(page.y),
     styles: normalizeStyles(page.styles),
+    ...(frame ? { frame } : {}),
+    ...(lockedSize !== undefined ? { lockedSize } : {}),
   };
 }
 

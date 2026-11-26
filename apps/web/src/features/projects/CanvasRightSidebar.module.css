@@ -458,6 +458,19 @@
   box-shadow: 0 0 0 3px var(--mf-accent-soft);
 }
 
+.controlInput:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.lockHint {
+  margin-top: -1px;
+  padding-left: 84px;
+  color: var(--mf-text-tertiary);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
 .inputWrap {
   position: relative;
   display: flex;
@@ -565,6 +578,16 @@
 .styleValueInput:focus {
   border-color: var(--mf-accent);
   box-shadow: 0 0 0 2px var(--mf-accent-soft);
+}
+
+.styleValueInput:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.removeStyle:disabled {
+  opacity: 0.3;
+  cursor: default;
 }
 
 .removeStyle,

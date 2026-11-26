@@ -67,6 +67,8 @@ export interface CanvasPageDto {
   x: number;
   y: number;
   styles: Record<string, string>;
+  frame?: "iphone" | "android" | "watch";
+  lockedSize?: boolean;
 }
 
 export interface ProjectCanvasResponse {
