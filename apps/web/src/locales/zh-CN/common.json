@@ -56,6 +56,10 @@
         "canvas": "画布",
         "resize": "调整侧栏宽度"
       },
+      "rightPanels": {
+        "layers": "图层",
+        "properties": "属性"
+      },
       "componentsPanel": {
         "tabs": {
           "mine": "我的组件",

@@ -56,6 +56,10 @@
         "canvas": "Canvas",
         "resize": "Resize sidebar"
       },
+      "rightPanels": {
+        "layers": "Layers",
+        "properties": "Properties"
+      },
       "componentsPanel": {
         "tabs": {
           "mine": "My components",

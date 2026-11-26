@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
 
 import type { ProjectSummary } from "../../lib/api";
 import { CanvasLeftSidebar } from "./CanvasLeftSidebar";
+import { CanvasRightSidebar } from "./CanvasRightSidebar";
 import { CanvasViewport } from "./CanvasViewport";
 import {
   CANVAS_TOOL_SHORTCUTS,
@@ -31,7 +31,6 @@ export function ProjectWorkspace({
   project,
   onExit,
 }: ProjectWorkspaceProps) {
-  const { t } = useTranslation();
   const [activeTool, setActiveTool] = useState<CanvasTool>("select");
 
   useEffect(() => {
@@ -64,10 +63,7 @@ export function ProjectWorkspace({
 
         <CanvasViewport label={project.name} activeTool={activeTool} />
 
-        <aside
-          className={`${styles.sidebar} ${styles.sidebarEnd}`}
-          aria-label={t("projects.workspace.inspector")}
-        />
+        <CanvasRightSidebar />
       </div>
 
       <footer className={styles.statusBar} />

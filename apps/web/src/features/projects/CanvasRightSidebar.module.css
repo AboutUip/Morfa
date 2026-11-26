@@ -1,0 +1,140 @@
+.dock {
+  display: flex;
+  flex: none;
+  min-height: 0;
+}
+
+.rail {
+  display: flex;
+  width: var(--mf-activitybar-width);
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 0;
+  overflow-y: auto;
+  border-left: 1px solid var(--mf-border);
+  background: var(--mf-bg-surface);
+}
+
+.railItem {
+  display: flex;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-radius: 8px;
+  color: var(--mf-text-secondary);
+  font-size: 9px;
+  line-height: 1;
+  transition:
+    color var(--mf-transition),
+    background var(--mf-transition);
+}
+
+.railItem:hover {
+  background: var(--mf-bg-hover);
+  color: var(--mf-text-primary);
+}
+
+.railItem[data-active="true"] {
+  background: var(--mf-bg-selected);
+  color: var(--mf-accent);
+}
+
+.railItem svg {
+  flex: none;
+}
+
+.panelViewport {
+  flex: none;
+  min-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition:
+    width 200ms var(--mf-ease-out),
+    opacity 160ms var(--mf-ease);
+}
+
+.panelViewport[data-expanded="true"] {
+  opacity: 1;
+}
+
+.panelViewport[data-resizing="true"] {
+  transition: none;
+}
+
+.panel {
+  position: relative;
+  display: flex;
+  height: 100%;
+  flex: none;
+  flex-direction: column;
+  min-height: 0;
+  max-width: calc(
+    100vw - var(--mf-activitybar-width) - var(--mf-activitybar-width) - 16px
+  );
+  border-left: 1px solid var(--mf-border);
+  background: var(--mf-bg-panel);
+}
+
+.panelHeader {
+  flex: none;
+  padding: 14px 14px 8px;
+  color: var(--mf-text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.panelBody {
+  flex: 1;
+  min-height: 0;
+}
+
+.resizeHandle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 3;
+  width: 6px;
+  outline: none;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.resizeHandle::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  background: transparent;
+  content: "";
+  transition: background var(--mf-transition);
+}
+
+.resizeHandle:hover::after,
+.resizeHandle:focus-visible::after,
+.panel[data-resizing="true"] .resizeHandle::after {
+  background: var(--mf-accent);
+}
+
+@media (max-width: 640px) {
+  .railItem {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panelViewport,
+  .railItem,
+  .resizeHandle::after {
+    transition: none;
+  }
+}
