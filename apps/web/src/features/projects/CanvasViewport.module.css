@@ -6,7 +6,7 @@
   min-height: 0;
   overflow: hidden;
   background: var(--mf-bg-canvas);
-  cursor: default;
+  cursor: url("/cursors/select.svg") 5 4, default;
   outline: none;
   user-select: none;
   touch-action: none;
@@ -18,15 +18,20 @@
 }
 
 .viewport[data-tool="hand"] {
-  cursor: grab;
+  cursor: url("/cursors/hand-open.svg") 12 12, grab;
 }
 
-.viewport[data-tool="hand"][data-panning="true"] {
-  cursor: grabbing;
+.viewport[data-moving="true"],
+.viewport[data-tool="select"][data-hover-page="true"] {
+  cursor: url("/cursors/move.svg") 12 12, move;
+}
+
+.viewport[data-panning="true"] {
+  cursor: url("/cursors/hand-closed.svg") 12 12, grabbing;
 }
 
 .viewport[data-tool="select"][data-marquee="true"] {
-  cursor: default;
+  cursor: url("/cursors/select.svg") 5 4, default;
 }
 
 .viewport[data-drop-active="true"] {

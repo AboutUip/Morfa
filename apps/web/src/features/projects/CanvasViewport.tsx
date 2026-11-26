@@ -50,6 +50,15 @@ interface MarqueeSession {
   currentY: number;
 }
 
+interface MoveSession {
+  pointerId: number;
+  pageId: string;
+  startWorldX: number;
+  startWorldY: number;
+  startX: number;
+  startY: number;
+}
+
 interface MarqueeRect {
   left: number;
   top: number;
@@ -70,6 +79,7 @@ interface CanvasViewportProps {
   selectedId: string | null;
   onSelectPage: (pageId: string | null) => void;
   onCreatePage: (page: CanvasPage) => void;
+  onMovePage: (pageId: string, x: number, y: number) => void;
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -95,6 +105,22 @@ function uniquePageName(baseName: string, pages: CanvasPage[]) {
   }
 
   return `${baseName} ${index}`;
+}
+
+function toReactStyle(styles: Record<string, string>): CSSProperties {
+  const result: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(styles)) {
+    if (key.startsWith("--")) {
+      result[key] = value;
+      continue;
+    }
+
+    result[key.replace(/-([a-z])/g, (_, char: string) => char.toUpperCase())] =
+      value;
+  }
+
+  return result as CSSProperties;
 }
 
 function findPageAt(
@@ -160,6 +186,7 @@ export function CanvasViewport({
   selectedId,
   onSelectPage,
   onCreatePage,
+  onMovePage,
 }: CanvasViewportProps) {
   const { t } = useTranslation();
   const viewportRef = useRef<HTMLElement>(null);
@@ -171,9 +198,12 @@ export function CanvasViewport({
   const viewRef = useRef(view);
   const panRef = useRef<PanSession | null>(null);
   const marqueeRef = useRef<MarqueeSession | null>(null);
+  const moveRef = useRef<MoveSession | null>(null);
   const gestureRef = useRef<GestureSession | null>(null);
   const [panning, setPanning] = useState(false);
   const [marquee, setMarquee] = useState<MarqueeRect | null>(null);
+  const [movingPage, setMovingPage] = useState(false);
+  const [hoveringPage, setHoveringPage] = useState(false);
   const [dropActive, setDropActive] = useState(false);
 
   useEffect(() => {
@@ -387,7 +417,20 @@ export function CanvasViewport({
     const hit = findPageAt(pages, worldX, worldY);
 
     onSelectPage(hit?.id ?? null);
-    if (hit) return;
+    if (hit) {
+      event.currentTarget.setPointerCapture(event.pointerId);
+      moveRef.current = {
+        pointerId: event.pointerId,
+        pageId: hit.id,
+        startWorldX: worldX,
+        startWorldY: worldY,
+        startX: hit.x,
+        startY: hit.y,
+      };
+      setMovingPage(true);
+      setHoveringPage(true);
+      return;
+    }
 
     event.currentTarget.setPointerCapture(event.pointerId);
     marqueeRef.current = {
@@ -422,21 +465,49 @@ export function CanvasViewport({
       return;
     }
 
+    const move = moveRef.current;
+    if (move && move.pointerId === event.pointerId) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const currentView = viewRef.current;
+      const worldX =
+        (event.clientX - rect.left - currentView.x) / currentView.zoom;
+      const worldY =
+        (event.clientY - rect.top - currentView.y) / currentView.zoom;
+
+      onMovePage(
+        move.pageId,
+        move.startX + (worldX - move.startWorldX),
+        move.startY + (worldY - move.startWorldY),
+      );
+      return;
+    }
+
     const selection = marqueeRef.current;
-    if (!selection || selection.pointerId !== event.pointerId) return;
+    if (selection && selection.pointerId === event.pointerId) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
 
-    const rect = event.currentTarget.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
+      selection.currentX = x;
+      selection.currentY = y;
+      setMarquee({
+        left: Math.min(selection.startX, x),
+        top: Math.min(selection.startY, y),
+        width: Math.abs(x - selection.startX),
+        height: Math.abs(y - selection.startY),
+      });
+      return;
+    }
 
-    selection.currentX = x;
-    selection.currentY = y;
-    setMarquee({
-      left: Math.min(selection.startX, x),
-      top: Math.min(selection.startY, y),
-      width: Math.abs(x - selection.startX),
-      height: Math.abs(y - selection.startY),
-    });
+    if (activeTool === "select") {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const currentView = viewRef.current;
+      const worldX =
+        (event.clientX - rect.left - currentView.x) / currentView.zoom;
+      const worldY =
+        (event.clientY - rect.top - currentView.y) / currentView.zoom;
+      setHoveringPage(Boolean(findPageAt(pages, worldX, worldY)));
+    }
   };
 
   const endPan = (event: ReactPointerEvent<HTMLElement>) => {
@@ -461,9 +532,25 @@ export function CanvasViewport({
     setMarquee(null);
   };
 
+  const endMove = (event: ReactPointerEvent<HTMLElement>) => {
+    const move = moveRef.current;
+    if (!move || move.pointerId !== event.pointerId) return;
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    moveRef.current = null;
+    setMovingPage(false);
+  };
+
   const handlePointerEnd = (event: ReactPointerEvent<HTMLElement>) => {
     if (panRef.current?.pointerId === event.pointerId) {
       endPan(event);
+      return;
+    }
+
+    if (moveRef.current?.pointerId === event.pointerId) {
+      endMove(event);
       return;
     }
 
@@ -480,9 +567,20 @@ export function CanvasViewport({
       setPanning(false);
     }
 
+    if (moveRef.current?.pointerId === event.pointerId) {
+      moveRef.current = null;
+      setMovingPage(false);
+    }
+
     if (marqueeRef.current?.pointerId === event.pointerId) {
       marqueeRef.current = null;
       setMarquee(null);
+    }
+  };
+
+  const handlePointerLeave = () => {
+    if (!panRef.current && !moveRef.current && !marqueeRef.current) {
+      setHoveringPage(false);
     }
   };
 
@@ -572,12 +670,15 @@ export function CanvasViewport({
       data-canvas-viewport="true"
       data-tool={activeTool}
       data-panning={panning}
+      data-moving={movingPage}
+      data-hover-page={hoveringPage}
       data-marquee={marquee !== null}
       data-drop-active={dropActive}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerEnd}
       onPointerCancel={handlePointerEnd}
+      onPointerLeave={handlePointerLeave}
       onLostPointerCapture={handleLostPointerCapture}
       onMouseDown={handleMouseDown}
       onAuxClick={handleAuxClick}
@@ -615,7 +716,7 @@ export function CanvasViewport({
               </span>
               <div
                 className={styles.pageSurface}
-                style={surfaceStyles as CSSProperties}
+                style={toReactStyle(surfaceStyles)}
               />
             </div>
           );

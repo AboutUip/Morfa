@@ -83,6 +83,14 @@ export function ProjectWorkspace({
     );
   };
 
+  const handleMovePage = (pageId: string, x: number, y: number) => {
+    setPages((current) =>
+      current.map((page) =>
+        page.id === pageId ? { ...page, x, y } : page,
+      ),
+    );
+  };
+
   const handleReorderPage = (
     dragId: string,
     targetId: string,
@@ -123,6 +131,7 @@ export function ProjectWorkspace({
           selectedId={selectedPageId}
           onSelectPage={setSelectedPageId}
           onCreatePage={handleCreatePage}
+          onMovePage={handleMovePage}
         />
 
         <CanvasRightSidebar
