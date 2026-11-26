@@ -17,7 +17,10 @@ import {
   uniquePageName,
   type CanvasPage,
 } from "./canvasDocument";
-import type { CanvasSnapSettings } from "./canvasSnap";
+import {
+  DEFAULT_CANVAS_SNAP_SETTINGS,
+  type CanvasSnapSettings,
+} from "./canvasSnap";
 import {
   CONTAINER_DRAG_MIME,
   getMarketContainer,
@@ -86,7 +89,7 @@ interface CanvasViewportProps {
   activeTool: CanvasTool;
   pages: CanvasPage[];
   selectedId: string | null;
-  snapSettings: CanvasSnapSettings;
+  snapSettings?: CanvasSnapSettings;
   onSelectPage: (pageId: string | null) => void;
   onCreatePage: (page: CanvasPage) => void;
   onMovePage: (pageId: string, x: number, y: number) => void;
@@ -164,7 +167,7 @@ function resolvePageSnap(input: {
   view: CanvasView;
   viewportWidth: number;
   viewportHeight: number;
-  settings: CanvasSnapSettings;
+  settings?: CanvasSnapSettings;
 }) {
   const {
     x,
@@ -176,7 +179,7 @@ function resolvePageSnap(input: {
     view,
     viewportWidth,
     viewportHeight,
-    settings,
+    settings = DEFAULT_CANVAS_SNAP_SETTINGS,
   } = input;
 
   if (!settings.enabled) {
@@ -294,7 +297,7 @@ export function CanvasViewport({
   activeTool,
   pages,
   selectedId,
-  snapSettings,
+  snapSettings = DEFAULT_CANVAS_SNAP_SETTINGS,
   onSelectPage,
   onCreatePage,
   onMovePage,
