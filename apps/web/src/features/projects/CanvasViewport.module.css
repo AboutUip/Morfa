@@ -101,6 +101,12 @@
   position: absolute;
 }
 
+.pageClip {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
 .page[data-selected="true"] {
   outline: 2px solid var(--mf-accent);
   outline-offset: 3px;

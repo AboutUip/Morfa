@@ -569,9 +569,24 @@ export function ProjectWorkspace({
     });
   };
 
-  const selectPage = (pageId: string | null) => {
+  const selectPage = (
+    pageId: string | null,
+    mode: "replace" | "toggle" = "replace",
+  ) => {
     setSelectedLinkId(null);
-    setSelectedPageIds(pageId ? [pageId] : []);
+    if (!pageId) {
+      if (mode !== "toggle") setSelectedPageIds([]);
+      return;
+    }
+    if (mode === "toggle") {
+      setSelectedPageIds((current) =>
+        current.includes(pageId)
+          ? current.filter((id) => id !== pageId)
+          : [...current, pageId],
+      );
+      return;
+    }
+    setSelectedPageIds([pageId]);
   };
 
   const selectPages = (pageIds: string[]) => {

@@ -184,7 +184,7 @@ interface CanvasViewportProps {
   selectedLinkId: string | null;
   showNodeNames?: boolean;
   snapSettings?: CanvasSnapSettings;
-  onSelectPage: (pageId: string | null) => void;
+  onSelectPage: (pageId: string | null, mode?: "replace" | "toggle") => void;
   onSelectPages: (pageIds: string[]) => void;
   onSelectLink: (linkId: string) => void;
   onCreatePage: (page: CanvasPage) => void;
@@ -1292,7 +1292,7 @@ export function CanvasViewport({
     const worldY = (y - currentView.y) / currentView.zoom;
     const hit = findPageAt(pages, layout, worldX, worldY);
 
-    onSelectPage(hit?.id ?? null);
+    onSelectPage(hit?.id ?? null, event.ctrlKey || event.metaKey ? "toggle" : "replace");
     if (hit) return;
 
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -2152,7 +2152,6 @@ export function CanvasViewport({
                 top: frame.worldY,
                 width: frame.width,
                 height: frame.height,
-                ...(clipPath ? { clipPath } : {}),
                 ...(resolvedStyles.visibility
                   ? {
                       visibility:
@@ -2193,6 +2192,10 @@ export function CanvasViewport({
                 </span>
               ) : null}
 
+              <div
+                className={styles.pageClip}
+                style={clipPath ? { clipPath } : undefined}
+              >
               {page.frame ? (
                 <div
                   className={styles.deviceFrame}
@@ -2240,6 +2243,7 @@ export function CanvasViewport({
                   />
                 </div>
               ) : null}
+              </div>
 
               {selectedIds.includes(page.id) && !page.lockedSize ? (
                 <>
