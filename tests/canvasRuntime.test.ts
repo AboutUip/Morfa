@@ -5,6 +5,7 @@ import {
   createRuntimeSnapshot,
   createRuntimeState,
   dispatchRuntimeEvent,
+  styleVariables,
 } from "../apps/web/src/features/projects/canvasRuntime";
 import type { CanvasPage } from "../apps/web/src/features/projects/canvasDocument";
 
@@ -27,6 +28,34 @@ function page(
 function snapshot(pages: CanvasPage[]) {
   return createRuntimeSnapshot(pages, [], "owner", "owner");
 }
+
+test("maps design typography styles to widget CSS variables", () => {
+  assert.deepEqual(
+    styleVariables({
+      color: "#22ff88",
+      "font-size": "42px",
+      "font-family": "Inter, sans-serif",
+      "font-weight": "700",
+      "line-height": "1.4",
+      "letter-spacing": "0.02em",
+      "text-align": "center",
+      "text-shadow": "0 2px 8px rgba(0,0,0,.4)",
+      "object-fit": "contain",
+    }),
+    {
+      "--mf-runtime-color": "#22ff88",
+      "--mf-runtime-font-size": "42px",
+      "--mf-runtime-font-family": "Inter, sans-serif",
+      "--mf-runtime-font-weight": "700",
+      "--mf-runtime-line-height": "1.4",
+      "--mf-runtime-letter-spacing": "0.02em",
+      "--mf-runtime-text-align": "center",
+      "--mf-runtime-text-shadow": "0 2px 8px rgba(0,0,0,.4)",
+      "--mf-runtime-object-fit": "contain",
+    },
+  );
+  assert.deepEqual(styleVariables({}), {});
+});
 
 test("runs node data, state and visibility conditions", () => {
   const owner = page(

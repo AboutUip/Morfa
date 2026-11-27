@@ -14,6 +14,7 @@ import {
   getInstanceScope,
   getRuntimeNodeKey,
   runtimeStyleVariables,
+  styleVariables,
   type CanvasRuntimeState,
 } from "./canvasRuntime";
 import styles from "./CanvasNodeView.module.css";
@@ -244,7 +245,12 @@ export function CanvasNodeView({
       ) : widget ? (
         <CanvasWidgetView
           widget={widget}
-          style={runtimeStyleVariables(overrides) as CSSProperties}
+          style={
+            {
+              ...styleVariables(cssStyles),
+              ...runtimeStyleVariables(overrides),
+            } as CSSProperties
+          }
         />
       ) : null}
       {page.nodeKind !== "control-instance" &&

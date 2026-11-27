@@ -1647,6 +1647,28 @@ function PropertiesPanel({
                         updateStyle("box-sizing", value)
                       }
                     />
+                    <SelectControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.position",
+                      )}
+                      value={page.styles.position}
+                      options={[
+                        "static",
+                        "relative",
+                        "absolute",
+                        "fixed",
+                        "sticky",
+                      ]}
+                      onChange={(value) => updateStyle("position", value)}
+                    />
+                    <NumberControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.zIndex",
+                      )}
+                      value={page.styles["z-index"]}
+                      unit=""
+                      onChange={(value) => updateStyle("z-index", value)}
+                    />
                   </ControlSection>
 
                   <ControlSection
@@ -1654,19 +1676,187 @@ function PropertiesPanel({
                       "projects.workspace.propertiesPanel.sections.spacing",
                     )}
                   >
-                    <NumberControl
+                    <TextControl
                       label={t(
                         "projects.workspace.propertiesPanel.fields.padding",
                       )}
                       value={page.styles.padding}
+                      placeholder={t(
+                        "projects.workspace.propertiesPanel.spacingPlaceholder",
+                      )}
                       onChange={(value) => updateStyle("padding", value)}
                     />
-                    <NumberControl
+                    <TextControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.margin",
+                      )}
+                      value={page.styles.margin}
+                      placeholder={t(
+                        "projects.workspace.propertiesPanel.spacingPlaceholder",
+                      )}
+                      onChange={(value) => updateStyle("margin", value)}
+                    />
+                    <TextControl
                       label={t(
                         "projects.workspace.propertiesPanel.fields.gap",
                       )}
                       value={page.styles.gap}
+                      placeholder={t(
+                        "projects.workspace.propertiesPanel.spacingPlaceholder",
+                      )}
                       onChange={(value) => updateStyle("gap", value)}
+                    />
+                  </ControlSection>
+
+                  <ControlSection
+                    title={t(
+                      "projects.workspace.propertiesPanel.sections.typography",
+                    )}
+                  >
+                    <ColorControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.color",
+                      )}
+                      value={page.styles.color}
+                      onChange={(value) => updateStyle("color", value)}
+                    />
+                    <TextControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.fontSize",
+                      )}
+                      value={page.styles["font-size"]}
+                      placeholder={t(
+                        "projects.workspace.propertiesPanel.fontSizePlaceholder",
+                      )}
+                      onChange={(value) =>
+                        updateStyle("font-size", value)
+                      }
+                    />
+                    <TextControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.fontFamily",
+                      )}
+                      value={page.styles["font-family"]}
+                      placeholder={t(
+                        "projects.workspace.propertiesPanel.fontFamilyPlaceholder",
+                      )}
+                      onChange={(value) =>
+                        updateStyle("font-family", value)
+                      }
+                    />
+                    <SelectControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.fontWeight",
+                      )}
+                      value={page.styles["font-weight"]}
+                      options={[
+                        "300",
+                        "400",
+                        "500",
+                        "600",
+                        "700",
+                        "800",
+                        "900",
+                      ]}
+                      onChange={(value) =>
+                        updateStyle("font-weight", value)
+                      }
+                    />
+                    <TextControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.lineHeight",
+                      )}
+                      value={page.styles["line-height"]}
+                      placeholder={t(
+                        "projects.workspace.propertiesPanel.lineHeightPlaceholder",
+                      )}
+                      onChange={(value) =>
+                        updateStyle("line-height", value)
+                      }
+                    />
+                    <TextControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.letterSpacing",
+                      )}
+                      value={page.styles["letter-spacing"]}
+                      placeholder={t(
+                        "projects.workspace.propertiesPanel.letterSpacingPlaceholder",
+                      )}
+                      onChange={(value) =>
+                        updateStyle("letter-spacing", value)
+                      }
+                    />
+                    <SelectControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.textAlign",
+                      )}
+                      value={page.styles["text-align"]}
+                      options={["left", "center", "right", "justify"]}
+                      onChange={(value) =>
+                        updateStyle("text-align", value)
+                      }
+                    />
+                    <SelectControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.fontStyle",
+                      )}
+                      value={page.styles["font-style"]}
+                      options={["normal", "italic", "oblique"]}
+                      onChange={(value) =>
+                        updateStyle("font-style", value)
+                      }
+                    />
+                    <SelectControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.textDecoration",
+                      )}
+                      value={page.styles["text-decoration"]}
+                      options={[
+                        "none",
+                        "underline",
+                        "line-through",
+                        "overline",
+                      ]}
+                      onChange={(value) =>
+                        updateStyle("text-decoration", value)
+                      }
+                    />
+                    <SelectControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.textTransform",
+                      )}
+                      value={page.styles["text-transform"]}
+                      options={[
+                        "none",
+                        "uppercase",
+                        "lowercase",
+                        "capitalize",
+                      ]}
+                      onChange={(value) =>
+                        updateStyle("text-transform", value)
+                      }
+                    />
+                    <SelectControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.whiteSpace",
+                      )}
+                      value={page.styles["white-space"]}
+                      options={["normal", "nowrap", "pre-wrap", "pre"]}
+                      onChange={(value) =>
+                        updateStyle("white-space", value)
+                      }
+                    />
+                    <TextControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.textShadow",
+                      )}
+                      value={page.styles["text-shadow"]}
+                      placeholder={t(
+                        "projects.workspace.propertiesPanel.textShadowPlaceholder",
+                      )}
+                      onChange={(value) =>
+                        updateStyle("text-shadow", value)
+                      }
                     />
                   </ControlSection>
 
@@ -1702,6 +1892,22 @@ function PropertiesPanel({
                       value={page.styles["border-radius"]}
                       onChange={(value) =>
                         updateStyle("border-radius", value)
+                      }
+                    />
+                    <SelectControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.objectFit",
+                      )}
+                      value={page.styles["object-fit"]}
+                      options={[
+                        "fill",
+                        "contain",
+                        "cover",
+                        "none",
+                        "scale-down",
+                      ]}
+                      onChange={(value) =>
+                        updateStyle("object-fit", value)
                       }
                     />
                   </ControlSection>
@@ -1792,6 +1998,33 @@ function PropertiesPanel({
                       ]}
                       onChange={(value) =>
                         updateStyle("align-items", value)
+                      }
+                    />
+                    <SelectControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.flexWrap",
+                      )}
+                      value={page.styles["flex-wrap"]}
+                      options={["nowrap", "wrap", "wrap-reverse"]}
+                      onChange={(value) =>
+                        updateStyle("flex-wrap", value)
+                      }
+                    />
+                    <SelectControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.alignSelf",
+                      )}
+                      value={page.styles["align-self"]}
+                      options={[
+                        "auto",
+                        "stretch",
+                        "flex-start",
+                        "center",
+                        "flex-end",
+                        "baseline",
+                      ]}
+                      onChange={(value) =>
+                        updateStyle("align-self", value)
                       }
                     />
                   </ControlSection>

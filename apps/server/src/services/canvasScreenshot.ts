@@ -163,6 +163,8 @@ async function captureRenderedUrl(
       "--mute-audio",
       "--disable-background-timer-throttling",
       "--disable-renderer-backgrounding",
+      "--disable-cache",
+      `--user-data-dir=${path.join(dir, "profile")}`,
       `--force-device-scale-factor=${scale}`,
       `--window-size=${Math.ceil(width)},${Math.ceil(height)}`,
       "--virtual-time-budget=5000",

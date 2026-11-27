@@ -37,6 +37,7 @@ import {
   getMarketItem,
 } from "./componentMarket";
 import { CONTROL_DRAG_MIME } from "./canvasControls";
+import { styleVariables } from "./canvasRuntime";
 import { CanvasNodeView } from "./CanvasNodeView";
 import { CanvasWidgetView } from "./CanvasWidgetView";
 import styles from "./CanvasViewport.module.css";
@@ -2093,7 +2094,10 @@ export function CanvasViewport({
 
               {page.widget ? (
                 <div className={styles.widgetLayer}>
-                  <CanvasWidgetView widget={page.widget} />
+                  <CanvasWidgetView
+                    widget={page.widget}
+                    style={styleVariables(resolvedStyles) as CSSProperties}
+                  />
                 </div>
               ) : null}
 

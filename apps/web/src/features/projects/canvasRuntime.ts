@@ -755,23 +755,68 @@ export function applyWidgetRuntimeOverrides(
   };
 }
 
+const STYLE_VARIABLE_MAP: Record<string, string> = {
+  "background-color": "--mf-runtime-bg",
+  color: "--mf-runtime-color",
+  "border-color": "--mf-runtime-border",
+  "border-radius": "--mf-runtime-radius",
+  "font-size": "--mf-runtime-font-size",
+  "font-family": "--mf-runtime-font-family",
+  "font-weight": "--mf-runtime-font-weight",
+  "font-style": "--mf-runtime-font-style",
+  "line-height": "--mf-runtime-line-height",
+  "letter-spacing": "--mf-runtime-letter-spacing",
+  "text-align": "--mf-runtime-text-align",
+  "text-decoration": "--mf-runtime-text-decoration",
+  "text-transform": "--mf-runtime-text-transform",
+  "text-shadow": "--mf-runtime-text-shadow",
+  "white-space": "--mf-runtime-white-space",
+  "word-break": "--mf-runtime-word-break",
+  "object-fit": "--mf-runtime-object-fit",
+  "object-position": "--mf-runtime-object-position",
+};
+
+/**
+ * Design styles and runtime overrides share CSS custom properties so widget
+ * internals (text variants, buttons, media) pick up the node's typography
+ * instead of always using their hard-coded defaults.
+ */
+export function styleVariables(
+  styles: Record<string, string> | undefined,
+) {
+  const result: Record<string, string> = {};
+  if (!styles) return result;
+  for (const [key, variable] of Object.entries(STYLE_VARIABLE_MAP)) {
+    const value = styles[key];
+    if (value === undefined || value === "") continue;
+    const normalized = value.trim().toLowerCase();
+    if (
+      (key === "background-color" || key === "border-color") &&
+      (normalized === "transparent" || normalized === "none")
+    ) {
+      continue;
+    }
+    result[variable] = value;
+  }
+  return result;
+}
+
 export function runtimeStyleVariables(
   overrides: RuntimeNodeOverrides | undefined,
 ) {
-  const result: Record<string, string> = {};
+  const result: Record<string, string> = {
+    ...styleVariables(overrides?.styles),
+  };
   if (!overrides) return result;
   const styles = overrides.styles;
   if (styles["background-color"]) {
     result.backgroundColor = styles["background-color"];
-    result["--mf-runtime-bg"] = styles["background-color"];
   }
   if (styles.color) {
     result.color = styles.color;
-    result["--mf-runtime-color"] = styles.color;
   }
   if (styles["border-color"]) {
     result.borderColor = styles["border-color"];
-    result["--mf-runtime-border"] = styles["border-color"];
   }
   if (styles.opacity) result.opacity = styles.opacity;
   if (styles["border-radius"]) {
