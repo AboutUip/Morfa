@@ -104,6 +104,16 @@ class ProjectsStore {
     return promise;
   }
 
+  remove(projectId: string) {
+    if (!this.snapshot.projects.some((item) => item.id === projectId)) {
+      return;
+    }
+    this.set({
+      ...this.snapshot,
+      projects: this.snapshot.projects.filter((item) => item.id !== projectId),
+    });
+  }
+
   touch(projectId: string, updatedAt: number) {
     if (!this.snapshot.projects.some((item) => item.id === projectId)) {
       return;

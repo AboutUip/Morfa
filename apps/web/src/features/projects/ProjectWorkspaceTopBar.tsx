@@ -19,6 +19,7 @@ import {
   SunIcon,
 } from "../../components/icons";
 import { profileApi, projectApi, type ProjectSummary } from "../../lib/api";
+import { projectsStore } from "../../lib/projects";
 import { setLocale, type Locale } from "../../lib/i18n";
 import { preferencesRealtime } from "../../lib/realtime";
 import { useTheme } from "../../lib/theme";
@@ -233,6 +234,7 @@ export function ProjectWorkspaceTopBar({
   const deleteProject = async (code: string) => {
     const { ticket } = await profileApi.verifyVCode(code, "delete_project");
     await projectApi.remove(project.id, ticket);
+    projectsStore.remove(project.id);
     onExit();
   };
 
