@@ -1,5 +1,8 @@
 import { ApiError } from "../../lib/errors.js";
-import { getProjectCanvas } from "../../services/canvasDocuments.js";
+import {
+  MAX_CANVAS_PAGES,
+  getProjectCanvas,
+} from "../../services/canvasDocuments.js";
 import {
   createProject,
   deleteProject,
@@ -108,21 +111,17 @@ export function projectCapabilities(): McpCapability[] {
       },
       description: {
         "zh-CN":
-          "一次读取项目摘要以及完整画布内容（页面列表、关联线列表与画布更新时间），适合作为后续画布操作前的上下文快照。",
+          "读取项目摘要和画布规模。不返回全部节点。看结构用 list_nodes，看指定节点用 get_nodes。",
         "en-US":
-          "Read a project summary together with the full canvas content: page list, link list, and canvas updatedAt. Use it as a context snapshot before canvas operations.",
+          "Read the project summary and canvas size. Nodes are not included. Use list_nodes for structure and get_nodes for specific nodes.",
       },
       usage: {
-        "zh-CN":
-          "传入 projectId。返回的页面与关联线数据与 get_canvas 一致。",
-        "en-US":
-          "Pass projectId. The returned pages and links match get_canvas.",
+        "zh-CN": "传入 projectId。",
+        "en-US": "Pass projectId.",
       },
       returns: {
-        "zh-CN":
-          "project、updatedAt、pages、links，以及页面与关联线数量。",
-        "en-US":
-          "project, updatedAt, pages, links, and the page/link counts.",
+        "zh-CN": "project、updatedAt、pageCount、linkCount、remaining。",
+        "en-US": "project, updatedAt, pageCount, linkCount, and remaining.",
       },
       category: "projects",
       requirements: REQUIRE_NONE,
@@ -144,12 +143,9 @@ export function projectCapabilities(): McpCapability[] {
         return {
           project,
           updatedAt: canvas.updatedAt,
-          pages: canvas.pages,
-          links: canvas.links,
-          counts: {
-            pages: canvas.pages.length,
-            links: canvas.links.length,
-          },
+          pageCount: canvas.pages.length,
+          linkCount: canvas.links.length,
+          remaining: Math.max(0, MAX_CANVAS_PAGES - canvas.pages.length),
         };
       },
     },
@@ -364,9 +360,9 @@ export function projectCapabilities(): McpCapability[] {
       },
       usage: {
         "zh-CN":
-          "传入 projectId。删除前建议先用 get_project_context 备份画布。",
+          "传入 projectId。删除后画布无法从这里恢复。",
         "en-US":
-          "Pass projectId. Read get_project_context first if you need a backup of the canvas.",
+          "Pass projectId. The canvas cannot be restored from this tool after deletion.",
       },
       returns: {
         "zh-CN": "被删除的项目 id 与 deleted=true。",

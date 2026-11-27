@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { ApiError } from "../../lib/errors.js";
 import {
+  MAX_CANVAS_PAGES,
   getProjectCanvas,
   saveProjectCanvas,
   type CanvasDataEntryDto,
@@ -25,6 +26,8 @@ import {
   isRecord,
   loadCanvasForWrite,
   readExpectedUpdatedAt,
+  readLimit,
+  readCursor,
   readPageIdArgument,
 } from "./canvasSupport.js";
 import {
@@ -60,8 +63,8 @@ const WIDGET_KINDS = [
 const TEXT_ALIGNS = ["left", "center", "right", "justify"] as const;
 const DATA_TYPES = ["text", "number", "color", "date", "boolean"] as const;
 const OVERFLOW_VALUES = ["visible", "hidden", "auto", "scroll"] as const;
-const MAX_NODES = 40;
-const MAX_LIST = 80;
+const MAX_NODES = 16;
+const MAX_LIST = 20;
 const MAX_TEXT = 1000;
 const MAX_NAME = 160;
 
@@ -506,10 +509,10 @@ function byRefHasId(planned: PlannedNode[], id: string) {
 }
 
 export function compactNode(page: CanvasPageDto) {
-  return {
+  return omitEmpty({
     id: page.id,
     name: page.name,
-    parentId: page.parentId ?? null,
+    parentId: page.parentId ?? "",
     x: page.x,
     y: page.y,
     width: page.styles.width ?? "",
@@ -529,7 +532,32 @@ export function compactNode(page: CanvasPageDto) {
       .map((entry) => `${entry.key}=${entry.value}`)
       .join(",")
       .slice(0, 180),
-  };
+  });
+}
+
+function omitEmpty(record: Record<string, unknown>) {
+  return Object.fromEntries(
+    Object.entries(record).filter(
+      ([, value]) => value !== "" && value !== null && value !== undefined,
+    ),
+  );
+}
+
+function outlineNode(page: CanvasPageDto, detail: "outline" | "layout") {
+  return omitEmpty({
+    id: page.id,
+    name: page.name,
+    parentId: page.parentId ?? "",
+    kind: page.widget?.kind ?? "",
+    ...(detail === "layout"
+      ? {
+          x: page.x,
+          y: page.y,
+          width: page.styles.width ?? "",
+          height: page.styles.height ?? "",
+        }
+      : {}),
+  });
 }
 
 function subtree(pages: CanvasPageDto[], rootId: string) {
@@ -579,17 +607,19 @@ export function designCapabilities(): McpCapability[] {
       title: { "zh-CN": "列出节点", "en-US": "List nodes" },
       description: {
         "zh-CN":
-          "读取节点大纲：id、名称、父节点、坐标、宽高、颜色、组件种类和文字。比整份画布短，适合设计前先看结构。",
+          "分页读取节点大纲，默认只有 id、名称、父节点和种类。一次最多 20 个。要坐标或文字时再 get_nodes。",
         "en-US":
-          "Read a compact node outline: id, name, parent, position, size, color, widget kind, and text.",
+          "Read a page of node outlines: id, name, parent, and kind. At most 20. Use get_nodes for position or copy.",
       },
       usage: {
-        "zh-CN": "传入 projectId。可选 rootId，只返回该节点和它的子孙。最多 80 个。",
-        "en-US": "Pass projectId. Optional rootId limits the result to that subtree. At most 80 nodes.",
+        "zh-CN":
+          "传入 projectId。可选 rootId、cursor、limit（1–20）、detail=layout 才带坐标和宽高。用 nextCursor 翻页。",
+        "en-US":
+          "Pass projectId. Optional rootId, cursor, limit (1–20). detail=layout adds position and size. Follow nextCursor.",
       },
       returns: {
-        "zh-CN": "nodes、truncated、updatedAt。",
-        "en-US": "nodes, truncated, and updatedAt.",
+        "zh-CN": "nodes、total、cursor、nextCursor、updatedAt。",
+        "en-US": "nodes, total, cursor, nextCursor, and updatedAt.",
       },
       category: "canvas",
       requirements: REQUIRE_NONE,
@@ -599,6 +629,22 @@ export function designCapabilities(): McpCapability[] {
         properties: {
           projectId: PROJECT_ID_SCHEMA,
           rootId: { ...PAGE_ID_SCHEMA, description: "Optional subtree root." },
+          cursor: {
+            type: "number",
+            description: "Offset from the previous nextCursor. Default 0.",
+            minimum: 0,
+          },
+          limit: {
+            type: "number",
+            description: "Page size, 1 to 20. Default 20.",
+            minimum: 1,
+            maximum: MAX_LIST,
+          },
+          detail: {
+            type: "string",
+            description: 'outline or layout. layout adds x, y, width, height.',
+            enum: ["outline", "layout"],
+          },
         },
         required: ["projectId"],
         additionalProperties: false,
@@ -613,12 +659,83 @@ export function designCapabilities(): McpCapability[] {
         if (args.rootId && pages.length === 0) {
           findPage(document, readPageIdArgument(args.rootId, "rootId"));
         }
+        const cursor = readCursor(args.cursor);
+        const limit = readLimit(args.limit, MAX_LIST, MAX_LIST);
+        const detail = args.detail === "layout" ? "layout" : "outline";
+        const slice = pages.slice(cursor, cursor + limit);
+        const next = cursor + slice.length;
         return {
           projectId,
           updatedAt: document.updatedAt,
-          truncated: pages.length > MAX_LIST,
-          nodes: pages.slice(0, MAX_LIST).map(compactNode),
+          total: pages.length,
+          cursor,
+          nextCursor: next < pages.length ? next : null,
+          nodes: slice.map((page) => outlineNode(page, detail)),
         };
+      },
+    },
+    {
+      name: "get_nodes",
+      title: { "zh-CN": "读取指定节点", "en-US": "Get nodes" },
+      description: {
+        "zh-CN":
+          "按 id 读取最多 8 个节点的坐标、文字、颜色和数据。不要用它代替 list_nodes。",
+        "en-US":
+          "Read position, copy, color, and data for at most 8 node ids. Do not use this instead of list_nodes.",
+      },
+      usage: {
+        "zh-CN": "传入 projectId 和 ids。",
+        "en-US": "Pass projectId and ids.",
+      },
+      returns: {
+        "zh-CN": "nodes 与 missing。",
+        "en-US": "nodes and missing.",
+      },
+      category: "canvas",
+      requirements: REQUIRE_NONE,
+      annotations: READ_ONLY_ANNOTATIONS,
+      inputSchema: {
+        type: "object",
+        properties: {
+          projectId: PROJECT_ID_SCHEMA,
+          ids: {
+            type: "string",
+            description: "Comma-separated page ids, at most 8.",
+            minLength: 1,
+            maxLength: 1000,
+          },
+        },
+        required: ["projectId", "ids"],
+        additionalProperties: false,
+      },
+      examples: [
+        {
+          arguments: {
+            projectId: "project-uuid",
+            ids: "n1a2b3c4",
+          },
+        },
+      ],
+      async execute(context, args) {
+        const projectId = args.projectId as string;
+        const document = getProjectCanvas(context.user.id, projectId);
+        const ids = (typeof args.ids === "string" ? args.ids.split(",") : [])
+          .map((id) => id.trim())
+          .filter(Boolean)
+          .slice(0, 8);
+        const byId = new Map(document.pages.map((page) => [page.id, page]));
+        const missing: string[] = [];
+        const nodes = [];
+        for (const raw of ids) {
+          const id = readPageIdArgument(raw, "ids");
+          const page = byId.get(id);
+          if (!page) {
+            missing.push(id);
+            continue;
+          }
+          nodes.push(compactNode(page));
+        }
+        return { projectId, updatedAt: document.updatedAt, nodes, missing };
       },
     },
     {
@@ -626,19 +743,19 @@ export function designCapabilities(): McpCapability[] {
       title: { "zh-CN": "创建节点树", "en-US": "Create nodes" },
       description: {
         "zh-CN":
-          "一次创建最多 40 个节点。用 ref 和 parentRef 组成父子关系，并直接设置文字、颜色、字号、位置、数据、图片地址和溢出。",
+          "一次创建最多 16 个节点。父节点先写。返回只含 ref、id 和 parentId。项目节点上限会在创建前检查。",
         "en-US":
-          "Create up to 40 nodes at once. Use ref and parentRef for hierarchy, and set copy, color, type size, position, data, image source, and overflow directly.",
+          "Create at most 16 nodes. Parents come first. The result only includes ref, id, and parentId. The page cap is checked before writing.",
       },
       usage: {
         "zh-CN":
-          "nodes 是数组。父节点必须排在子节点前面。kind 为 text 才会显示 text。未写宽高时，根节点默认 390×844，子节点默认 160×48。",
+          "先建父画面，再分批建子节点。kind 为 text 才会显示 text。未写宽高时，根节点默认 390×844，子节点默认 160×48。",
         "en-US":
-          "nodes is an array. Parents come before children. kind text is required to show text. Omitted sizes default to 390×844 for a root and 160×48 for a child.",
+          "Create the parent first, then children in small batches. kind text is required to show text. Omitted sizes default to 390×844 for a root and 160×48 for a child.",
       },
       returns: {
-        "zh-CN": "created（ref、id、parentId、节点大纲）和 updatedAt。",
-        "en-US": "created entries with ref, id, parentId, and the compact node, plus updatedAt.",
+        "zh-CN": "created、pageCount、remaining、updatedAt。",
+        "en-US": "created, pageCount, remaining, and updatedAt.",
       },
       category: "canvas",
       requirements: REQUIRE_NONE,
@@ -713,6 +830,13 @@ export function designCapabilities(): McpCapability[] {
           new Set(document.pages.map((page) => page.id)),
           specs,
         );
+        const remaining = MAX_CANVAS_PAGES - document.pages.length;
+        if (planned.length > remaining) {
+          invalidArgument(
+            "nodes",
+            `当前 ${document.pages.length} 个节点，这次要加 ${planned.length} 个，上限 ${MAX_CANVAS_PAGES}，还能再加 ${Math.max(0, remaining)} 个`,
+          );
+        }
         document.pages.push(...planned.map((item) => item.page));
         const saved = saveProjectCanvas(
           context.user.id,
@@ -720,15 +844,15 @@ export function designCapabilities(): McpCapability[] {
           document.pages,
           document.links,
         );
-        const savedById = new Map(saved.pages.map((page) => [page.id, page]));
         return {
           projectId,
           updatedAt: saved.updatedAt,
+          pageCount: saved.pages.length,
+          remaining: MAX_CANVAS_PAGES - saved.pages.length,
           created: planned.map((item) => ({
             ref: item.ref,
             id: item.id,
             parentId: item.parentId,
-            node: compactNode(savedById.get(item.id) ?? item.page),
           })),
         };
       },

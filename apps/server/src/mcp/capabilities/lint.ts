@@ -80,11 +80,19 @@ export function lintCapabilities(): McpCapability[] {
           ...(scope ? { pageIds: scope } : {}),
         });
 
+        const items = result.items.slice(0, 20).map((item) => ({
+          severity: item.severity,
+          code: item.code,
+          pageId: item.pageId,
+          message: item.message,
+        }));
         return {
           projectId,
           ...(pageId ? { pageId } : {}),
           updatedAt: document.updatedAt,
-          items: result.items,
+          total: result.items.length,
+          truncated: result.items.length > items.length,
+          items,
           summary: result.summary,
         };
       },

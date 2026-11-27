@@ -33,6 +33,27 @@ export const EXPECTED_UPDATED_AT_SCHEMA = {
   minimum: 0,
 };
 
+export function readCursor(value: unknown, field = "cursor") {
+  if (value === undefined) return 0;
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+    invalidArgument(field, "必须是非负整数");
+  }
+  return value;
+}
+
+export function readLimit(
+  value: unknown,
+  fallback: number,
+  max: number,
+  field = "limit",
+) {
+  if (value === undefined) return fallback;
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
+    invalidArgument(field, "必须是正整数");
+  }
+  return Math.min(value, max);
+}
+
 export function invalidArgument(field: string, message: string): never {
   throw new ApiError(
     400,

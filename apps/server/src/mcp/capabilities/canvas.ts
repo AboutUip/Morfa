@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { ApiError } from "../../lib/errors.js";
 import {
+  MAX_CANVAS_PAGES,
   getProjectCanvas,
   saveProjectCanvas,
   type CanvasDataType,
@@ -678,21 +679,19 @@ export function canvasCapabilities(): McpCapability[] {
       },
       description: {
         "zh-CN":
-          "读取项目的完整画布文档，包括全部页面、关联线、项目共享行为图和画布更新时间。",
+          "读取画布规模：节点数、关联线数和剩余可创建数量。不返回节点正文。需要结构时用 list_nodes。",
         "en-US":
-          "Read the complete canvas document for a project: all pages, links, the shared behavior graph, and updatedAt.",
+          "Read canvas size: node count, link count, and how many nodes can still be created. Node bodies are omitted. Use list_nodes for structure.",
       },
       usage: {
         "zh-CN":
-          "传入 projectId。只能读取当前账号拥有或已加入的项目。",
+          "传入 projectId。不要用它代替 list_nodes 或 get_nodes。",
         "en-US":
-          "Pass projectId. Only projects owned by or joined by the current account are readable.",
+          "Pass projectId. Do not use it in place of list_nodes or get_nodes.",
       },
       returns: {
-        "zh-CN":
-          "projectId、updatedAt、pages、links、behavior 以及页面和关联线数量。",
-        "en-US":
-          "projectId, updatedAt, pages, links, behavior, and page/link counts.",
+        "zh-CN": "updatedAt、pageCount、linkCount、remaining。",
+        "en-US": "updatedAt, pageCount, linkCount, and remaining.",
       },
       category: "canvas",
       requirements: REQUIRE_NONE,
@@ -712,13 +711,9 @@ export function canvasCapabilities(): McpCapability[] {
         return {
           projectId,
           updatedAt: document.updatedAt,
-          pages: document.pages,
-          links: document.links,
-          behavior: document.behavior ?? null,
-          counts: {
-            pages: document.pages.length,
-            links: document.links.length,
-          },
+          pageCount: document.pages.length,
+          linkCount: document.links.length,
+          remaining: Math.max(0, MAX_CANVAS_PAGES - document.pages.length),
         };
       },
     },

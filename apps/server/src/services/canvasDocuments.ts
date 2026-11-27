@@ -6,7 +6,7 @@ import {
 } from "../db/projects.js";
 import { ApiError } from "../lib/errors.js";
 
-const MAX_CANVAS_PAGES = 200;
+export const MAX_CANVAS_PAGES = 500;
 const MAX_PAGE_STYLES = 120;
 const MAX_PAGE_ID_LENGTH = 120;
 const MAX_PAGE_NAME_LENGTH = 160;
@@ -1275,7 +1275,7 @@ function normalizePages(value: unknown): CanvasPageDto[] {
     throw new ApiError(
       413,
       "CANVAS_DOCUMENT_TOO_LARGE",
-      "页面数量超出限制",
+      `页面数量超出限制：当前 ${value.length}，上限 ${MAX_CANVAS_PAGES}`,
     );
   }
 

@@ -24,6 +24,8 @@ import {
   loadCanvasForWrite,
   readCssLength,
   readExpectedUpdatedAt,
+  readCursor,
+  readLimit,
   readPageIdArgument,
 } from "./canvasSupport.js";
 import {
@@ -291,18 +293,16 @@ export function canvasNavigationCapabilities(): McpCapability[] {
         "en-US": "List links",
       },
       description: {
-        "zh-CN":
-          "列出画布上的全部关联线，并为每条线附带起止页面名称、设备框与解析尺寸。",
-        "en-US":
-          "List every canvas link with endpoint names, device frames, and resolved sizes.",
+        "zh-CN": "分页列出关联线，只含 id、起止节点和名称。一次最多 20 条。",
+        "en-US": "List links one page at a time: id, endpoints, and names. At most 20.",
       },
       usage: {
-        "zh-CN": "传入 projectId。",
-        "en-US": "Pass projectId.",
+        "zh-CN": "传入 projectId。可选 cursor 和 limit。用 nextCursor 翻页。",
+        "en-US": "Pass projectId. Optional cursor and limit. Follow nextCursor.",
       },
       returns: {
-        "zh-CN": "links 数组、数量与 updatedAt。",
-        "en-US": "The links array, count, and updatedAt.",
+        "zh-CN": "links、total、cursor、nextCursor、updatedAt。",
+        "en-US": "links, total, cursor, nextCursor, and updatedAt.",
       },
       category: "canvas",
       requirements: REQUIRE_NONE,
@@ -311,6 +311,17 @@ export function canvasNavigationCapabilities(): McpCapability[] {
         type: "object",
         properties: {
           projectId: PROJECT_ID_SCHEMA,
+          cursor: {
+            type: "number",
+            description: "Offset. Default 0.",
+            minimum: 0,
+          },
+          limit: {
+            type: "number",
+            description: "Page size, 1 to 20. Default 20.",
+            minimum: 1,
+            maximum: 20,
+          },
         },
         required: ["projectId"],
         additionalProperties: false,
@@ -319,21 +330,26 @@ export function canvasNavigationCapabilities(): McpCapability[] {
       async execute(context, args) {
         const projectId = args.projectId as string;
         const document = getProjectCanvas(context.user.id, projectId);
-        const frames = resolvePageFrames(
-          document.pages,
-          document.links,
+        const cursor = readCursor(args.cursor);
+        const limit = readLimit(args.limit, 20, 20);
+        const names = new Map(
+          document.pages.map((page) => [page.id, page.name]),
         );
-        const links = linksWithEndpoints(
-          document,
-          document.links,
-          frames,
-        );
-
+        const slice = document.links.slice(cursor, cursor + limit);
+        const next = cursor + slice.length;
         return {
           projectId,
           updatedAt: document.updatedAt,
-          links,
-          count: links.length,
+          total: document.links.length,
+          cursor,
+          nextCursor: next < document.links.length ? next : null,
+          links: slice.map((link) => ({
+            id: link.id,
+            fromId: link.fromId,
+            toId: link.toId,
+            fromName: names.get(link.fromId) ?? "",
+            toName: names.get(link.toId) ?? "",
+          })),
         };
       },
     },

@@ -12,6 +12,7 @@ import {
   getProjectCanvas,
   saveProjectCanvas,
   type CanvasBehaviorActionDto,
+  type CanvasBehaviorBlockDto,
   type CanvasBehaviorActionType,
   type CanvasBehaviorConditionDto,
   type CanvasBehaviorConditionOperator,
@@ -146,25 +147,6 @@ function findPage(document: CanvasDocumentDto, pageId: string) {
     throw new ApiError(404, "CANVAS_PAGE_NOT_FOUND", `页面 ${pageId} 不存在`);
   }
   return page;
-}
-
-function pageSummary(page: CanvasPageDto) {
-  return {
-    id: page.id,
-    name: page.name,
-    widgetKind: page.widget?.kind ?? null,
-    parentId: page.parentId ?? null,
-    nodeKind: page.nodeKind ?? "page",
-    behavior: page.behavior
-      ? {
-          version: page.behavior.version ?? 1,
-          triggers: page.behavior.triggers.length,
-          states: page.behavior.states.length,
-          blocks: page.behavior.blocks?.length ?? 0,
-          edges: page.behavior.edges?.length ?? 0,
-        }
-      : null,
-  };
 }
 
 interface ValidationIssue {
@@ -982,16 +964,37 @@ const CURRENT_CONDITION_SOURCES = CANVAS_BEHAVIOR_CONDITION_SOURCES.filter(
   (source) => source !== "variable",
 );
 
-function projectBehaviorResult(
+function outlineBlock(block: CanvasBehaviorBlockDto) {
+  return {
+    id: block.id,
+    type: block.type,
+    ...(block.scopeId ? { scopeId: block.scopeId } : {}),
+    ...(block.text ? { text: block.text.slice(0, 40) } : {}),
+    ...(block.event ? { event: block.event } : {}),
+    ...(block.key ? { key: block.key } : {}),
+    ...(block.nodeId ? { nodeId: block.nodeId } : {}),
+    ...(block.action ? { action: block.action.type } : {}),
+  };
+}
+
+function behaviorOutline(
   projectId: string,
   document: CanvasDocumentDto,
+  behavior: CanvasBehaviorDto | undefined,
+  cursor: number,
+  limit: number,
 ) {
+  const blocks = behavior?.blocks ?? [];
+  const slice = blocks.slice(cursor, cursor + limit);
+  const next = cursor + slice.length;
   return {
     projectId,
     updatedAt: document.updatedAt,
-    scope: "project" as const,
-    behavior: document.behavior ?? null,
-    pages: document.pages.map(pageSummary),
+    blockCount: blocks.length,
+    edgeCount: behavior?.edges?.length ?? 0,
+    cursor,
+    nextCursor: next < blocks.length ? next : null,
+    blocks: slice.map(outlineBlock),
   };
 }
 
@@ -1001,18 +1004,9 @@ function behaviorResult(
   page: CanvasPageDto,
 ) {
   return {
-    projectId,
-    updatedAt: document.updatedAt,
+    ...behaviorOutline(projectId, document, page.behavior, 0, 20),
     pageId: page.id,
     pageName: page.name,
-    nodeKind: page.nodeKind ?? "page",
-    data: page.data ?? [],
-    behavior: page.behavior ?? null,
-    supportedEvents: [...getSupportedCanvasEvents(page.widget?.kind)],
-    projectBehavior: document.behavior ?? null,
-    actions: [...CURRENT_ACTION_TYPES],
-    conditionSources: [...CURRENT_CONDITION_SOURCES],
-    conditionOperators: [...CANVAS_BEHAVIOR_CONDITION_OPERATORS],
   };
 }
 
@@ -1026,20 +1020,19 @@ export function behaviorCapabilities(): McpCapability[] {
       },
       description: {
         "zh-CN":
-          "读取项目共享行为图。事件、判断和修改都通过 nodeId 或 targetId 指向图层；空槽不会作用到任何节点。控件自己的行为图仍挂在控件定义页上。",
+          "分页读取行为图大纲：块 id、类型、事件或动作名。一次最多 20 个。要某个块的全文时传 blockIds，最多 8 个。",
         "en-US":
-          "Read the shared project behavior graph. Events, judgments, and modifications point at layers through nodeId or targetId; an empty slot affects no node. A control keeps its own graph on the control definition page.",
+          "Read a page of behavior outlines: block id, type, and event or action name. At most 20. Pass blockIds, at most 8, for the full blocks.",
       },
       usage: {
         "zh-CN":
-          "不传 pageId，或传 __project__，读取项目共享行为图，并附带各页面行为摘要。传具体 pageId 时读取该页（通常是控件）自己的行为图，同时返回 projectBehavior。",
+          "不传 pageId 读取项目共享图。传 pageId 只看该页。cursor 翻页。blockIds 只返回这些块。",
         "en-US":
-          "Omit pageId, or pass __project__, to read the shared project graph plus per-page summaries. Pass a real pageId to read that page's own graph, usually a control, and projectBehavior is included.",
+          "Omit pageId for the shared graph. Pass pageId for one page. cursor pages through outlines. blockIds returns only those blocks.",
       },
       returns: {
-        "zh-CN": "共享或页面行为图、页面摘要、支持事件与当前动作/条件词表、updatedAt。",
-        "en-US":
-          "Shared or page behavior graph, page summaries, supported events, current action/condition vocabulary, and updatedAt.",
+        "zh-CN": "blockCount、edgeCount、blocks、nextCursor、updatedAt。",
+        "en-US": "blockCount, edgeCount, blocks, nextCursor, and updatedAt.",
       },
       category: "behavior",
       requirements: REQUIRE_NONE,
@@ -1053,6 +1046,22 @@ export function behaviorCapabilities(): McpCapability[] {
             description:
               "Optional page id. Omit or pass __project__ for the shared project graph.",
           },
+          cursor: {
+            type: "number",
+            description: "Offset. Default 0.",
+            minimum: 0,
+          },
+          limit: {
+            type: "number",
+            description: "Page size, 1 to 20. Default 20.",
+            minimum: 1,
+            maximum: 20,
+          },
+          blockIds: {
+            type: "string",
+            description: "Comma-separated block ids, at most 8, for full blocks.",
+            maxLength: 800,
+          },
         },
         required: ["projectId"],
         additionalProperties: false,
@@ -1065,14 +1074,47 @@ export function behaviorCapabilities(): McpCapability[] {
         const projectId = readPageIdArgument(args.projectId, "projectId");
         const document = getProjectCanvas(context.user.id, projectId);
         const pageId = readOptionalPageId(args.pageId);
-        if (isProjectScope(pageId)) {
-          return projectBehaviorResult(projectId, document);
+        const cursor =
+          typeof args.cursor === "number" &&
+          Number.isInteger(args.cursor) &&
+          args.cursor >= 0
+            ? args.cursor
+            : 0;
+        const limit =
+          typeof args.limit === "number" && Number.isInteger(args.limit)
+            ? Math.min(20, Math.max(1, args.limit))
+            : 20;
+        const behavior = isProjectScope(pageId)
+          ? document.behavior
+          : findPage(document, pageId).behavior;
+        const blockIds = (typeof args.blockIds === "string" ? args.blockIds.split(",") : [])
+          .map((id) => id.trim())
+          .filter(Boolean)
+          .slice(0, 8);
+        if (blockIds.length > 0) {
+          const byId = new Map(
+            (behavior?.blocks ?? []).map((block) => [block.id, block]),
+          );
+          return {
+            projectId,
+            updatedAt: document.updatedAt,
+            blocks: blockIds.flatMap((id) => {
+              const block = byId.get(id);
+              return block ? [block] : [];
+            }),
+            missing: blockIds.filter((id) => !byId.has(id)),
+          };
         }
-        return behaviorResult(
+        const outline = behaviorOutline(
           projectId,
           document,
-          findPage(document, pageId),
+          behavior,
+          cursor,
+          limit,
         );
+        if (isProjectScope(pageId)) return outline;
+        const page = findPage(document, pageId);
+        return { ...outline, pageId: page.id, pageName: page.name };
       },
     },
     {
@@ -1158,7 +1200,7 @@ export function behaviorCapabilities(): McpCapability[] {
             saved,
           );
           return {
-            ...projectBehaviorResult(projectId, saved),
+            ...behaviorOutline(projectId, saved, saved.behavior, 0, 20),
             ...issueCounts(issues),
           };
         }

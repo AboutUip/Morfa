@@ -17,9 +17,9 @@ description: 在 Morfa 画布上设计或修改界面。创建宣传页、海报
 
 ## 工具
 
-先 list_nodes 看结构。不要用 get_canvas 把整份文档读进来。
+先 list_nodes 看结构，一次最多 20 个大纲。翻页用返回的 nextCursor。要改某一个节点的文字或坐标时，用 get_nodes 传入那几个 id，不要把整表详情读进来。不要用 get_canvas。
 
-新建一整屏用一次 create_nodes，把根画面和全部子节点放在同一个 nodes 数组里。父节点写在子节点前面。改一个已有节点用 patch_node，只填要改的字段。
+新建时先建父画面，再分批 create_nodes，一次最多 16 个。父节点写在子节点前面。返回的 remaining 是还能再建多少。改一个已有节点用 patch_node，只填要改的字段。
 
 nodes 的每一项可以有：ref、name、parentRef、parentId、x、y、width、height、kind、variant、text、fill、color、fontSize、fontWeight、textAlign、radius、padding、src、overflowX、overflowY、data。
 
