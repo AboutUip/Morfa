@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useTranslation } from "react-i18next";
@@ -113,6 +114,7 @@ export function BehaviorGraphCanvas({
   onMoveNode,
   onCreateEdge,
   onDeleteEdge,
+  onDeleteNode,
 }: {
   pages: CanvasPage[];
   blocks: CanvasBehaviorBlock[];
@@ -127,6 +129,7 @@ export function BehaviorGraphCanvas({
   onMoveNode: (id: string, x: number, y: number) => void;
   onCreateEdge: (from: string, to: string) => void;
   onDeleteEdge: (id: string) => void;
+  onDeleteNode: (id: string) => void;
 }) {
   const { t } = useTranslation();
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -147,6 +150,12 @@ export function BehaviorGraphCanvas({
   const [pendingFrom, setPendingFrom] = useState<string | null>(null);
   const [spaceHeld, setSpaceHeld] = useState(false);
   const spaceRef = useRef(false);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    nodeId?: string;
+    edgeId?: string;
+  } | null>(null);
   const lastFitKeyRef = useRef<string | null>(null);
   const markerBase = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const arrowId = `morfa-behavior-arrow-${markerBase}`;
@@ -194,6 +203,20 @@ export function BehaviorGraphCanvas({
     () => new Map(renderNodes.map((node) => [node.id, node])),
     [renderNodes],
   );
+
+  const openContextMenu = (
+    event: ReactMouseEvent,
+    target: { nodeId?: string; edgeId?: string } = {},
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = viewportRef.current?.getBoundingClientRect();
+    setContextMenu({
+      x: event.clientX - (rect?.left ?? 0),
+      y: event.clientY - (rect?.top ?? 0),
+      ...target,
+    });
+  };
 
   const fitView = () => {
     const element = viewportRef.current;
@@ -353,6 +376,7 @@ export function BehaviorGraphCanvas({
       connectionRef.current = null;
       setConnection(null);
       setPendingFrom(null);
+      setContextMenu(null);
     };
     window.addEventListener("keydown", handleKeyDown, true);
     return () =>
@@ -753,6 +777,7 @@ export function BehaviorGraphCanvas({
       onPointerUp={endPan}
       onPointerCancel={endPan}
       onLostPointerCapture={endPan}
+      onContextMenu={(event) => openContextMenu(event)}
     >
       <div className={styles.world} style={worldStyle}>
         <svg className={styles.edgeLayer} width={20000} height={20000}>
@@ -804,6 +829,12 @@ export function BehaviorGraphCanvas({
                 tabIndex={0}
                 aria-label={label}
                 onPointerDown={(event) => event.stopPropagation()}
+                onContextMenu={(event) => {
+                  focusViewport();
+                  onSelectEdge(edge.id);
+                  onSelectNode(null);
+                  openContextMenu(event, { edgeId: edge.id });
+                }}
                 onClick={(event) => {
                   event.stopPropagation();
                   focusViewport();
@@ -876,6 +907,12 @@ export function BehaviorGraphCanvas({
               onLostPointerCapture={(event) =>
                 handleNodeLostPointerCapture(event.pointerId)
               }
+              onContextMenu={(event) => {
+                focusViewport();
+                onSelectNode(node.id);
+                onSelectEdge(null);
+                openContextMenu(event, { nodeId: node.id });
+              }}
             >
               <button
                 className={`${styles.port} ${styles.portIn}`}
@@ -1017,6 +1054,71 @@ export function BehaviorGraphCanvas({
       <div className={styles.hint}>
         {t("projects.workspace.behavior.graphHint")}
       </div>
+
+      {contextMenu ? (
+        <>
+          <button
+            className={styles.contextBackdrop}
+            type="button"
+            aria-label={t("projects.workspace.behavior.closeMenu")}
+            onClick={() => setContextMenu(null)}
+            onContextMenu={(event) => {
+              event.preventDefault();
+              setContextMenu(null);
+            }}
+          />
+          <div
+            className={styles.contextMenu}
+            role="menu"
+            style={{ left: contextMenu.x, top: contextMenu.y }}
+            onPointerDown={(event) => event.stopPropagation()}
+            onContextMenu={(event) => event.preventDefault()}
+          >
+            {contextMenu.nodeId ? (
+              <button
+                className={styles.contextDanger}
+                type="button"
+                role="menuitem"
+                disabled={
+                  states.some(
+                    (state) => state.id === contextMenu.nodeId,
+                  ) && states.length <= 1
+                }
+                onClick={() => {
+                  onDeleteNode(contextMenu.nodeId as string);
+                  setContextMenu(null);
+                }}
+              >
+                {t("projects.workspace.behavior.deleteNode")}
+              </button>
+            ) : contextMenu.edgeId ? (
+              <button
+                className={styles.contextDanger}
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  onDeleteEdge(contextMenu.edgeId as string);
+                  setContextMenu(null);
+                }}
+              >
+                {t("projects.workspace.behavior.deleteEdge")}
+              </button>
+            ) : (
+              <button
+                className={styles.contextItem}
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  fitView();
+                  setContextMenu(null);
+                }}
+              >
+                {t("projects.workspace.behavior.fitView")}
+              </button>
+            )}
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }

@@ -398,6 +398,63 @@
   background: var(--mf-danger-soft);
 }
 
+.contextBackdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  border: 0;
+  background: transparent;
+}
+
+.contextMenu {
+  position: absolute;
+  z-index: 41;
+  display: flex;
+  min-width: 140px;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--mf-border-strong);
+  border-radius: 7px;
+  background: var(--mf-bg-panel);
+  box-shadow: 0 10px 28px rgb(0 0 0 / 24%);
+}
+
+.contextItem,
+.contextDanger {
+  display: flex;
+  width: 100%;
+  height: 28px;
+  align-items: center;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--mf-text-secondary);
+  font-size: 10px;
+  text-align: left;
+}
+
+.contextItem:hover,
+.contextDanger:hover {
+  background: var(--mf-bg-hover);
+  color: var(--mf-text-primary);
+}
+
+.contextDanger {
+  color: var(--mf-danger);
+}
+
+.contextDanger:hover {
+  background: var(--mf-danger-soft);
+  color: var(--mf-danger);
+}
+
+.contextDanger:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 .hint {
   position: absolute;
   bottom: 12px;

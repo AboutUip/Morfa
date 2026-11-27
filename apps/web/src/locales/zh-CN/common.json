@@ -381,6 +381,8 @@
         "inspectorHint": "选择一个块、状态或连线进行编辑。",
         "deleteBlock": "删除块",
         "deleteEdge": "删除连线",
+        "deleteNode": "删除节点",
+        "closeMenu": "关闭菜单",
         "deleteState": "删除状态",
         "edgeLabel": "连线",
         "stateInitialBadge": "初始",

@@ -1628,6 +1628,7 @@ export function ProjectWorkspace({
       if (event.ctrlKey || event.metaKey || event.altKey) return;
       if (isEditableTarget(event.target)) return;
       if (document.body.dataset.canvasModal === "true") return;
+      if (behaviorEditorOpen) return;
 
       if (event.key === "Delete" || event.key === "Backspace") {
         if (selectedLinkId) {
@@ -1654,7 +1655,7 @@ export function ProjectWorkspace({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedLinkId, selectedPageIds]);
+  }, [behaviorEditorOpen, selectedLinkId, selectedPageIds]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

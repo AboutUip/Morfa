@@ -381,6 +381,8 @@
         "inspectorHint": "Select a block, state or edge to edit it.",
         "deleteBlock": "Delete block",
         "deleteEdge": "Delete edge",
+        "deleteNode": "Delete node",
+        "closeMenu": "Close menu",
         "deleteState": "Delete state",
         "edgeLabel": "Edge",
         "stateInitialBadge": "Initial",

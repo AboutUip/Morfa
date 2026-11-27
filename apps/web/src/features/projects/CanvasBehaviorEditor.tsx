@@ -1303,13 +1303,13 @@ export function CanvasBehaviorEditor({
       ) {
         return;
       }
+      event.preventDefault();
+      event.stopImmediatePropagation();
       if (selectedEdgeId) {
-        event.preventDefault();
         deleteEdge(selectedEdgeId);
         return;
       }
       if (selectedNodeId) {
-        event.preventDefault();
         deleteNode(selectedNodeId);
       }
     };
@@ -1611,6 +1611,7 @@ export function CanvasBehaviorEditor({
               onMoveNode={moveNode}
               onCreateEdge={addEdge}
               onDeleteEdge={deleteEdge}
+              onDeleteNode={deleteNode}
             />
           </main>
 
