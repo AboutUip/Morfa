@@ -433,7 +433,7 @@
         "noteEmpty": "Empty note",
         "notePlaceholder": "Add a note…",
         "functionPlaceholder": "Function name",
-        "functionHint": "Connect the output to the body. Parameters are data for this call. Keys shaped __name__ stay inside the function and disappear when it returns. A node dropped inside the frame belongs to the function, and a function can contain another function.",
+        "functionHint": "The frame wraps this function and the whole flow connected from its output through the last node. Parameters are data for this call. Keys shaped __name__ stay inside the function and disappear when it returns.",
         "callHint": "Writes the arguments, runs the function body, then continues along this wire.",
         "chooseFunction": "Choose a function",
         "addParameter": "Add a parameter",

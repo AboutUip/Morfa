@@ -38,7 +38,7 @@ import {
   applyActionField,
   applyConditionField,
   behaviorEventLabelKey,
-  behaviorBlockInFunction,
+  behaviorFunctionBodyIds,
   behaviorOwnedFunctionIds,
   behaviorScopeAtPoint,
   collectSharedBehaviorLint,
@@ -1487,10 +1487,12 @@ export function CanvasBehaviorEditor({
   const edges = behavior?.edges ?? [];
   const visibleBlocks = useMemo(() => {
     if (!editingFunctionId) return blocks;
-    return blocks.filter((block) =>
-      behaviorBlockInFunction(blocks, block, editingFunctionId),
+    const body = new Set(
+      behaviorFunctionBodyIds(blocks, edges, editingFunctionId),
     );
-  }, [blocks, editingFunctionId]);
+    body.add(editingFunctionId);
+    return blocks.filter((block) => body.has(block.id));
+  }, [blocks, edges, editingFunctionId]);
   const visibleIds = useMemo(
     () => new Set(visibleBlocks.map((block) => block.id)),
     [visibleBlocks],
@@ -1652,6 +1654,8 @@ export function CanvasBehaviorEditor({
         blocks,
         position.x + BEHAVIOR_GRAPH_NODE_WIDTH / 2,
         position.y + 36,
+        new Set(),
+        edges,
       );
     const block: CanvasBehaviorBlock = {
       ...created,
@@ -1743,6 +1747,8 @@ export function CanvasBehaviorEditor({
         blocks,
         Math.round(x) + BEHAVIOR_GRAPH_NODE_WIDTH / 2,
         Math.round(y) + 36,
+        new Set(),
+        edges,
       );
     const block = {
       ...createReferenceBlock(nodeId, Math.round(x), Math.round(y)),
@@ -1902,6 +1908,7 @@ export function CanvasBehaviorEditor({
           block.x + BEHAVIOR_GRAPH_NODE_WIDTH / 2,
           block.y + 36,
           ignore,
+          edges,
         );
         if ((block.scopeId ?? undefined) === scopeId) return block;
         if (!scopeId) {

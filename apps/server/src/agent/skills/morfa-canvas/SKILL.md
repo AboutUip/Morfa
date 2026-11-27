@@ -32,7 +32,7 @@ data 是这个节点自己的数据，形如 [{key, type, value}]。type 用 tex
 行为节点在画布上只有一行标题，宽 220。横着至少隔 280，竖着至少隔 120。完整句子在右侧编辑，不要为了塞下长句子把节点排得很密。
 
 - function 节点的 text 是名字。params 是参数列表，每项只有 key。
-- 函数体里的块写 scopeId，值是这个 function 的 id。编辑器会用边框把函数和它的内部包起来。函数节点放进另一个函数的边框里，就是内嵌函数，它自己的体再写它的 scopeId。
+- 函数体里的块写 scopeId，值是这个 function 的 id。从 function 出口连出去的整段实现也会被算进这个函数。编辑器的边框包住函数节点和这段实现，一直到这条流的末尾。函数节点放进另一个函数的边框里，就是内嵌函数，它自己的体再写它的 scopeId。
 - call 节点的 key 是 function 的 id。args 按参数名给值，值可以是字面量，或 ${节点id.键}。每个事件只连到 call。
 - 同一组数据、样式、文本改动合成一个 apply。value 是 JSON 数组，每项有 targetId、kind、key、value。kind 用 data、style 或 text。
 - 以 __名称__ 这种形式作为 setData、apply 或判断的 key 时，写的是当前这次调用内部的数据，不会写到画布节点上，调用结束就消失。

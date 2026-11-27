@@ -1018,7 +1018,7 @@ export function BehaviorGraphCanvas({
     event.preventDefault();
     const memberIds =
       node.block?.type === "function"
-        ? behaviorScopeMembers(blocks, node.id)
+        ? behaviorScopeMembers(blocks, node.id, edges)
         : [];
     const companionIds = new Set<string>();
     const companions = [
@@ -1443,6 +1443,7 @@ export function BehaviorGraphCanvas({
                 ]
               : [],
           ),
+          edges,
         ).map((frame) => (
           <div
             key={frame.id}

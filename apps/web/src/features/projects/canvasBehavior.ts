@@ -768,8 +768,60 @@ function frameBlockSize(block: FrameBlock) {
   };
 }
 
+export function behaviorFunctionBodyIds(
+  blocks: readonly CanvasBehaviorBlock[],
+  edges: readonly CanvasBehaviorEdge[],
+  functionId: string,
+) {
+  const byId = new Map(blocks.map((block) => [block.id, block]));
+  const outgoing = new Map<string, string[]>();
+  for (const edge of edges) {
+    const list = outgoing.get(edge.from);
+    if (list) list.push(edge.to);
+    else outgoing.set(edge.from, [edge.to]);
+  }
+  const owned = behaviorOwnedFunctionIds(blocks, functionId);
+  const seen = new Set<string>([functionId]);
+  const body: string[] = [];
+  const queue: string[] = [];
+  const push = (id: string | undefined) => {
+    if (!id || seen.has(id)) return;
+    const block = byId.get(id);
+    if (!block || block.type === "event") return;
+    if (
+      block.scopeId &&
+      block.scopeId !== functionId &&
+      !owned.has(block.scopeId) &&
+      !seen.has(block.scopeId)
+    ) {
+      return;
+    }
+    seen.add(id);
+    body.push(id);
+    queue.push(id);
+  };
+
+  for (const block of blocks) {
+    if (block.scopeId === functionId) push(block.id);
+  }
+  for (const target of outgoing.get(functionId) ?? []) push(target);
+
+  while (queue.length > 0) {
+    const id = queue.shift();
+    if (!id) break;
+    for (const target of outgoing.get(id) ?? []) push(target);
+    const block = byId.get(id);
+    if (block?.type !== "function") continue;
+    for (const child of blocks) {
+      if (child.scopeId === block.id) push(child.id);
+    }
+  }
+  return body;
+}
+
 export function behaviorFunctionFrames(
   blocks: readonly FrameBlock[],
+  edges: readonly CanvasBehaviorEdge[] = [],
 ): BehaviorFrameRect[] {
   const byId = new Map(blocks.map((block) => [block.id, block]));
   const cache = new Map<string, BehaviorFrameRect | null>();
@@ -794,6 +846,8 @@ export function behaviorFunctionFrames(
       return null;
     }
     cache.set(id, null);
+    const bodyIds = new Set(behaviorFunctionBodyIds(blocks, edges, id));
+    bodyIds.add(id);
     let minX = Number.POSITIVE_INFINITY;
     let minY = Number.POSITIVE_INFINITY;
     let maxX = Number.NEGATIVE_INFINITY;
@@ -805,7 +859,7 @@ export function behaviorFunctionFrames(
       maxY = Math.max(maxY, y + height);
     };
     for (const block of blocks) {
-      if (block.id !== id && block.scopeId !== id) continue;
+      if (!bodyIds.has(block.id)) continue;
       if (block.type === "function" && block.id !== id) {
         const inner = build(block.id);
         if (inner) {
@@ -842,8 +896,9 @@ export function behaviorScopeAtPoint(
   x: number,
   y: number,
   ignore: ReadonlySet<string> = new Set(),
+  edges: readonly CanvasBehaviorEdge[] = [],
 ) {
-  const hits = behaviorFunctionFrames(blocks).filter(
+  const hits = behaviorFunctionFrames(blocks, edges).filter(
     (frame) =>
       !ignore.has(frame.id) &&
       x >= frame.x &&
@@ -859,8 +914,15 @@ export function behaviorBlockInFunction(
   blocks: readonly CanvasBehaviorBlock[],
   block: CanvasBehaviorBlock,
   functionId: string,
+  edges: readonly CanvasBehaviorEdge[] = [],
 ) {
   if (block.id === functionId) return true;
+  if (
+    edges.length > 0 &&
+    behaviorFunctionBodyIds(blocks, edges, functionId).includes(block.id)
+  ) {
+    return true;
+  }
   const byId = new Map(blocks.map((item) => [item.id, item]));
   const seen = new Set<string>();
   let scope = block.scopeId;
@@ -876,14 +938,9 @@ export function behaviorBlockInFunction(
 export function behaviorScopeMembers(
   blocks: readonly CanvasBehaviorBlock[],
   functionId: string,
+  edges: readonly CanvasBehaviorEdge[] = [],
 ) {
-  return blocks
-    .filter(
-      (block) =>
-        block.id !== functionId &&
-        behaviorBlockInFunction(blocks, block, functionId),
-    )
-    .map((block) => block.id);
+  return behaviorFunctionBodyIds(blocks, edges, functionId);
 }
 
 export function behaviorOwnedFunctionIds(
