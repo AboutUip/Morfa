@@ -26,7 +26,6 @@ import {
 } from "../../lib/api";
 import type { CanvasPage } from "./canvasDocument";
 import type { CreateControlInput } from "./canvasControls";
-import { CanvasAccountLibrary } from "./CanvasAccountLibrary";
 import { CanvasComponentsPanel } from "./CanvasComponentsPanel";
 import {
   DEFAULT_CANVAS_SNAP_SETTINGS,
@@ -96,7 +95,6 @@ interface CanvasLeftSidebarProps {
   activeTool: CanvasTool;
   onToolChange: (tool: CanvasTool) => void;
   projectType: ProjectType;
-  projectId: string;
   pages: CanvasPage[];
   snapSettings?: CanvasSnapSettings;
   onSnapSettingsChange: (
@@ -112,7 +110,7 @@ interface CanvasLeftSidebarProps {
   accountLibraryVersion: number;
 }
 
-type ComponentTab = "mine" | "market" | "library";
+type ComponentTab = "mine" | "market";
 
 interface ResizeSession {
   pointerId: number;
@@ -128,7 +126,6 @@ export function CanvasLeftSidebar({
   activeTool,
   onToolChange,
   projectType,
-  projectId,
   pages,
   snapSettings = DEFAULT_CANVAS_SNAP_SETTINGS,
   onSnapSettingsChange,
@@ -463,18 +460,6 @@ export function CanvasLeftSidebar({
                 </button>
                 <button
                   className={styles.panelTab}
-                  id="components-tab-library"
-                  type="button"
-                  role="tab"
-                  aria-selected={componentTab === "library"}
-                  aria-controls="components-panel-library"
-                  data-active={componentTab === "library"}
-                  onClick={() => setComponentTab("library")}
-                >
-                  {t("projects.workspace.componentsPanel.tabs.library")}
-                </button>
-                <button
-                  className={styles.panelTab}
                   id="components-tab-market"
                   type="button"
                   role="tab"
@@ -650,19 +635,6 @@ export function CanvasLeftSidebar({
                       </p>
                     ) : null}
                   </div>
-                </div>
-              ) : componentTab === "library" ? (
-                <div
-                  className={styles.minePanel}
-                  id="components-panel-library"
-                  role="tabpanel"
-                  aria-labelledby="components-tab-library"
-                >
-                  <CanvasAccountLibrary
-                    projectId={projectId}
-                    refreshKey={accountLibraryVersion}
-                    onImport={onImportAccountComponent}
-                  />
                 </div>
               ) : (
                 <div

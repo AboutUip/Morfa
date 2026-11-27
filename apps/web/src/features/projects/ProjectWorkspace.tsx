@@ -1719,7 +1719,6 @@ export function ProjectWorkspace({
           activeTool={activeTool}
           onToolChange={setActiveTool}
           projectType={project.type}
-          projectId={project.id}
           pages={pages}
           snapSettings={snapSettings}
           onSnapSettingsChange={setSnapSettings}
