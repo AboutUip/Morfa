@@ -1,14 +1,10 @@
 import {
-  useEffect,
   useMemo,
   useState,
   type DragEvent as ReactDragEvent,
-  type FormEvent,
 } from "react";
-import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
-import type { ProjectType } from "../../lib/api";
 import {
   getCompiledControls,
   getControlDefinitions,
@@ -21,16 +17,12 @@ import {
   CONTROL_DRAG_MIME,
   getControlPreviewState,
   isControlDirty,
-  type ControlTarget,
-  type CreateControlInput,
 } from "./canvasControls";
 import { CanvasNodeView } from "./CanvasNodeView";
 import styles from "./CanvasComponentsPanel.module.css";
 
 interface CanvasComponentsPanelProps {
   pages: CanvasPage[];
-  projectType: ProjectType;
-  onCreateControl: (input: CreateControlInput) => void;
   onEditControl: (controlId: string) => void;
   onCompileControl: (controlId: string) => void;
   onDeleteControl: (controlId: string) => void;
@@ -38,8 +30,6 @@ interface CanvasComponentsPanelProps {
   blockedControlIds?: ReadonlySet<string>;
 }
 
-const DEFAULT_WIDTH = 240;
-const DEFAULT_HEIGHT = 120;
 const PREVIEW_WIDTH = 104;
 const PREVIEW_HEIGHT = 68;
 
@@ -91,8 +81,6 @@ function ControlPreview({
 
 export function CanvasComponentsPanel({
   pages,
-  projectType,
-  onCreateControl,
   onEditControl,
   onCompileControl,
   onDeleteControl,
@@ -100,16 +88,9 @@ export function CanvasComponentsPanel({
   blockedControlIds,
 }: CanvasComponentsPanelProps) {
   const { t } = useTranslation();
-  const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(
     null,
   );
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [target, setTarget] = useState<ControlTarget>(projectType);
-  const [width, setWidth] = useState(String(DEFAULT_WIDTH));
-  const [height, setHeight] = useState(String(DEFAULT_HEIGHT));
-  const [error, setError] = useState("");
 
   const controls = useMemo(() => {
     const compiled = new Set(
@@ -126,62 +107,6 @@ export function CanvasComponentsPanel({
         return left.name.localeCompare(right.name);
       });
   }, [pages]);
-
-  useEffect(() => {
-    if (!dialogOpen) return;
-    document.body.dataset.canvasModal = "true";
-    return () => {
-      delete document.body.dataset.canvasModal;
-    };
-  }, [dialogOpen]);
-
-  const resetDialog = () => {
-    setName("");
-    setDescription("");
-    setTarget(projectType);
-    setWidth(String(DEFAULT_WIDTH));
-    setHeight(String(DEFAULT_HEIGHT));
-    setError("");
-  };
-
-  const openDialog = () => {
-    resetDialog();
-    setDialogOpen(true);
-  };
-
-  const closeDialog = () => {
-    setDialogOpen(false);
-    resetDialog();
-  };
-
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const trimmedName = name.trim();
-    const numericWidth = Number.parseFloat(width);
-    const numericHeight = Number.parseFloat(height);
-    if (!trimmedName) {
-      setError(t("projects.workspace.controls.dialog.nameRequired"));
-      return;
-    }
-    if (
-      !Number.isFinite(numericWidth) ||
-      numericWidth < 8 ||
-      !Number.isFinite(numericHeight) ||
-      numericHeight < 8
-    ) {
-      setError(t("projects.workspace.controls.dialog.sizeInvalid"));
-      return;
-    }
-
-    onCreateControl({
-      name: trimmedName,
-      description,
-      target,
-      width: numericWidth,
-      height: numericHeight,
-    });
-    closeDialog();
-  };
 
   const handleDragStart = (
     event: ReactDragEvent<HTMLElement>,
@@ -201,14 +126,6 @@ export function CanvasComponentsPanel({
             count: controls.length,
           })}
         </span>
-        <button
-          className={styles.createButton}
-          type="button"
-          onClick={openDialog}
-        >
-          <span aria-hidden="true">+</span>
-          {t("projects.workspace.controls.create")}
-        </button>
       </div>
 
       {controls.length === 0 ? (
@@ -351,160 +268,6 @@ export function CanvasComponentsPanel({
         </div>
       )}
 
-      {dialogOpen
-        ? createPortal(
-            <div
-              className={styles.dialogOverlay}
-              role="presentation"
-              onClick={closeDialog}
-            >
-              <div
-                className={styles.dialog}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="canvas-control-dialog-title"
-                onClick={(event) => event.stopPropagation()}
-                onKeyDown={(event) => {
-                  if (event.key === "Escape") {
-                    event.preventDefault();
-                    closeDialog();
-                  }
-                }}
-              >
-                <header className={styles.dialogHeader}>
-                  <div>
-                    <h2 id="canvas-control-dialog-title">
-                      {t("projects.workspace.controls.dialog.title")}
-                    </h2>
-                    <p>{t("projects.workspace.controls.dialog.hint")}</p>
-                  </div>
-                  <button
-                    className={styles.dialogClose}
-                    type="button"
-                    aria-label={t("projects.workspace.controls.cancel")}
-                    onClick={closeDialog}
-                  >
-                    ×
-                  </button>
-                </header>
-
-                <form className={styles.dialogForm} onSubmit={handleSubmit}>
-                  <label className={styles.field}>
-                    <span>{t("projects.workspace.controls.dialog.name")}</span>
-                    <input
-                      className={styles.input}
-                      value={name}
-                      maxLength={80}
-                      autoFocus
-                      onChange={(event) => {
-                        setName(event.target.value);
-                        setError("");
-                      }}
-                    />
-                  </label>
-
-                  <label className={styles.field}>
-                    <span>
-                      {t("projects.workspace.controls.dialog.description")}
-                    </span>
-                    <input
-                      className={styles.input}
-                      value={description}
-                      maxLength={500}
-                      onChange={(event) =>
-                        setDescription(event.target.value)
-                      }
-                    />
-                  </label>
-
-                  <label className={styles.field}>
-                    <span>{t("projects.workspace.controls.dialog.target")}</span>
-                    <select
-                      className={styles.select}
-                      value={target}
-                      onChange={(event) =>
-                        setTarget(event.target.value as ControlTarget)
-                      }
-                    >
-                      <option value="software">
-                        {t("projects.workspace.controls.targets.software")}
-                      </option>
-                      <option value="website">
-                        {t("projects.workspace.controls.targets.website")}
-                      </option>
-                      <option value="both">
-                        {t("projects.workspace.controls.targets.both")}
-                      </option>
-                    </select>
-                  </label>
-
-                  <div className={styles.sizeRow}>
-                    <label className={styles.field}>
-                      <span>
-                        {t("projects.workspace.controls.dialog.width")}
-                      </span>
-                      <span className={styles.inputUnit}>
-                        <input
-                          className={styles.input}
-                          type="number"
-                          min={8}
-                          max={4000}
-                          step={1}
-                          value={width}
-                          onChange={(event) => {
-                            setWidth(event.target.value);
-                            setError("");
-                          }}
-                        />
-                        <span>px</span>
-                      </span>
-                    </label>
-                    <label className={styles.field}>
-                      <span>
-                        {t("projects.workspace.controls.dialog.height")}
-                      </span>
-                      <span className={styles.inputUnit}>
-                        <input
-                          className={styles.input}
-                          type="number"
-                          min={8}
-                          max={4000}
-                          step={1}
-                          value={height}
-                          onChange={(event) => {
-                            setHeight(event.target.value);
-                            setError("");
-                          }}
-                        />
-                        <span>px</span>
-                      </span>
-                    </label>
-                  </div>
-
-                  {error ? (
-                    <p className={styles.error} role="alert">
-                      {error}
-                    </p>
-                  ) : null}
-
-                  <footer className={styles.dialogActions}>
-                    <button
-                      className={styles.ghostButton}
-                      type="button"
-                      onClick={closeDialog}
-                    >
-                      {t("projects.workspace.controls.cancel")}
-                    </button>
-                    <button className={styles.primaryButton} type="submit">
-                      {t("projects.workspace.controls.dialog.create")}
-                    </button>
-                  </footer>
-                </form>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
     </div>
   );
 }

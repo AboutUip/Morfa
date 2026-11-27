@@ -496,7 +496,7 @@
         "count": "{{count}} 个控件",
         "previewEmpty": "无预览",
         "emptyTitle": "还没有控件",
-        "emptyHint": "新建一个带状态的控件，编译后即可拖入页面复用。",
+        "emptyHint": "从组件市场的“容器”中拖入“控件容器”即可创建控件。",
         "nestingBlocked": "无法嵌套：会形成循环依赖",
         "saveToLibrary": "保存到组件库",
         "publishNeedsCompile": "请先编译控件，再保存到组件库",
@@ -579,6 +579,10 @@
           "blank": {
             "name": "空白页面",
             "description": "从一张空白页面开始搭建。"
+          },
+          "controlContainer": {
+            "name": "控件容器",
+            "description": "创建一个带状态与行为的可复用控件。"
           },
           "iphone15ProMax": {
             "name": "iPhone 15 Pro Max"

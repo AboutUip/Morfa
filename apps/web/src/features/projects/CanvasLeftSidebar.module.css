@@ -435,6 +435,16 @@
   transition: color var(--mf-transition);
 }
 
+.marketCoverCanvas[data-control="true"] {
+  border-color: var(--mf-accent);
+  border-style: dashed;
+  background: var(--mf-accent-soft);
+}
+
+.marketCoverCanvas[data-control="true"] svg {
+  color: var(--mf-accent);
+}
+
 .marketCard:hover .marketCoverCanvas svg {
   color: var(--mf-accent);
 }

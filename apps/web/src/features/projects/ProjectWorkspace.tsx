@@ -1722,7 +1722,6 @@ export function ProjectWorkspace({
           pages={pages}
           snapSettings={snapSettings}
           onSnapSettingsChange={setSnapSettings}
-          onCreateControl={handleCreateControl}
           onEditControl={handleEditControl}
           onCompileControl={handleCompileControl}
           onDeleteControl={handleDeleteControl}
@@ -1771,9 +1770,15 @@ export function ProjectWorkspace({
             onSelectPages={selectPages}
             onSelectLink={selectLink}
             onCreatePage={handleCreatePage}
-            onCreateControlInstance={
-              editingControlId ? undefined : handleCreateControlInstance
+            onCreateControlContainer={() =>
+              handleCreateControl({
+                name: t("projects.workspace.controls.controlBadge"),
+                target: project.type,
+                width: 240,
+                height: 120,
+              })
             }
+            onCreateControlInstance={handleCreateControlInstance}
             onCreateLink={handleCreateLink}
             onDeleteLink={handleDeleteLink}
             onMovePage={handleMovePage}

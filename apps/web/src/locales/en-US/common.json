@@ -496,7 +496,7 @@
         "count": "{{count}} controls",
         "previewEmpty": "No preview",
         "emptyTitle": "No controls yet",
-        "emptyHint": "Create a stateful control, compile it, then drag it onto a page.",
+        "emptyHint": "Drag “Control container” from the Component market’s Containers section to create a control.",
         "nestingBlocked": "Cannot be nested here: cycle dependency",
         "saveToLibrary": "Save to library",
         "publishNeedsCompile": "Compile the control before saving it to the library",
@@ -579,6 +579,10 @@
           "blank": {
             "name": "Blank page",
             "description": "Start from an empty page."
+          },
+          "controlContainer": {
+            "name": "Control container",
+            "description": "Create a stateful reusable control with its own states and behaviors."
           },
           "iphone15ProMax": {
             "name": "iPhone 15 Pro Max"

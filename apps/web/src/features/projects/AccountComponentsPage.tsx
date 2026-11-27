@@ -142,6 +142,14 @@ function BuiltInPreview({ item }: { item: MarketItem }) {
       </span>
     );
   }
+  if (item.control) {
+    return (
+      <span className={styles.controlPreview} aria-hidden="true">
+        <LayersIcon size={18} />
+        <span aria-hidden="true">+</span>
+      </span>
+    );
+  }
   if (item.frame) {
     return (
       <span

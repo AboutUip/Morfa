@@ -25,7 +25,6 @@ import {
   type ProjectType,
 } from "../../lib/api";
 import type { CanvasPage } from "./canvasDocument";
-import type { CreateControlInput } from "./canvasControls";
 import { CanvasComponentsPanel } from "./CanvasComponentsPanel";
 import {
   DEFAULT_CANVAS_SNAP_SETTINGS,
@@ -100,7 +99,6 @@ interface CanvasLeftSidebarProps {
   onSnapSettingsChange: (
     update: (current: CanvasSnapSettings) => CanvasSnapSettings,
   ) => void;
-  onCreateControl: (input: CreateControlInput) => void;
   onEditControl: (controlId: string) => void;
   onCompileControl: (controlId: string) => void;
   onDeleteControl: (controlId: string) => void;
@@ -129,7 +127,6 @@ export function CanvasLeftSidebar({
   pages,
   snapSettings = DEFAULT_CANVAS_SNAP_SETTINGS,
   onSnapSettingsChange,
-  onCreateControl,
   onEditControl,
   onCompileControl,
   onDeleteControl,
@@ -600,6 +597,13 @@ export function CanvasLeftSidebar({
                                     }}
                                   />
                                 </span>
+                              ) : item.type === "container" && item.control ? (
+                                <span
+                                  className={styles.marketCoverCanvas}
+                                  data-control="true"
+                                >
+                                  <LayersIcon size={18} />
+                                </span>
                               ) : item.frame ? (
                                 <span
                                   className={styles.marketDevice}
@@ -645,8 +649,6 @@ export function CanvasLeftSidebar({
                 >
                   <CanvasComponentsPanel
                     pages={pages}
-                    projectType={projectType}
-                    onCreateControl={onCreateControl}
                     onEditControl={onEditControl}
                     onCompileControl={onCompileControl}
                     onDeleteControl={onDeleteControl}

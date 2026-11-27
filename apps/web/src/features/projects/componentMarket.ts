@@ -11,6 +11,8 @@ export interface MarketContainer {
   width: number;
   height: number;
   lockedSize?: boolean;
+  /** Creates a control definition instead of a regular page. */
+  control?: boolean;
   nameKey: string;
   descriptionKey: string;
 }
@@ -71,6 +73,18 @@ export const CONTAINER_MARKET: readonly MarketContainer[] = [
     nameKey: "projects.workspace.componentMarket.items.blank.name",
     descriptionKey:
       "projects.workspace.componentMarket.items.blank.description",
+  },
+  {
+    id: "container-control",
+    type: "container",
+    target: "both",
+    width: 240,
+    height: 120,
+    control: true,
+    nameKey:
+      "projects.workspace.componentMarket.items.controlContainer.name",
+    descriptionKey:
+      "projects.workspace.componentMarket.items.controlContainer.description",
   },
   {
     id: "iphone-15-pro-max",

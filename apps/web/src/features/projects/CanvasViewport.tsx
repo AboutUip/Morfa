@@ -178,6 +178,10 @@ interface CanvasViewportProps {
   onSelectPages: (pageIds: string[]) => void;
   onSelectLink: (linkId: string) => void;
   onCreatePage: (page: CanvasPage) => void;
+  onCreateControlContainer?: (position: {
+    x: number;
+    y: number;
+  }) => void;
   onCreateControlInstance?: (
     controlId: string,
     position: { x: number; y: number; parentId?: string },
@@ -761,6 +765,7 @@ export function CanvasViewport({
   onSelectPages,
   onSelectLink,
   onCreatePage,
+  onCreateControlContainer,
   onCreateControlInstance,
   onCreateLink,
   onDeleteLink,
@@ -1764,6 +1769,11 @@ export function CanvasViewport({
       (event.clientX - rect.left - currentView.x) / currentView.zoom;
     const worldY =
       (event.clientY - rect.top - currentView.y) / currentView.zoom;
+    if (item.type === "container" && item.control) {
+      onCreateControlContainer?.({ x: worldX, y: worldY });
+      return;
+    }
+
     const parentPage = findPageAt(pages, layout, worldX, worldY);
     const widget =
       item.type === "widget"
