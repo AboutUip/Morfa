@@ -177,7 +177,15 @@
       transparent 60%
     ),
     var(--mf-bg-surface);
-  cursor: default;
+  cursor: grab;
+}
+
+.startNode:hover {
+  border-color: var(--mf-accent);
+}
+
+.startNode[data-dragging="true"] {
+  cursor: grabbing;
 }
 
 .startGlyph {
@@ -262,6 +270,31 @@
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.nodeEditButton {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--mf-text-tertiary);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.nodeEditButton:hover {
+  background: var(--mf-bg-hover);
+  color: var(--mf-accent);
+}
+
+.nodeEditButton:focus-visible {
+  outline: 1px solid var(--mf-accent);
+  outline-offset: 1px;
 }
 
 .nodeBody {

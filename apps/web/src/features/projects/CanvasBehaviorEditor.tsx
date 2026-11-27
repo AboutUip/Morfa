@@ -39,6 +39,7 @@ import {
 } from "./canvasBehavior";
 import {
   BEHAVIOR_GRAPH_NODE_WIDTH,
+  BEHAVIOR_START_NODE_ID,
   BehaviorGraphCanvas,
   type BehaviorGraphCanvasApi,
 } from "./BehaviorGraphCanvas";
@@ -934,6 +935,7 @@ export function CanvasBehaviorEditor({
   const page = pages.find((item) => item.id === pageId) ?? null;
   const behavior = page ? getPageBehavior(page) : null;
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [leftPanelWidth, setLeftPanelWidth] = useState(230);
   const [rightPanelWidth, setRightPanelWidth] = useState(270);
@@ -952,6 +954,16 @@ export function CanvasBehaviorEditor({
 
   const blocks = behavior?.blocks ?? [];
   const edges = behavior?.edges ?? [];
+  const initialBehaviorState =
+    behavior?.states.find((state) => state.initial) ??
+    behavior?.states[0] ??
+    null;
+  const startPosition =
+    initialBehaviorState &&
+    typeof initialBehaviorState.x === "number" &&
+    typeof initialBehaviorState.y === "number"
+      ? { x: initialBehaviorState.x, y: initialBehaviorState.y }
+      : null;
   const supportedEvents = page
     ? getSupportedEvents(page)
     : ["click", "load"];
@@ -976,6 +988,7 @@ export function CanvasBehaviorEditor({
 
   useEffect(() => {
     setSelectedNodeId(null);
+    setEditingNodeId(null);
     setSelectedEdgeId(null);
   }, [pageId]);
 
@@ -992,7 +1005,13 @@ export function CanvasBehaviorEditor({
     ) {
       setSelectedNodeId(null);
     }
-  }, [blocks, selectedNodeId]);
+    if (
+      editingNodeId &&
+      !blocks.some((block) => block.id === editingNodeId)
+    ) {
+      setEditingNodeId(null);
+    }
+  }, [blocks, editingNodeId, selectedNodeId]);
 
   useEffect(() => {
     if (
@@ -1097,6 +1116,7 @@ export function CanvasBehaviorEditor({
     }
     updateGraph({ blocks: [...blocks, block] });
     setSelectedNodeId(block.id);
+    setEditingNodeId(null);
     setSelectedEdgeId(null);
   };
 
@@ -1115,6 +1135,7 @@ export function CanvasBehaviorEditor({
       edges: edges.filter((edge) => edge.from !== id && edge.to !== id),
     });
     if (selectedNodeId === id) setSelectedNodeId(null);
+    if (editingNodeId === id) setEditingNodeId(null);
     setSelectedEdgeId(null);
   };
 
@@ -1139,15 +1160,43 @@ export function CanvasBehaviorEditor({
     if (existing) {
       setSelectedEdgeId(existing.id);
       setSelectedNodeId(null);
+      setEditingNodeId(null);
       return;
     }
     const edge = createBehaviorEdge(from, to);
     updateGraph({ edges: [...edges, edge] });
     setSelectedEdgeId(edge.id);
     setSelectedNodeId(null);
+    setEditingNodeId(null);
   };
 
   const moveNode = (id: string, x: number, y: number) => {
+    if (id === BEHAVIOR_START_NODE_ID) {
+      if (!behavior) return;
+      const behaviorStates = behavior.states.length
+        ? behavior.states
+        : [
+            {
+              id: "default",
+              name: t("projects.workspace.behavior.stateDefaultName", {
+                index: 1,
+              }),
+              initial: true,
+            },
+          ];
+      const initial =
+        behaviorStates.find((state) => state.initial) ??
+        behaviorStates[0];
+      updateBehavior({
+        ...behavior,
+        version: 2,
+        triggers: [],
+        states: behaviorStates.map((state) =>
+          state.id === initial.id ? { ...state, x, y } : state,
+        ),
+      });
+      return;
+    }
     if (!blocks.some((block) => block.id === id)) return;
     updateGraph({
       blocks: blocks.map((block) =>
@@ -1477,7 +1526,9 @@ export function CanvasBehaviorEditor({
               blocks={blocks}
               edges={edges}
               selectedNodeId={selectedNodeId}
+              editingNodeId={editingNodeId}
               selectedEdgeId={selectedEdgeId}
+              startPosition={startPosition}
               fitKey={page.id}
               apiRef={graphApiRef}
               onSelectNode={(id) => {
@@ -1486,8 +1537,17 @@ export function CanvasBehaviorEditor({
               }}
               onSelectEdge={(id) => {
                 setSelectedEdgeId(id);
-                if (id) setSelectedNodeId(null);
+                if (id) {
+                  setSelectedNodeId(null);
+                  setEditingNodeId(null);
+                }
               }}
+              onStartEditNode={(id) => {
+                setSelectedNodeId(id);
+                setSelectedEdgeId(null);
+                setEditingNodeId(id);
+              }}
+              onStopEditNode={() => setEditingNodeId(null)}
               onMoveNode={moveNode}
               onCreateEdge={addEdge}
               onDeleteEdge={deleteEdge}

@@ -46,7 +46,8 @@ const EDITOR_NODE_HEIGHT: Record<
   note: 220,
 };
 
-const START_NODE_ID = "__morfa_start__";
+export const BEHAVIOR_START_NODE_ID = "__morfa_start__";
+const START_NODE_ID = BEHAVIOR_START_NODE_ID;
 const START_NODE_WIDTH = 176;
 const START_NODE_HEIGHT = 64;
 const START_NODE_GAP = 96;
@@ -117,11 +118,15 @@ export function BehaviorGraphCanvas({
   blocks,
   edges,
   selectedNodeId,
+  editingNodeId,
   selectedEdgeId,
+  startPosition,
   fitKey,
   apiRef,
   onSelectNode,
   onSelectEdge,
+  onStartEditNode,
+  onStopEditNode,
   onMoveNode,
   onCreateEdge,
   onDeleteEdge,
@@ -133,11 +138,15 @@ export function BehaviorGraphCanvas({
   blocks: CanvasBehaviorBlock[];
   edges: CanvasBehaviorEdge[];
   selectedNodeId: string | null;
+  editingNodeId: string | null;
   selectedEdgeId: string | null;
+  startPosition?: { x: number; y: number } | null;
   fitKey?: string;
   apiRef?: { current: BehaviorGraphCanvasApi | null };
   onSelectNode: (id: string | null) => void;
   onSelectEdge: (id: string | null) => void;
+  onStartEditNode: (id: string) => void;
+  onStopEditNode: () => void;
   onMoveNode: (id: string, x: number, y: number) => void;
   onCreateEdge: (from: string, to: string) => void;
   onDeleteEdge: (id: string) => void;
@@ -186,7 +195,7 @@ export function BehaviorGraphCanvas({
 
   const baseNodes = useMemo<GraphNode[]>(() => {
     const blockNodes: GraphNode[] = blocks.map((block) => {
-      const editing = block.id === selectedNodeId;
+      const editing = block.id === editingNodeId;
       return {
         id: block.id,
         kind: "block",
@@ -228,13 +237,15 @@ export function BehaviorGraphCanvas({
     const startNode: GraphNode = {
       id: START_NODE_ID,
       kind: "start",
-      x: minX - START_NODE_WIDTH - START_NODE_GAP,
-      y: startY,
+      x:
+        startPosition?.x ??
+        minX - START_NODE_WIDTH - START_NODE_GAP,
+      y: startPosition?.y ?? startY,
       width: START_NODE_WIDTH,
       height: START_NODE_HEIGHT,
     };
     return [startNode, ...blockNodes];
-  }, [blocks, edges, selectedNodeId]);
+  }, [blocks, editingNodeId, edges, startPosition]);
 
   const renderNodes = useMemo(() => {
     if (!drag) return baseNodes;
@@ -365,11 +376,12 @@ export function BehaviorGraphCanvas({
       focusedSelectionRef.current = null;
       return;
     }
-    if (focusedSelectionRef.current === selectedNodeId) return;
+    const focusKey = `${selectedNodeId}:${editingNodeId ?? ""}`;
+    if (focusedSelectionRef.current === focusKey) return;
     const element = viewportRef.current;
     const node = baseNodes.find((item) => item.id === selectedNodeId);
     if (!element || !node) return;
-    focusedSelectionRef.current = selectedNodeId;
+    focusedSelectionRef.current = focusKey;
     const current = viewRef.current;
     const padding = 40;
     const left = node.x * current.zoom + current.x;
@@ -395,7 +407,7 @@ export function BehaviorGraphCanvas({
         y: current.y + dy,
       });
     }
-  }, [baseNodes, selectedNodeId]);
+  }, [baseNodes, editingNodeId, selectedNodeId]);
 
   useEffect(() => {
     const element = viewportRef.current;
@@ -479,11 +491,12 @@ export function BehaviorGraphCanvas({
       setConnection(null);
       setPendingFrom(null);
       setContextMenu(null);
+      onStopEditNode();
     };
     window.addEventListener("keydown", handleKeyDown, true);
     return () =>
       window.removeEventListener("keydown", handleKeyDown, true);
-  }, []);
+  }, [onStopEditNode]);
 
   const clientToWorld = (clientX: number, clientY: number) => {
     const element = viewportRef.current;
@@ -512,6 +525,7 @@ export function BehaviorGraphCanvas({
     };
     setPanning(true);
     setPendingFrom(null);
+    onStopEditNode();
     onSelectNode(null);
     onSelectEdge(null);
   };
@@ -567,14 +581,6 @@ export function BehaviorGraphCanvas({
     node: GraphNode,
   ) => {
     if (event.button !== 0 || spaceRef.current) return;
-    if (node.kind === "start") {
-      event.stopPropagation();
-      focusViewport();
-      onSelectNode(null);
-      onSelectEdge(null);
-      setPendingFrom(null);
-      return;
-    }
     const target = event.target as HTMLElement;
     if (target.closest("[data-port]")) return;
     if (
@@ -596,7 +602,13 @@ export function BehaviorGraphCanvas({
     event.preventDefault();
     event.stopPropagation();
     focusViewport();
-    onSelectNode(node.id);
+    if (node.kind === "start") {
+      onStopEditNode();
+      onSelectNode(null);
+    } else {
+      if (node.id !== editingNodeId) onStopEditNode();
+      onSelectNode(node.id);
+    }
     onSelectEdge(null);
     setPendingFrom(null);
 
@@ -916,7 +928,10 @@ export function BehaviorGraphCanvas({
       onPointerUp={endPan}
       onPointerCancel={endPan}
       onLostPointerCapture={endPan}
-      onContextMenu={(event) => openContextMenu(event)}
+      onContextMenu={(event) => {
+        onStopEditNode();
+        openContextMenu(event);
+      }}
     >
       <div className={styles.world} style={worldStyle}>
         <svg className={styles.edgeLayer} width={20000} height={20000}>
@@ -983,6 +998,7 @@ export function BehaviorGraphCanvas({
                 onPointerDown={(event) => event.stopPropagation()}
                 onContextMenu={(event) => {
                   focusViewport();
+                  onStopEditNode();
                   onSelectEdge(edge.id);
                   onSelectNode(null);
                   openContextMenu(event, { edgeId: edge.id });
@@ -990,12 +1006,14 @@ export function BehaviorGraphCanvas({
                 onClick={(event) => {
                   event.stopPropagation();
                   focusViewport();
+                  onStopEditNode();
                   onSelectEdge(edge.id);
                   onSelectNode(null);
                 }}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
+                    onStopEditNode();
                     onSelectEdge(edge.id);
                     onSelectNode(null);
                   }
@@ -1037,6 +1055,7 @@ export function BehaviorGraphCanvas({
                 key={node.id}
                 className={`${styles.node} ${styles.startNode}`}
                 data-kind="start"
+                data-dragging={drag?.id === node.id ? "true" : undefined}
                 role="group"
                 aria-label={`${t(
                   "projects.workspace.behavior.startNode",
@@ -1052,8 +1071,15 @@ export function BehaviorGraphCanvas({
                 onPointerDown={(event) =>
                   handleNodePointerDown(event, node)
                 }
+                onPointerMove={handleNodePointerMove}
+                onPointerUp={handleNodePointerUp}
+                onPointerCancel={handleNodePointerUp}
+                onLostPointerCapture={(event) =>
+                  handleNodeLostPointerCapture(event.pointerId)
+                }
                 onContextMenu={(event) => {
                   focusViewport();
+                  onStopEditNode();
                   onSelectNode(null);
                   onSelectEdge(null);
                   openContextMenu(event);
@@ -1077,6 +1103,7 @@ export function BehaviorGraphCanvas({
           const block = node.block;
           if (!block) return null;
           const selected = node.id === selectedNodeId;
+          const editing = node.id === editingNodeId;
           const hasPorts = block.type !== "note";
           const inputActive = Boolean(pendingFrom || connection);
           return (
@@ -1085,12 +1112,27 @@ export function BehaviorGraphCanvas({
               className={styles.node}
               data-type={block.type}
               data-selected={selected ? "true" : undefined}
+              data-editing={editing ? "true" : undefined}
               data-dragging={drag?.id === node.id ? "true" : undefined}
               style={{
                 left: node.x,
                 top: node.y,
                 width: node.width,
                 height: node.height,
+              }}
+              onDoubleClick={(event) => {
+                const target = event.target as HTMLElement | null;
+                if (
+                  target?.closest(
+                    "input, textarea, select, button, [contenteditable='true'], [data-node-editor]",
+                  )
+                ) {
+                  return;
+                }
+                event.stopPropagation();
+                onSelectNode(node.id);
+                onSelectEdge(null);
+                onStartEditNode(node.id);
               }}
               onPointerDown={(event) =>
                 handleNodePointerDown(event, node)
@@ -1132,7 +1174,7 @@ export function BehaviorGraphCanvas({
                   }
                 />
               ) : null}
-              {selected && renderBlockEditor ? (
+              {editing && renderBlockEditor ? (
                 <div
                   className={styles.inlineEditor}
                   data-node-editor="true"
@@ -1147,6 +1189,21 @@ export function BehaviorGraphCanvas({
                         `projects.workspace.behavior.blockTypes.${block.type}`,
                       )}
                     </span>
+                    {selected ? (
+                      <button
+                        className={styles.nodeEditButton}
+                        type="button"
+                        aria-label={t(
+                          "projects.workspace.behavior.editNode",
+                        )}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onStartEditNode(node.id);
+                        }}
+                      >
+                        ✎
+                      </button>
+                    ) : null}
                   </div>
                   <div className={styles.nodeBody}>
                     <span className={styles.nodeTitle}>
