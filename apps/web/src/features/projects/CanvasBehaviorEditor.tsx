@@ -715,7 +715,84 @@ function BlockInspector({
       ) : null}
 
       {block.type === "condition" ? (
-        block.condition ? (
+        block.conditions?.length ? (
+          <div className={styles.inspectorFields}>
+            <label className={styles.fieldRow}>
+              <span>
+                {t("projects.workspace.behavior.fields.conditionMode")}
+              </span>
+              <SelectField
+                value={block.conditionMode ?? "all"}
+                onChange={(value) =>
+                  onChange({ conditionMode: value as "all" | "any" })
+                }
+              >
+                <option value="all">
+                  {t("projects.workspace.behavior.conditionModeAll")}
+                </option>
+                <option value="any">
+                  {t("projects.workspace.behavior.conditionModeAny")}
+                </option>
+              </SelectField>
+            </label>
+            {block.conditions.map((condition, index) => (
+              <div
+                className={styles.groupCondition}
+                key={condition.id || index}
+              >
+                <div className={styles.groupConditionHeader}>
+                  <span>
+                    {t("projects.workspace.behavior.conditionTag")}{" "}
+                    {index + 1}
+                  </span>
+                  <button
+                    className={styles.iconButton}
+                    type="button"
+                    aria-label={t(
+                      "projects.workspace.behavior.removeCondition",
+                    )}
+                    onClick={() =>
+                      onChange({
+                        conditions: block.conditions?.filter(
+                          (_, itemIndex) => itemIndex !== index,
+                        ),
+                      })
+                    }
+                  >
+                    ×
+                  </button>
+                </div>
+                <ConditionFields
+                  condition={condition}
+                  ownerId={page.id}
+                  pages={pages}
+                  onChange={(next) =>
+                    onChange({
+                      conditions: block.conditions?.map(
+                        (item, itemIndex) =>
+                          itemIndex === index ? next : item,
+                      ),
+                    })
+                  }
+                />
+              </div>
+            ))}
+            <button
+              className={styles.paletteButton}
+              type="button"
+              onClick={() => {
+                const next = createBehaviorCondition("nodeData");
+                next.targetId = page.id;
+                onChange({
+                  conditions: [...(block.conditions ?? []), next],
+                });
+              }}
+            >
+              <span className={styles.paletteMark}>+</span>
+              {t("projects.workspace.behavior.conditionsTitle")}
+            </button>
+          </div>
+        ) : block.condition ? (
           <ConditionFields
             condition={block.condition}
             ownerId={page.id}

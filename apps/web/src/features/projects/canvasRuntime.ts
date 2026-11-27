@@ -578,18 +578,34 @@ function executeBehaviorGraph(
       if (!block) continue;
 
       if (block.type === "condition") {
-        if (
-          !block.condition ||
-          !evaluateBehaviorCondition(
-            snapshot,
-            state,
-            owner,
-            block.condition,
-            scope,
-          )
-        ) {
-          continue;
-        }
+        const conditions =
+          block.conditions && block.conditions.length > 0
+            ? block.conditions
+            : block.condition
+              ? [block.condition]
+              : [];
+        if (conditions.length === 0) continue;
+        const matched =
+          block.conditionMode === "any"
+            ? conditions.some((condition) =>
+                evaluateBehaviorCondition(
+                  snapshot,
+                  state,
+                  owner,
+                  condition,
+                  scope,
+                ),
+              )
+            : conditions.every((condition) =>
+                evaluateBehaviorCondition(
+                  snapshot,
+                  state,
+                  owner,
+                  condition,
+                  scope,
+                ),
+              );
+        if (!matched) continue;
       } else if (block.type === "action" && block.action) {
         applyAction(snapshot, state, owner, block.action, scope);
       } else if (block.type === "event") {

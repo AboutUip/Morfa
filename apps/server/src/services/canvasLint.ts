@@ -335,27 +335,33 @@ export function lintCanvas(
             push,
           });
         }
-        if (
-          block.type === "condition" &&
-          block.condition?.source === "nodeData"
-        ) {
-          const target = block.condition.targetId
-            ? pagesById.get(block.condition.targetId)
-            : page;
-          if (
-            !target ||
-            !block.condition.key ||
-            !target.data?.some(
-              (entry) => entry.key === block.condition?.key,
-            )
-          ) {
-            push({
-              severity: "error",
-              code: "BEHAVIOR_DATA_KEY_MISSING",
-              pageId: page.id,
-              pageName: page.name,
-              message: `节点数据 ${block.condition.key ?? ""} 未声明`,
-            });
+        if (block.type === "condition") {
+          const conditions =
+            block.conditions && block.conditions.length > 0
+              ? block.conditions
+              : block.condition
+                ? [block.condition]
+                : [];
+          for (const condition of conditions) {
+            if (condition.source !== "nodeData") continue;
+            const target = condition.targetId
+              ? pagesById.get(condition.targetId)
+              : page;
+            if (
+              !target ||
+              !condition.key ||
+              !target.data?.some(
+                (entry) => entry.key === condition.key,
+              )
+            ) {
+              push({
+                severity: "error",
+                code: "BEHAVIOR_DATA_KEY_MISSING",
+                pageId: page.id,
+                pageName: page.name,
+                message: `节点数据 ${condition.key ?? ""} 未声明`,
+              });
+            }
           }
         }
       }

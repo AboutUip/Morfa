@@ -405,7 +405,13 @@ function validateBehavior(
       }
     }
     if (block.type === "condition") {
-      if (!block.condition) {
+      const conditions =
+        block.conditions && block.conditions.length > 0
+          ? block.conditions
+          : block.condition
+            ? [block.condition]
+            : [];
+      if (conditions.length === 0) {
         issues.push({
           severity: "error",
           code: "CONDITION_MISSING",
@@ -413,18 +419,20 @@ function validateBehavior(
           pageId: page.id,
         });
       } else {
-        issues.push(
-          ...validateCondition(
-            page,
-            block.condition,
-            pagesById,
-            {
-              id: block.id,
-              event: "graph",
-              actions: [],
-            },
-          ),
-        );
+        for (const condition of conditions) {
+          issues.push(
+            ...validateCondition(
+              page,
+              condition,
+              pagesById,
+              {
+                id: block.id,
+                event: "graph",
+                actions: [],
+              },
+            ),
+          );
+        }
       }
     }
     if (block.type === "action") {

@@ -199,6 +199,8 @@ export interface CanvasBehaviorBlockDto {
   event?: string;
   stateId?: string;
   condition?: CanvasBehaviorConditionDto;
+  conditions?: CanvasBehaviorConditionDto[];
+  conditionMode?: "all" | "any";
   action?: CanvasBehaviorActionDto;
   text?: string;
 }

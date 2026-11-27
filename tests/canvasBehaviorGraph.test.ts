@@ -88,6 +88,50 @@ test("materializes legacy triggers into a linear block graph", () => {
   }
 });
 
+test("preserves OR semantics as a condition group block", () => {
+  const behavior: CanvasBehavior = {
+    triggers: [
+      {
+        id: "t1",
+        event: "click",
+        conditionMode: "any",
+        conditions: [
+          {
+            id: "c1",
+            source: "nodeData",
+            targetId: "owner",
+            key: "a",
+            operator: "eq",
+            value: "1",
+          },
+          {
+            id: "c2",
+            source: "nodeData",
+            targetId: "owner",
+            key: "b",
+            operator: "eq",
+            value: "1",
+          },
+        ],
+        actions: [{ id: "a1", type: "setState", value: "active" }],
+      },
+    ],
+    states: [
+      { id: "default", name: "Default", initial: true },
+      { id: "active", name: "Active" },
+    ],
+  };
+
+  const result = materializeBehaviorGraph(behavior);
+  const conditionBlocks = (result.behavior.blocks ?? []).filter(
+    (block) => block.type === "condition",
+  );
+  assert.equal(conditionBlocks.length, 1);
+  assert.equal(conditionBlocks[0].conditionMode, "any");
+  assert.equal(conditionBlocks[0].conditions?.length, 2);
+  assert.equal(conditionBlocks[0].condition, undefined);
+});
+
 test("keeps existing blocks and only fills missing state positions", () => {
   const behavior: CanvasBehavior = {
     version: 2,

@@ -470,20 +470,38 @@ export function materializeBehaviorGraph(
     let previousId = eventBlock.id;
 
     const conditions = trigger.conditions ?? [];
-    conditions.forEach((condition, conditionIndex) => {
-      const block: CanvasBehaviorBlock = {
+    const conditionLaneCount = conditions.length;
+    if (
+      trigger.conditionMode === "any" &&
+      conditions.length > 1
+    ) {
+      const groupBlock: CanvasBehaviorBlock = {
         id: makeId("b"),
         type: "condition",
-        x:
-          MATERIALIZED_ACTION_X +
-          conditionIndex * MATERIALIZED_ACTION_GAP,
+        x: MATERIALIZED_ACTION_X,
         y: rowY,
-        condition: cloneCondition(condition),
+        conditionMode: "any",
+        conditions: conditions.map(cloneCondition),
       };
-      blocks.push(block);
-      edges.push(createBehaviorEdge(previousId, block.id));
-      previousId = block.id;
-    });
+      blocks.push(groupBlock);
+      edges.push(createBehaviorEdge(previousId, groupBlock.id));
+      previousId = groupBlock.id;
+    } else {
+      conditions.forEach((condition, conditionIndex) => {
+        const block: CanvasBehaviorBlock = {
+          id: makeId("b"),
+          type: "condition",
+          x:
+            MATERIALIZED_ACTION_X +
+            conditionIndex * MATERIALIZED_ACTION_GAP,
+          y: rowY,
+          condition: cloneCondition(condition),
+        };
+        blocks.push(block);
+        edges.push(createBehaviorEdge(previousId, block.id));
+        previousId = block.id;
+      });
+    }
 
     trigger.actions.forEach((action, actionIndex) => {
       const block: CanvasBehaviorBlock = {
@@ -491,7 +509,7 @@ export function materializeBehaviorGraph(
         type: "action",
         x:
           MATERIALIZED_ACTION_X +
-          (conditions.length + actionIndex) * MATERIALIZED_ACTION_GAP,
+          (conditionLaneCount + actionIndex) * MATERIALIZED_ACTION_GAP,
         y: rowY,
         action: cloneAction(action),
       };
@@ -1053,7 +1071,13 @@ function collectGraphIssues(
         }
       }
     } else if (block.type === "condition") {
-      if (!block.condition) {
+      const groupConditions =
+        block.conditions && block.conditions.length > 0
+          ? block.conditions
+          : block.condition
+            ? [block.condition]
+            : [];
+      if (groupConditions.length === 0) {
         issues.push({
           id: `${page.id}:block-condition-missing:${block.id}`,
           pageId: page.id,
@@ -1064,17 +1088,19 @@ function collectGraphIssues(
           blockId: block.id,
         });
       } else {
-        lintCondition(
-          issues,
-          page,
-          pagesById,
-          block.condition,
-          {
-            blockId: block.id,
-            conditionId: block.condition.id,
-          },
-          `${page.id}:block-condition:${block.id}`,
-        );
+        groupConditions.forEach((condition, index) => {
+          lintCondition(
+            issues,
+            page,
+            pagesById,
+            condition,
+            {
+              blockId: block.id,
+              conditionId: condition.id,
+            },
+            `${page.id}:block-condition:${block.id}:${index}`,
+          );
+        });
       }
     } else if (block.type === "action") {
       if (!block.action) {

@@ -178,6 +178,8 @@ export interface CanvasBehaviorBlockDto {
   event?: string;
   stateId?: string;
   condition?: CanvasBehaviorConditionDto;
+  conditions?: CanvasBehaviorConditionDto[];
+  conditionMode?: "all" | "any";
   action?: CanvasBehaviorActionDto;
   text?: string;
 }
@@ -696,12 +698,33 @@ function normalizeBehaviorBlock(
     };
   }
   if (type === "condition") {
+    const conditions =
+      block.conditions === undefined
+        ? undefined
+        : Array.isArray(block.conditions) &&
+            block.conditions.length <= MAX_BEHAVIOR_CONDITIONS
+          ? block.conditions.map(normalizeBehaviorCondition)
+          : invalidDocument();
+    const condition =
+      block.condition === undefined
+        ? undefined
+        : normalizeBehaviorCondition(block.condition);
+    if (!condition && (!conditions || conditions.length === 0)) {
+      invalidDocument();
+    }
     return {
       id,
       type: "condition",
       x,
       y,
-      condition: normalizeBehaviorCondition(block.condition),
+      ...(condition ? { condition } : {}),
+      ...(conditions?.length
+        ? {
+            conditionMode:
+              block.conditionMode === "any" ? "any" : "all",
+            conditions,
+          }
+        : {}),
     };
   }
   if (type === "action") {

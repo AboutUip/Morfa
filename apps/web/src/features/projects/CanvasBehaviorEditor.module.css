@@ -405,6 +405,27 @@
   gap: 5px;
 }
 
+.groupCondition {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 5px 6px;
+  border: 1px solid var(--mf-border);
+  border-left: 2px solid var(--mf-warning, #d39120);
+  border-radius: 4px;
+  background: var(--mf-bg-app);
+}
+
+.groupConditionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--mf-text-tertiary);
+  font-size: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
 .checkboxRow {
   display: flex;
   align-items: center;
