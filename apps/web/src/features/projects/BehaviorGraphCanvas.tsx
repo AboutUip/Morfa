@@ -520,6 +520,7 @@ export function BehaviorGraphCanvas({
   ) => {
     event.preventDefault();
     event.stopPropagation();
+    setPendingFrom(null);
     const point = clientToWorld(event.clientX, event.clientY);
     const session: ConnectionSession = {
       pointerId: event.pointerId,
@@ -835,7 +836,7 @@ export function BehaviorGraphCanvas({
           const selected = node.id === selectedNodeId;
           const state = node.state;
           const block = node.block;
-          const inputActive = Boolean(pendingFrom);
+          const inputActive = Boolean(pendingFrom || connection);
           return (
             <div
               key={node.id}
