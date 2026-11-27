@@ -124,6 +124,19 @@
   cursor: grabbing;
 }
 
+.inlineEditor {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: auto;
+}
+
+.inlineEditor > * {
+  width: 100%;
+  flex: none;
+}
+
 .node[data-selected="true"] {
   z-index: 6;
   border-color: var(--mf-accent);

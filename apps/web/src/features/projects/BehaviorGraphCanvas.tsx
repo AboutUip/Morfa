@@ -7,6 +7,7 @@ import {
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
 } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -35,8 +36,21 @@ const BLOCK_HEIGHT: Record<CanvasBehaviorBlock["type"], number> = {
   note: 106,
 };
 
+const EDITOR_NODE_WIDTH = 300;
+const EDITOR_NODE_HEIGHT: Record<
+  CanvasBehaviorBlock["type"],
+  number
+> = {
+  event: 230,
+  condition: 430,
+  action: 430,
+  note: 260,
+};
+
 const STATE_WIDTH = 178;
 const STATE_HEIGHT = 62;
+const STATE_EDITOR_WIDTH = 250;
+const STATE_EDITOR_HEIGHT = 180;
 
 interface GraphNode {
   id: string;
@@ -115,6 +129,8 @@ export function BehaviorGraphCanvas({
   onCreateEdge,
   onDeleteEdge,
   onDeleteNode,
+  renderBlockEditor,
+  renderStateEditor,
 }: {
   pages: CanvasPage[];
   blocks: CanvasBehaviorBlock[];
@@ -130,6 +146,8 @@ export function BehaviorGraphCanvas({
   onCreateEdge: (from: string, to: string) => void;
   onDeleteEdge: (id: string) => void;
   onDeleteNode: (id: string) => void;
+  renderBlockEditor?: (block: CanvasBehaviorBlock) => ReactNode;
+  renderStateEditor?: (state: CanvasBehaviorState) => ReactNode;
 }) {
   const { t } = useTranslation();
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -171,26 +189,34 @@ export function BehaviorGraphCanvas({
   );
 
   const baseNodes = useMemo<GraphNode[]>(() => {
-    const blockNodes = blocks.map((block) => ({
-      id: block.id,
-      kind: "block" as const,
-      x: block.x,
-      y: block.y,
-      width: BEHAVIOR_GRAPH_NODE_WIDTH,
-      height: BLOCK_HEIGHT[block.type],
-      block,
-    }));
-    const stateNodes = states.map((state, index) => ({
-      id: state.id,
-      kind: "state" as const,
-      x: state.x ?? 96 + index * 228,
-      y: state.y ?? 32,
-      width: STATE_WIDTH,
-      height: STATE_HEIGHT,
-      state,
-    }));
+    const blockNodes = blocks.map((block) => {
+      const editing = block.id === selectedNodeId;
+      return {
+        id: block.id,
+        kind: "block" as const,
+        x: block.x,
+        y: block.y,
+        width: editing ? EDITOR_NODE_WIDTH : BEHAVIOR_GRAPH_NODE_WIDTH,
+        height: editing
+          ? EDITOR_NODE_HEIGHT[block.type]
+          : BLOCK_HEIGHT[block.type],
+        block,
+      };
+    });
+    const stateNodes = states.map((state, index) => {
+      const editing = state.id === selectedNodeId;
+      return {
+        id: state.id,
+        kind: "state" as const,
+        x: state.x ?? 96 + index * 228,
+        y: state.y ?? 32,
+        width: editing ? STATE_EDITOR_WIDTH : STATE_WIDTH,
+        height: editing ? STATE_EDITOR_HEIGHT : STATE_HEIGHT,
+        state,
+      };
+    });
     return [...stateNodes, ...blockNodes];
-  }, [blocks, states]);
+  }, [blocks, selectedNodeId, states]);
 
   const renderNodes = useMemo(() => {
     if (!drag) return baseNodes;
@@ -467,6 +493,13 @@ export function BehaviorGraphCanvas({
     if (event.button !== 0 || spaceRef.current) return;
     const target = event.target as HTMLElement;
     if (target.closest("[data-port]")) return;
+    if (
+      target.closest(
+        "input, textarea, select, button, [contenteditable='true']",
+      )
+    ) {
+      return;
+    }
 
     event.preventDefault();
     event.stopPropagation();
@@ -927,7 +960,17 @@ export function BehaviorGraphCanvas({
                   handleInputPointerDown(event, node.id)
                 }
               />
-              {state ? (
+              {selected &&
+              ((state && renderStateEditor) ||
+                (block && renderBlockEditor)) ? (
+                <div className={styles.inlineEditor}>
+                  {state
+                    ? renderStateEditor?.(state)
+                    : block
+                      ? renderBlockEditor?.(block)
+                      : null}
+                </div>
+              ) : state ? (
                 <div className={styles.stateNode}>
                   <span
                     className={styles.stateMarker}

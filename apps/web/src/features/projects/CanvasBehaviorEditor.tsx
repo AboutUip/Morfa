@@ -1007,13 +1007,6 @@ export function CanvasBehaviorEditor({
   const currentLint = page
     ? lintItems.filter((item) => item.pageId === page.id)
     : [];
-  const selectedBlock =
-    blocks.find((block) => block.id === selectedNodeId) ?? null;
-  const selectedState =
-    states.find((state) => state.id === selectedNodeId) ?? null;
-  const selectedEdge =
-    edges.find((edge) => edge.id === selectedEdgeId) ?? null;
-
   useEffect(() => {
     if (!page || !behavior) return;
     const signature = `${page.id}:${JSON.stringify(behavior)}`;
@@ -1371,32 +1364,6 @@ export function CanvasBehaviorEditor({
     }
   };
 
-  const nodeName = (id: string) => {
-    const block = blocks.find((item) => item.id === id);
-    if (block) {
-      if (block.type === "event") {
-        return t(behaviorEventLabelKey(block.event ?? ""));
-      }
-      if (block.type === "condition") {
-        return t(
-          BEHAVIOR_CONDITION_SOURCES.find(
-            (item) => item.source === block.condition?.source,
-          )?.labelKey ??
-            "projects.workspace.behavior.conditions.sources.nodeData",
-        );
-      }
-      if (block.type === "action") {
-        return block.action
-          ? t(behaviorActionLabelKey(block.action.type))
-          : t("projects.workspace.behavior.actions.custom");
-      }
-      return block.text?.trim() || t("projects.workspace.behavior.noteEmpty");
-    }
-    const state = states.find((item) => item.id === id);
-    if (state) return state.name;
-    return id;
-  };
-
   return (
     <section
       ref={panelRef}
@@ -1612,68 +1579,33 @@ export function CanvasBehaviorEditor({
               onCreateEdge={addEdge}
               onDeleteEdge={deleteEdge}
               onDeleteNode={deleteNode}
-            />
-          </main>
-
-          <aside className={styles.rightPanel}>
-            <section className={styles.panelSection}>
-              <h3 className={styles.sectionTitle}>
-                {t("projects.workspace.behavior.inspectorTitle")}
-              </h3>
-              {selectedEdge ? (
-                <div className={styles.inspector}>
-                  <div className={styles.inspectorHeader}>
-                    <span className={styles.inspectorKind}>
-                      {t("projects.workspace.behavior.edgeLabel")}
-                    </span>
-                    <button
-                      className={styles.iconButton}
-                      type="button"
-                      aria-label={t(
-                        "projects.workspace.behavior.deleteEdge",
-                      )}
-                      onClick={() => deleteEdge(selectedEdge.id)}
-                    >
-                      ×
-                    </button>
-                  </div>
-                  <p className={styles.edgeSummary}>
-                    {nodeName(selectedEdge.from)}
-                    <span aria-hidden="true"> → </span>
-                    {nodeName(selectedEdge.to)}
-                  </p>
-                </div>
-              ) : selectedBlock ? (
+              renderBlockEditor={(block) => (
                 <BlockInspector
-                  block={selectedBlock}
+                  block={block}
                   page={page}
                   pages={pages}
                   behavior={behavior}
                   supportedEvents={supportedEvents}
-                  onChange={(patch) => patchBlock(selectedBlock.id, patch)}
-                  onDelete={() => deleteBlock(selectedBlock.id)}
+                  onChange={(patch) => patchBlock(block.id, patch)}
+                  onDelete={() => deleteBlock(block.id)}
                 />
-              ) : selectedState ? (
-                <StateInspector
-                  state={selectedState}
-                  canDelete={states.length > 1}
-                  onRename={(name) => patchState(selectedState.id, { name })}
-                  onSetInitial={(initial) => {
-                    if (initial) {
-                      setInitialState(selectedState.id);
-                    } else {
-                      patchState(selectedState.id, { initial: false });
-                    }
-                  }}
-                  onDelete={() => deleteState(selectedState.id)}
-                />
-              ) : (
-                <p className={styles.mutedText}>
-                  {t("projects.workspace.behavior.inspectorHint")}
-                </p>
               )}
-            </section>
+              renderStateEditor={(state) => (
+                <StateInspector
+                  state={state}
+                  canDelete={states.length > 1}
+                  onRename={(name) => patchState(state.id, { name })}
+                  onSetInitial={(initial) => {
+                    if (initial) setInitialState(state.id);
+                    else patchState(state.id, { initial: false });
+                  }}
+                  onDelete={() => deleteState(state.id)}
+                />
+              )}
+            />
+          </main>
 
+          <aside className={styles.rightPanel}>
             <PaletteSection
               title={t("projects.workspace.behavior.blockPaletteTitle")}
               open={Boolean(openPalettes.blocks)}
