@@ -108,15 +108,13 @@ export function CanvasSimulator({
   const screenDesignWidth = Math.max(1, containerSize.width - bezel * 2);
   const screenDesignHeight = Math.max(1, containerSize.height - bezel * 2);
   const contentScale = currentPage
-    ? Math.min(
-        screenDesignWidth / Math.max(1, currentSize.width),
-        screenDesignHeight / Math.max(1, currentSize.height),
-      )
+    ? screenDesignWidth / Math.max(1, currentSize.width)
     : 1;
-  const contentLeft =
-    (screenDesignWidth - currentSize.width * contentScale) / 2;
-  const contentTop =
-    (screenDesignHeight - currentSize.height * contentScale) / 2;
+  const scaledHeight = currentSize.height * contentScale;
+  const filledHeight =
+    scaledHeight < screenDesignHeight - 0.5
+      ? screenDesignHeight / contentScale
+      : currentSize.height;
 
   const handleRuntimeEvent = (
     nodeId: string,
@@ -320,9 +318,9 @@ export function CanvasSimulator({
                 className={styles.pageScaler}
                 style={{
                   width: currentSize.width,
-                  height: currentSize.height,
-                  left: contentLeft,
-                  top: contentTop,
+                  height: filledHeight,
+                  left: 0,
+                  top: 0,
                   transform: `scale(${contentScale})`,
                 }}
               >
@@ -331,6 +329,11 @@ export function CanvasSimulator({
                   pages={snapshot.pages}
                   links={snapshot.links}
                   root
+                  size={
+                    filledHeight === currentSize.height
+                      ? undefined
+                      : { width: currentSize.width, height: filledHeight }
+                  }
                   runtime={runtime}
                   projectBehavior={snapshot.behavior}
                   onEvent={handleRuntimeEvent}

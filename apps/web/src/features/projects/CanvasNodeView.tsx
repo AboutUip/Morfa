@@ -74,6 +74,8 @@ export interface CanvasNodeViewProps {
   root?: boolean;
   /** Canvas mode places root pages at their padded world position. */
   position?: { left: number; top: number };
+  /** Simulator fills a short page to the screen without changing child layout. */
+  size?: { width: number; height: number };
   runtime?: CanvasRuntimeState;
   onEvent?: (
     nodeId: string,
@@ -98,6 +100,7 @@ export function CanvasNodeView({
   pages,
   links = EMPTY_LINKS,
   root = false,
+  size,
   position,
   runtime,
   onEvent,
@@ -155,8 +158,8 @@ export function CanvasNodeView({
     position: position ? "absolute" : root ? "relative" : "absolute",
     left,
     top,
-    width: controlStateFrame?.width ?? frame.width,
-    height: controlStateFrame?.height ?? frame.height,
+    width: size?.width ?? controlStateFrame?.width ?? frame.width,
+    height: size?.height ?? controlStateFrame?.height ?? frame.height,
     ...(authoredOverflow ? {} : { overflow: "hidden" }),
   };
   const children =
