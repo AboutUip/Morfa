@@ -786,6 +786,12 @@ export function styleVariables(
 ) {
   const result: Record<string, string> = {};
   if (!styles) return result;
+  for (const [key, value] of Object.entries(styles)) {
+    if (key.startsWith("--mf-") && value !== "") {
+      result[key] = value;
+    }
+  }
+
   for (const [key, variable] of Object.entries(STYLE_VARIABLE_MAP)) {
     const value = styles[key];
     if (value === undefined || value === "") continue;

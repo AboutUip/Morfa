@@ -55,6 +55,16 @@ test("maps design typography styles to widget CSS variables", () => {
     },
   );
   assert.deepEqual(styleVariables({}), {});
+  assert.deepEqual(
+    styleVariables({
+      "--mf-widget-button-padding": "0 12px",
+      "--mf-widget-card-title": "#ffffff",
+    }),
+    {
+      "--mf-widget-button-padding": "0 12px",
+      "--mf-widget-card-title": "#ffffff",
+    },
+  );
 });
 
 test("runs node data, state and visibility conditions", () => {

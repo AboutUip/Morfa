@@ -57,6 +57,7 @@ import {
   isPageInSubtree,
   type LayerDropPosition,
 } from "./canvasHierarchy";
+import { getWidgetStyleFields } from "./widgetStyleSchema";
 import styles from "./CanvasRightSidebar.module.css";
 
 const DEFAULT_PANEL_WIDTH = 320;
@@ -2053,6 +2054,60 @@ function PropertiesPanel({
                       onChange={(value) => updateStyle("filter", value)}
                     />
                   </ControlSection>
+
+                  {page.widget
+                    ? (() => {
+                        const fields = getWidgetStyleFields(
+                          page.widget?.kind,
+                        );
+                        if (fields.length === 0) return null;
+                        return (
+                          <ControlSection
+                            title={t(
+                              "projects.workspace.propertiesPanel.sections.component",
+                            )}
+                          >
+                            {fields.map((field) => {
+                              const value = page.styles[field.key];
+                              const onChange = (next: string) =>
+                                updateStyle(field.key, next);
+                              if (field.control === "color") {
+                                return (
+                                  <ColorControl
+                                    key={field.key}
+                                    label={t(field.labelKey)}
+                                    value={value}
+                                    onChange={onChange}
+                                  />
+                                );
+                              }
+                              if (field.control === "select") {
+                                return (
+                                  <SelectControl
+                                    key={field.key}
+                                    label={t(field.labelKey)}
+                                    value={value}
+                                    options={field.options ?? []}
+                                    onChange={onChange}
+                                  />
+                                );
+                              }
+                              return (
+                                <TextControl
+                                  key={field.key}
+                                  label={t(field.labelKey)}
+                                  value={value}
+                                  placeholder={
+                                    field.placeholder ?? inherit
+                                  }
+                                  onChange={onChange}
+                                />
+                              );
+                            })}
+                          </ControlSection>
+                        );
+                      })()
+                    : null}
                 </div>
               )}
             </>
