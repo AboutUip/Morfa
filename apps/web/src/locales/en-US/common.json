@@ -407,6 +407,8 @@
         "openEditor": "Open behavior editor",
         "lintTitle": "Behavior checks",
         "lintClean": "No behavior problems found.",
+        "resizeChecks": "Resize behavior checks",
+        "resizePalette": "Resize node panel",
         "states": "States",
         "stateMapTitle": "State map",
         "stateMapHint": "Click a transition to edit its trigger.",

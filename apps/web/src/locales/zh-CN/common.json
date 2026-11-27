@@ -407,6 +407,8 @@
         "openEditor": "打开行为编辑器",
         "lintTitle": "行为检查",
         "lintClean": "未发现行为问题。",
+        "resizeChecks": "拉伸行为检查面板",
+        "resizePalette": "拉伸节点面板",
         "states": "状态",
         "stateMapTitle": "状态图",
         "stateMapHint": "点击转移线可编辑其触发条件。",

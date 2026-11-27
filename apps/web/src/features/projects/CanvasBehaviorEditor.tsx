@@ -4,7 +4,7 @@ import {
   useRef,
   useState,
   type DragEvent as ReactDragEvent,
-  type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
@@ -47,6 +47,10 @@ import {
 import styles from "./CanvasBehaviorEditor.module.css";
 
 const LAYER_DRAG_MIME = "application/x-morfa-layer";
+const MIN_LEFT_PANEL_WIDTH = 150;
+const MAX_LEFT_PANEL_WIDTH = 360;
+const MIN_RIGHT_PANEL_WIDTH = 200;
+const MAX_RIGHT_PANEL_WIDTH = 440;
 
 function DraftInput({
   value,
@@ -983,7 +987,8 @@ export function CanvasBehaviorEditor({
   const behavior = page ? getPageBehavior(page) : null;
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
-  const [newStateName, setNewStateName] = useState("");
+  const [leftPanelWidth, setLeftPanelWidth] = useState(210);
+  const [rightPanelWidth, setRightPanelWidth] = useState(248);
   const [convertedPageId, setConvertedPageId] = useState<string | null>(
     null,
   );
@@ -1203,14 +1208,6 @@ export function CanvasBehaviorEditor({
     setSelectedEdgeId(null);
   };
 
-  const addState = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const name = newStateName.trim();
-    if (!name) return;
-    addStateAt(name);
-    setNewStateName("");
-  };
-
   const deleteBlock = (id: string) => {
     updateGraph({
       blocks: blocks.filter((block) => block.id !== id),
@@ -1347,6 +1344,86 @@ export function CanvasBehaviorEditor({
     }
   };
 
+  const sideResizeRef = useRef<{
+    side: "left" | "right";
+    pointerId: number;
+    startX: number;
+    startWidth: number;
+  } | null>(null);
+
+  const clampPanelWidth = (
+    side: "left" | "right",
+    width: number,
+  ) =>
+    side === "left"
+      ? Math.min(
+          MAX_LEFT_PANEL_WIDTH,
+          Math.max(MIN_LEFT_PANEL_WIDTH, width),
+        )
+      : Math.min(
+          MAX_RIGHT_PANEL_WIDTH,
+          Math.max(MIN_RIGHT_PANEL_WIDTH, width),
+        );
+
+  const startSideResize = (
+    side: "left" | "right",
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    sideResizeRef.current = {
+      side,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: side === "left" ? leftPanelWidth : rightPanelWidth,
+    };
+  };
+
+  const handleSideResizeMove = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    const resize = sideResizeRef.current;
+    if (!resize || resize.pointerId !== event.pointerId) return;
+    const delta = event.clientX - resize.startX;
+    const width = clampPanelWidth(
+      resize.side,
+      resize.side === "left"
+        ? resize.startWidth + delta
+        : resize.startWidth - delta,
+    );
+    if (resize.side === "left") setLeftPanelWidth(width);
+    else setRightPanelWidth(width);
+  };
+
+  const endSideResize = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    if (sideResizeRef.current?.pointerId !== event.pointerId) return;
+    sideResizeRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  const handleSideResizeKeyDown = (
+    side: "left" | "right",
+    event: ReactKeyboardEvent<HTMLDivElement>,
+  ) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const delta = event.key === "ArrowLeft" ? -16 : 16;
+    if (side === "left") {
+      setLeftPanelWidth((width) =>
+        clampPanelWidth("left", width + delta),
+      );
+    } else {
+      setRightPanelWidth((width) =>
+        clampPanelWidth("right", width + delta),
+      );
+    }
+  };
+
   const focusLintIssue = (issue: (typeof currentLint)[number]) => {
     if (issue.edgeId) {
       setSelectedEdgeId(issue.edgeId);
@@ -1407,7 +1484,10 @@ export function CanvasBehaviorEditor({
         </div>
       ) : (
         <div className={styles.body}>
-          <aside className={styles.leftPanel}>
+          <aside
+            className={styles.leftPanel}
+            style={{ width: leftPanelWidth }}
+          >
             <section className={styles.panelSection}>
               <h3 className={styles.sectionTitle}>
                 {t("projects.workspace.behavior.lintTitle")}
@@ -1444,101 +1524,29 @@ export function CanvasBehaviorEditor({
               )}
             </section>
 
-            <section className={styles.panelSection}>
-              <h3 className={styles.sectionTitle}>
-                {t("projects.workspace.behavior.states")}
-              </h3>
-              <div className={styles.list}>
-                {states.map((state) => (
-                  <div
-                    className={styles.listRow}
-                    key={state.id}
-                    tabIndex={-1}
-                    data-selected={
-                      selectedNodeId === state.id ? "true" : undefined
-                    }
-                    onClick={(event) => {
-                      const target = event.target as HTMLElement;
-                      if (!target.closest("input, button")) {
-                        event.currentTarget.focus({ preventScroll: true });
-                      }
-                      setSelectedNodeId(state.id);
-                      setSelectedEdgeId(null);
-                    }}
-                  >
-                    <input
-                      className={styles.radio}
-                      type="radio"
-                      name="behavior-initial-state"
-                      checked={Boolean(state.initial)}
-                      aria-label={t(
-                        "projects.workspace.behavior.setInitialState",
-                      )}
-                      onChange={() => setInitialState(state.id)}
-                    />
-                    <DraftInput
-                      value={state.name}
-                      ariaLabel={t(
-                        "projects.workspace.behavior.stateName",
-                      )}
-                      onCommit={(name) => patchState(state.id, { name })}
-                    />
-                    {states.length > 1 ? (
-                      <button
-                        className={styles.iconButton}
-                        type="button"
-                        aria-label={t(
-                          "projects.workspace.behavior.removeState",
-                        )}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          deleteState(state.id);
-                        }}
-                      >
-                        ×
-                      </button>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-              <form className={styles.addRow} onSubmit={addState}>
-                <input
-                  className={styles.fieldInput}
-                  value={newStateName}
-                  placeholder={t(
-                    "projects.workspace.behavior.stateNamePlaceholder",
-                  )}
-                  onChange={(event) => setNewStateName(event.target.value)}
-                />
-                <button className={styles.addButton} type="submit">
-                  +
-                </button>
-              </form>
-            </section>
-
-            <section className={styles.panelSection}>
-              <h3 className={styles.sectionTitle}>
-                {t("projects.workspace.behavior.dataHintsTitle")}
-              </h3>
-              {page.data?.length ? (
-                <div className={styles.dataHints}>
-                  {page.data.map((entry) => (
-                    <span className={styles.dataHint} key={entry.key}>
-                      <strong>{entry.key}</strong>
-                      <em>{entry.type}</em>
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <p className={styles.mutedText}>
-                  {t("projects.workspace.behavior.dataHintsEmpty")}
-                </p>
-              )}
-              <p className={styles.mutedText}>
-                {t("projects.workspace.behavior.dataHintsHint")}
-              </p>
-            </section>
           </aside>
+
+          <div
+            className={styles.sideResizeHandle}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={t("projects.workspace.behavior.resizeChecks")}
+            aria-valuemin={MIN_LEFT_PANEL_WIDTH}
+            aria-valuemax={MAX_LEFT_PANEL_WIDTH}
+            aria-valuenow={Math.round(leftPanelWidth)}
+            tabIndex={0}
+            onPointerDown={(event) =>
+              startSideResize("left", event)
+            }
+            onPointerMove={handleSideResizeMove}
+            onPointerUp={endSideResize}
+            onPointerCancel={endSideResize}
+            onLostPointerCapture={endSideResize}
+            onKeyDown={(event) =>
+              handleSideResizeKeyDown("left", event)
+            }
+            onDoubleClick={() => setLeftPanelWidth(210)}
+          />
 
           <main className={styles.graphStage}>
             {convertedPageId === page.id ? (
@@ -1605,7 +1613,32 @@ export function CanvasBehaviorEditor({
             />
           </main>
 
-          <aside className={styles.rightPanel}>
+          <div
+            className={styles.sideResizeHandle}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={t("projects.workspace.behavior.resizePalette")}
+            aria-valuemin={MIN_RIGHT_PANEL_WIDTH}
+            aria-valuemax={MAX_RIGHT_PANEL_WIDTH}
+            aria-valuenow={Math.round(rightPanelWidth)}
+            tabIndex={0}
+            onPointerDown={(event) =>
+              startSideResize("right", event)
+            }
+            onPointerMove={handleSideResizeMove}
+            onPointerUp={endSideResize}
+            onPointerCancel={endSideResize}
+            onLostPointerCapture={endSideResize}
+            onKeyDown={(event) =>
+              handleSideResizeKeyDown("right", event)
+            }
+            onDoubleClick={() => setRightPanelWidth(248)}
+          />
+
+          <aside
+            className={styles.rightPanel}
+            style={{ width: rightPanelWidth }}
+          >
             <PaletteSection
               title={t("projects.workspace.behavior.blockPaletteTitle")}
               open={Boolean(openPalettes.blocks)}

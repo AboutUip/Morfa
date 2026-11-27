@@ -107,6 +107,38 @@
   min-height: 0;
 }
 
+.sideResizeHandle {
+  position: relative;
+  z-index: 4;
+  width: 5px;
+  flex: none;
+  align-self: stretch;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.sideResizeHandle::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2px;
+  width: 1px;
+  background: transparent;
+  content: "";
+  transition: background var(--mf-transition);
+}
+
+.sideResizeHandle:hover::after,
+.sideResizeHandle:focus-visible::after {
+  background: var(--mf-accent);
+}
+
+.sideResizeHandle:focus-visible {
+  outline: none;
+}
+
 .leftPanel,
 .rightPanel {
   display: flex;
