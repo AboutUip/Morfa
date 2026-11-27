@@ -1,6 +1,6 @@
 .topBar {
   position: relative;
-  z-index: 20;
+  z-index: 80;
   display: flex;
   flex: none;
   align-items: center;

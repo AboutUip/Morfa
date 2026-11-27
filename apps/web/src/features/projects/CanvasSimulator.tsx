@@ -108,13 +108,10 @@ export function CanvasSimulator({
   const screenDesignWidth = Math.max(1, containerSize.width - bezel * 2);
   const screenDesignHeight = Math.max(1, containerSize.height - bezel * 2);
   const contentScale = currentPage
-    ? screenDesignWidth / Math.max(1, currentSize.width)
+    ? (screenDesignWidth + 1) / Math.max(1, currentSize.width)
     : 1;
-  const scaledHeight = currentSize.height * contentScale;
-  const filledHeight =
-    scaledHeight < screenDesignHeight - 0.5
-      ? screenDesignHeight / contentScale
-      : currentSize.height;
+  const coverHeight = (screenDesignHeight + 1) / Math.max(contentScale, 0.0001);
+  const filledHeight = Math.max(currentSize.height, coverHeight);
 
   const handleRuntimeEvent = (
     nodeId: string,
