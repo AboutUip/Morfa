@@ -695,11 +695,66 @@ interface RunInput {
   signal: AbortSignal;
 }
 
+interface ToolImage {
+  mediaType: string;
+  data: string;
+}
+
+function readToolImages(
+  images: { mimeType?: string; data?: string }[] | undefined,
+): ToolImage[] {
+  if (!images?.length) return [];
+  const ready: ToolImage[] = [];
+  for (const image of images) {
+    if (ready.length >= 2) break;
+    const mediaType = image.mimeType ?? "";
+    const data = image.data ?? "";
+    if (!IMAGE_TYPES.has(mediaType) || !data || data.length > MAX_IMAGE_CHARS) {
+      continue;
+    }
+    ready.push({ mediaType, data });
+  }
+  return ready;
+}
+
+function openAiToolContent(summary: string, images: ToolImage[]) {
+  if (images.length === 0) return summary;
+  return [
+    { type: "text", text: summary || "截图" },
+    ...images.map((image) => ({
+      type: "image_url",
+      image_url: { url: `data:${image.mediaType};base64,${image.data}` },
+    })),
+  ];
+}
+
+function anthropicToolContent(summary: string, images: ToolImage[]) {
+  return [
+    ...images.map((image) => ({
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: image.mediaType,
+        data: image.data,
+      },
+    })),
+    { type: "text", text: summary || " " },
+  ];
+}
+
 async function* executeTools(
   run: RunInput,
   calls: ToolCall[],
-): AsyncGenerator<AgentEvent, Array<{ call: ToolCall; ok: boolean; summary: string }>> {
-  const results: Array<{ call: ToolCall; ok: boolean; summary: string }> = [];
+): AsyncGenerator<
+  AgentEvent,
+  Array<{ call: ToolCall; ok: boolean; summary: string; images: ToolImage[] }>
+> {
+  const results: Array<{
+    call: ToolCall;
+    ok: boolean;
+    summary: string;
+    images: ToolImage[];
+  }> = [];
   for (const [index, call] of calls.entries()) {
     const id = call.id || `tool_${index}`;
     const capability = mcpController.get(call.name);
@@ -713,6 +768,7 @@ async function* executeTools(
     let ok = false;
     let summary = "";
     let mutated = false;
+    let images: ToolImage[] = [];
     try {
       if (!capability) {
         throw new ApiError(404, "MCP_CAPABILITY_NOT_FOUND", `没有 ${call.name}`);
@@ -730,7 +786,11 @@ async function* executeTools(
       );
       ok = true;
       mutated = !capability.annotations.readOnlyHint;
+      images = readToolImages(result.imageContent);
       summary = summarize(result.data);
+      if (images.length > 0) {
+        summary = `${summary}\n附图是这次工具返回的图片，请直接看图，不要只根据文字判断画面。`;
+      }
     } catch (error) {
       summary =
         error instanceof ApiError
@@ -739,7 +799,7 @@ async function* executeTools(
             ? error.message
             : "工具调用失败";
     }
-    results.push({ call: { ...call, id }, ok, summary });
+    results.push({ call: { ...call, id }, ok, summary, images });
     yield {
       type: "tool",
       id,
@@ -813,7 +873,7 @@ async function* runOpenAi(run: RunInput): AsyncGenerator<AgentEvent> {
       messages.push({
         role: "tool",
         tool_call_id: item.call.id,
-        content: item.summary,
+        content: openAiToolContent(item.summary, item.images),
       });
     }
   }
@@ -883,7 +943,7 @@ async function* runAnthropic(run: RunInput): AsyncGenerator<AgentEvent> {
         type: "tool_result",
         tool_use_id: item.call.id,
         is_error: !item.ok,
-        content: item.summary,
+        content: anthropicToolContent(item.summary, item.images),
       })),
     });
   }

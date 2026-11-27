@@ -40,7 +40,8 @@ function readPurpose(value: unknown): TicketPurpose {
     value === "password_reset" ||
     value === "export" ||
     value === "cancel" ||
-    value === "reveal_api_key"
+    value === "reveal_api_key" ||
+    value === "delete_project"
   ) {
     return value;
   }

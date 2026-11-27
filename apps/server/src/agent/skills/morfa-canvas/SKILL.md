@@ -7,7 +7,13 @@ description: 在 Morfa 画布上设计或修改界面。创建宣传页、海报
 
 节点就是 page。子节点用 parentRef（同一批）或 parentId（已有节点）放进父节点。根节点的 x、y 是世界坐标；子节点的 x、y 是相对父节点的偏移，世界坐标等于父节点世界坐标加上这个偏移。拖动父节点时子节点跟着走，不要再给子节点加同一段位移。宽高、颜色、字号都写在节点自己的字段上，不要写进一段 CSS 字符串。
 
-没有 kind 的节点只是容器，画面上不会出现文字。要出现字，必须 kind 为 text，正文放在 text。variant 用 heading、paragraph 或 label。按钮 kind 为 button。图片 kind 为 image，地址写在 src。
+没有 kind 的节点只是容器，画面上不会出现文字。要出现字，必须 kind 为 text，正文放在 text。variant 用 heading、paragraph 或 label。按钮 kind 为 button。图片 kind 为 image，地址写在 src。节点名称只在编辑器里开关显示，不要为了标注再画一层文字。
+
+带 frame（iphone、android、watch）的页面是设备壳，例如 iPhone 15 Pro Max。它只负责手机外形和运行入口。不要把界面组件 parent 到设备壳上，也不要在设备壳上写标题和按钮。
+
+每个屏幕单独做一张没有 frame 的空白页面。组件是这张空白页的子节点，x、y 相对这张页面。设备壳和空白页是两个根节点，用 create_link 连起来，表示运行时从设备进入哪一页。连线不是父子。多个屏幕就做多张空白页，页面之间再用链接跳转，不要全塞进同一个手机框。
+
+做完调用 capture_page 或 capture_canvas。工具会把 PNG 作为图片交回，必须看图检查重叠、出界和是不是画在设备壳上。短链接只是备用，不能代替看图。
 
 ## 工具
 

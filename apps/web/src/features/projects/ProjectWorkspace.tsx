@@ -76,7 +76,7 @@ import {
   movePageInHierarchy,
   type LayerDropPosition,
 } from "./canvasHierarchy";
-import { useCanvasSnapSettings } from "./canvasSnap";
+import { useCanvasSnapSettings, useShowNodeNames } from "./canvasSnap";
 import { ProjectWorkspaceTopBar } from "./ProjectWorkspaceTopBar";
 import { useCanvasHistory } from "./useCanvasHistory";
 import { useProjectCanvas } from "./useProjectCanvas";
@@ -307,6 +307,7 @@ export function ProjectWorkspace({
   const { t } = useTranslation();
   const [activeTool, setActiveTool] = useState<CanvasTool>("select");
   const [snapSettings, setSnapSettings] = useCanvasSnapSettings();
+  const [showNodeNames, setShowNodeNames] = useShowNodeNames();
   const { pages, links, behavior, setDocument, flushNow, adoptRemote } =
     useProjectCanvas(project.id);
   const {
@@ -1882,6 +1883,8 @@ export function ProjectWorkspace({
           projectType={project.type}
           pages={pages}
           snapSettings={snapSettings}
+          showNodeNames={showNodeNames}
+          onShowNodeNamesChange={setShowNodeNames}
           onSnapSettingsChange={setSnapSettings}
           onEditControl={handleEditControl}
           onCompileControl={handleCompileControl}
@@ -1927,6 +1930,7 @@ export function ProjectWorkspace({
             selectedIds={selectedPageIds}
             selectedLinkId={selectedLinkId}
             snapSettings={snapSettings}
+            showNodeNames={showNodeNames}
             onSelectPage={selectPage}
             onSelectPages={selectPages}
             onSelectLink={selectLink}

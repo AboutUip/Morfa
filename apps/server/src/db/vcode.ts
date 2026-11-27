@@ -4,7 +4,8 @@ export type TicketPurpose =
   | "password_reset"
   | "export"
   | "cancel"
-  | "reveal_api_key";
+  | "reveal_api_key"
+  | "delete_project";
 
 export interface SetupTokenRow {
   token_hash: string;

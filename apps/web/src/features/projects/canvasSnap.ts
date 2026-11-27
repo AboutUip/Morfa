@@ -19,6 +19,7 @@ export const DEFAULT_CANVAS_SNAP_SETTINGS: CanvasSnapSettings = {
 };
 
 const STORAGE_KEY = "morfa.canvas.snapSettings";
+const NODE_NAMES_KEY = "morfa.canvas.showNodeNames";
 
 function readBoolean(
   value: unknown,
@@ -63,6 +64,26 @@ function loadSettings(): CanvasSnapSettings {
   } catch {
     return DEFAULT_CANVAS_SNAP_SETTINGS;
   }
+}
+
+export function useShowNodeNames(): [boolean, Dispatch<SetStateAction<boolean>>] {
+  const [shown, setShown] = useState(() => {
+    try {
+      return window.localStorage.getItem(NODE_NAMES_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(NODE_NAMES_KEY, shown ? "1" : "0");
+    } catch {
+      // 本地存储不可用时保持当前会话内的设置
+    }
+  }, [shown]);
+
+  return [shown, setShown];
 }
 
 export function useCanvasSnapSettings(): [

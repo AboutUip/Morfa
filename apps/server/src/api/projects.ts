@@ -11,9 +11,11 @@ import {
 } from "../services/canvasDocuments.js";
 import {
   createProject,
+  deleteProject,
   joinProject,
   listProjects,
 } from "../services/projects.js";
+import { consumeTicketOrThrow } from "../services/vcode.js";
 import { streamProjectCreation } from "../services/projectStream.js";
 
 const PROJECT_BODY_LIMIT = 4 * 1024 * 1024;
@@ -90,6 +92,14 @@ export function registerProjectRoutes(app: FastifyInstance) {
       );
     }
     return { project: joinProject(session.row, code) };
+  });
+
+  app.post("/api/me/projects/:projectId/delete", async (request) => {
+    const session = requireActiveUser(readSessionToken(request));
+    const { projectId } = request.params as { projectId: string };
+    const ticket = readString(readBody(request).ticket);
+    consumeTicketOrThrow(session.row.id, "delete_project", ticket);
+    return deleteProject(session.row.id, projectId);
   });
 
   app.get("/api/me/projects/:projectId/canvas", async (request) => {

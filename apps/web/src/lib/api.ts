@@ -32,7 +32,8 @@ export type VCodePurpose =
   | "password_reset"
   | "export"
   | "cancel"
-  | "reveal_api_key";
+  | "reveal_api_key"
+  | "delete_project";
 
 export type ProjectType = "software" | "website";
 export type ProjectVisibility = "public" | "private" | "shared";
@@ -525,6 +526,16 @@ export const projectApi = {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ code }),
     }),
+
+  remove: (projectId: string, ticket: string) =>
+    request<{ id: string; deleted: boolean }>(
+      `/api/me/projects/${encodeURIComponent(projectId)}/delete`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ticket }),
+      },
+    ),
 };
 
 export const projectCanvasApi = {

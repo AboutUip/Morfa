@@ -43,6 +43,7 @@
         "edit": "编辑"
       },
       "exit": "退出此项目",
+      "deleteProject": "删除项目",
       "emptyMenu": "暂无可用操作",
       "sidebar": "画布工具栏",
       "inspector": "画布属性栏",
@@ -113,6 +114,7 @@
         "cancel": "取消"
       },
       "canvasPanel": {
+        "showNodeNames": "显示组件节点名称",
         "snap": "吸附",
         "snapSettings": "吸附设置",
         "options": {
@@ -1218,7 +1220,8 @@
       "password_reset": "验证 VCode 后即可设置新密码，无需原密码。",
       "export": "生成导出包需要通过 VCode 验证。",
       "cancel": "当前密码已验证。请输入 VCode 完成注销。",
-      "reveal_api_key": "查看 API Key 前需要验证 VCode。"
+      "reveal_api_key": "查看 API Key 前需要验证 VCode。",
+      "delete_project": "删除项目前需要验证 VCode。验证通过后项目会被删除，且不能恢复。"
     },
     "errors": {
       "unauthorized": "登录状态已失效，请重新登录",

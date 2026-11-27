@@ -43,6 +43,7 @@
         "edit": "Edit"
       },
       "exit": "Exit project",
+      "deleteProject": "Delete project",
       "emptyMenu": "No actions yet",
       "sidebar": "Canvas tools",
       "inspector": "Canvas inspector",
@@ -113,6 +114,7 @@
         "cancel": "Cancel"
       },
       "canvasPanel": {
+        "showNodeNames": "Show component names",
         "snap": "Snap",
         "snapSettings": "Snap settings",
         "options": {
@@ -1218,7 +1220,8 @@
       "password_reset": "After verifying your VCode you can set a new password without the old one.",
       "export": "Creating an export archive requires VCode verification.",
       "cancel": "Current password verified. Enter your VCode to finish cancelling.",
-      "reveal_api_key": "Verify your VCode before revealing the API key."
+      "reveal_api_key": "Verify your VCode before revealing the API key.",
+      "delete_project": "Verify your VCode to delete this project. This cannot be undone."
     },
     "errors": {
       "unauthorized": "Your session expired. Sign in again.",

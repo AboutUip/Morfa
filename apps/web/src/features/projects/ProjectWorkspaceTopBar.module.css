@@ -177,6 +177,10 @@
   color: var(--mf-text-tertiary);
 }
 
+.menuItem[data-danger="true"] {
+  color: var(--mf-danger, #c4524a);
+}
+
 .menuItem[data-active="true"] {
   background: var(--mf-bg-selected);
   color: var(--mf-text-primary);

@@ -8,7 +8,9 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { BrandMark } from "../../components/BrandMark";
+import { VCodeModal } from "../../components/VCodeModal";
 import {
+  AlertIcon,
   CheckIcon,
   ChevronDownIcon,
   GlobeIcon,
@@ -16,7 +18,7 @@ import {
   MoonIcon,
   SunIcon,
 } from "../../components/icons";
-import type { ProjectSummary } from "../../lib/api";
+import { profileApi, projectApi, type ProjectSummary } from "../../lib/api";
 import { setLocale, type Locale } from "../../lib/i18n";
 import { preferencesRealtime } from "../../lib/realtime";
 import { useTheme } from "../../lib/theme";
@@ -43,6 +45,7 @@ export function ProjectWorkspaceTopBar({
   const { resolved, toggle } = useTheme();
   const { user } = useAuth();
   const [openMenu, setOpenMenu] = useState<WorkspaceMenu | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRefs = useRef<Record<WorkspaceMenu, HTMLButtonElement | null>>({
@@ -227,7 +230,14 @@ export function ProjectWorkspaceTopBar({
     onExit();
   };
 
+  const deleteProject = async (code: string) => {
+    const { ticket } = await profileApi.verifyVCode(code, "delete_project");
+    await projectApi.remove(project.id, ticket);
+    onExit();
+  };
+
   return (
+    <>
     <header
       ref={rootRef}
       className={styles.topBar}
@@ -284,6 +294,21 @@ export function ProjectWorkspaceTopBar({
                 <LogoutIcon size={14} />
                 <span>{t("projects.workspace.exit")}</span>
               </button>
+              {project.role === "owner" ? (
+                <button
+                  className={styles.menuItem}
+                  type="button"
+                  role="menuitem"
+                  data-danger="true"
+                  onClick={() => {
+                    setOpenMenu(null);
+                    setConfirmDelete(true);
+                  }}
+                >
+                  <AlertIcon size={14} />
+                  <span>{t("projects.workspace.deleteProject")}</span>
+                </button>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -398,5 +423,16 @@ export function ProjectWorkspaceTopBar({
         </div>
       </div>
     </header>
+    {confirmDelete ? (
+      <VCodeModal
+        mode="verify"
+        title={t("vcode.verifyTitle")}
+        description={t("profile.vcode.delete_project")}
+        closeLabel={t("vcode.close")}
+        onComplete={deleteProject}
+        onClose={() => setConfirmDelete(false)}
+      />
+    ) : null}
+    </>
   );
 }

@@ -96,6 +96,8 @@ interface CanvasLeftSidebarProps {
   projectType: ProjectType;
   pages: CanvasPage[];
   snapSettings?: CanvasSnapSettings;
+  showNodeNames: boolean;
+  onShowNodeNamesChange: (shown: boolean) => void;
   onSnapSettingsChange: (
     update: (current: CanvasSnapSettings) => CanvasSnapSettings,
   ) => void;
@@ -126,6 +128,8 @@ export function CanvasLeftSidebar({
   projectType,
   pages,
   snapSettings = DEFAULT_CANVAS_SNAP_SETTINGS,
+  showNodeNames,
+  onShowNodeNamesChange,
   onSnapSettingsChange,
   onEditControl,
   onCompileControl,
@@ -722,6 +726,25 @@ export function CanvasLeftSidebar({
 
           {activePanel === "canvas" ? (
             <div className={styles.canvasPanel}>
+              <div className={styles.canvasSettingRow}>
+                <span className={styles.canvasSettingLabel}>
+                  {t("projects.workspace.canvasPanel.showNodeNames")}
+                </span>
+                <button
+                  className={styles.snapSwitch}
+                  type="button"
+                  role="switch"
+                  aria-checked={showNodeNames}
+                  aria-label={t(
+                    "projects.workspace.canvasPanel.showNodeNames",
+                  )}
+                  data-checked={showNodeNames}
+                  onClick={() => onShowNodeNamesChange(!showNodeNames)}
+                >
+                  <span className={styles.snapSwitchThumb} />
+                </button>
+              </div>
+
               <div className={styles.canvasSettingRow}>
                 <span className={styles.canvasSettingLabel}>
                   {t("projects.workspace.canvasPanel.snap")}

@@ -182,6 +182,7 @@ interface CanvasViewportProps {
   links: CanvasLink[];
   selectedIds: string[];
   selectedLinkId: string | null;
+  showNodeNames?: boolean;
   snapSettings?: CanvasSnapSettings;
   onSelectPage: (pageId: string | null) => void;
   onSelectPages: (pageIds: string[]) => void;
@@ -771,6 +772,7 @@ export function CanvasViewport({
   links,
   selectedIds,
   selectedLinkId,
+  showNodeNames = false,
   snapSettings = DEFAULT_CANVAS_SNAP_SETTINGS,
   onSelectPage,
   onSelectPages,
@@ -2112,14 +2114,14 @@ export function CanvasViewport({
                   onClick={(event) => event.stopPropagation()}
                   onContextMenu={(event) => event.stopPropagation()}
                 />
-              ) : (
+              ) : showNodeNames ? (
                 <span
                   className={styles.pageLabel}
                   style={{ transform: `scale(${1 / view.zoom})` }}
                 >
                   {page.name}
                 </span>
-              )}
+              ) : null}
 
               {page.frame ? (
                 <div
