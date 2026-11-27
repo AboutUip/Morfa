@@ -288,6 +288,74 @@ function findPageAt(
   return null;
 }
 
+function clipsOverflow(value: string | undefined) {
+  return (
+    value === "hidden" ||
+    value === "clip" ||
+    value === "auto" ||
+    value === "scroll"
+  );
+}
+
+function overflowAxes(styles: Record<string, string>) {
+  const shorthand = styles.overflow?.trim().toLowerCase().split(/\s+/) ?? [];
+  const x = styles["overflow-x"]?.trim().toLowerCase() || shorthand[0];
+  const y =
+    styles["overflow-y"]?.trim().toLowerCase() || shorthand[1] || shorthand[0];
+  return { x: clipsOverflow(x), y: clipsOverflow(y) };
+}
+
+/** 画布上的子节点和父节点是同级元素，这里按父节点的 overflow 把溢出部分切掉。 */
+function ancestorClipPath(
+  page: CanvasPage,
+  frame: CanvasResolvedFrame,
+  pages: CanvasPage[],
+  links: CanvasLink[],
+  layout: Map<string, CanvasResolvedFrame>,
+) {
+  let top = 0;
+  let right = 0;
+  let bottom = 0;
+  let left = 0;
+  let clips = false;
+  const seen = new Set<string>();
+  let parentId = page.parentId;
+
+  while (parentId && !seen.has(parentId)) {
+    seen.add(parentId);
+    const parent = pages.find((item) => item.id === parentId);
+    const parentFrame = layout.get(parentId);
+    parentId = parent?.parentId;
+    if (!parent || !parentFrame) break;
+    const axes = overflowAxes(
+      resolveStyleVariables(parent.styles, parent, pages, links),
+    );
+    if (!axes.x && !axes.y) continue;
+    clips = true;
+    if (axes.x) {
+      left = Math.max(left, parentFrame.worldX - frame.worldX);
+      right = Math.max(
+        right,
+        frame.worldX + frame.width - (parentFrame.worldX + parentFrame.width),
+      );
+    }
+    if (axes.y) {
+      top = Math.max(top, parentFrame.worldY - frame.worldY);
+      bottom = Math.max(
+        bottom,
+        frame.worldY +
+          frame.height -
+          (parentFrame.worldY + parentFrame.height),
+      );
+    }
+  }
+
+  if (!clips || (top <= 0 && right <= 0 && bottom <= 0 && left <= 0)) {
+    return undefined;
+  }
+  return `inset(${Math.max(0, top)}px ${Math.max(0, right)}px ${Math.max(0, bottom)}px ${Math.max(0, left)}px)`;
+}
+
 function findPageIdsInMarquee(
   pages: CanvasPage[],
   layout: Map<string, CanvasResolvedFrame>,
@@ -2038,6 +2106,7 @@ export function CanvasViewport({
           );
           const frame = layout.get(page.id);
           if (!frame) return null;
+          const clipPath = ancestorClipPath(page, frame, pages, links, layout);
           const surfaceStyles = { ...resolvedStyles };
           for (const key of [
             "width",
@@ -2083,6 +2152,7 @@ export function CanvasViewport({
                 top: frame.worldY,
                 width: frame.width,
                 height: frame.height,
+                ...(clipPath ? { clipPath } : {}),
                 ...(resolvedStyles.visibility
                   ? {
                       visibility:
