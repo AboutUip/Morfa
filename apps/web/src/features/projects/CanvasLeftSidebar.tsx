@@ -19,7 +19,11 @@ import {
   SearchIcon,
   ToolsIcon,
 } from "../../components/icons";
-import type { ProjectType } from "../../lib/api";
+import {
+  accountComponentApi,
+  type AccountComponent,
+  type ProjectType,
+} from "../../lib/api";
 import type { CanvasPage } from "./canvasDocument";
 import type { CreateControlInput } from "./canvasControls";
 import { CanvasAccountLibrary } from "./CanvasAccountLibrary";
@@ -143,11 +147,53 @@ export function CanvasLeftSidebar({
   const [componentTab, setComponentTab] =
     useState<ComponentTab>("market");
   const [marketQuery, setMarketQuery] = useState("");
+  const [marketComponents, setMarketComponents] = useState<
+    AccountComponent[]
+  >([]);
+  const [marketAccountLoading, setMarketAccountLoading] =
+    useState(false);
+  const [marketAccountError, setMarketAccountError] = useState("");
+  const [marketImportingId, setMarketImportingId] = useState<
+    string | null
+  >(null);
   const [panelWidth, setPanelWidth] = useState(DEFAULT_PANEL_WIDTH);
   const [resizing, setResizing] = useState(false);
   const resizeRef = useRef<ResizeSession | null>(null);
   const closeTimerRef = useRef<number | null>(null);
   const openFramesRef = useRef<number[]>([]);
+
+  useEffect(() => {
+    if (activePanel !== "components" || componentTab !== "market") {
+      return;
+    }
+    let cancelled = false;
+    setMarketAccountLoading(true);
+    setMarketAccountError("");
+    void accountComponentApi
+      .list()
+      .then((response) => {
+        if (!cancelled) setMarketComponents(response.components);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setMarketAccountError(
+          error instanceof Error
+            ? error.message
+            : t("projects.workspace.componentsPanel.accountLoadFailed"),
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setMarketAccountLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    accountLibraryVersion,
+    activePanel,
+    componentTab,
+    t,
+  ]);
 
   const clearCloseTimer = () => {
     if (closeTimerRef.current !== null) {
@@ -256,6 +302,38 @@ export function CanvasLeftSidebar({
 
     return [...buckets.entries()].filter(([, items]) => items.length > 0);
   }, [marketItems]);
+
+  const accountMarketItems = useMemo(() => {
+    const query = marketQuery.trim().toLowerCase();
+    if (!query) return marketComponents;
+    return marketComponents.filter(
+      (component) =>
+        component.name.toLowerCase().includes(query) ||
+        component.description.toLowerCase().includes(query) ||
+        component.controlNames.some((name) =>
+          name.toLowerCase().includes(query),
+        ),
+    );
+  }, [marketComponents, marketQuery]);
+
+  const importMarketComponent = async (
+    component: AccountComponent,
+  ) => {
+    setMarketImportingId(component.id);
+    setMarketAccountError("");
+    try {
+      await onImportAccountComponent(component.id);
+      setComponentTab("mine");
+    } catch (error) {
+      setMarketAccountError(
+        error instanceof Error
+          ? error.message
+          : t("projects.workspace.componentsPanel.accountImportFailed"),
+      );
+    } finally {
+      setMarketImportingId(null);
+    }
+  };
 
   const handleMarketDragStart = (
     event: ReactDragEvent<HTMLDivElement>,
@@ -435,73 +513,142 @@ export function CanvasLeftSidebar({
                   </label>
 
                   <div className={styles.marketGrid} role="list">
-                    {marketGroups.length > 0 ? (
-                      marketGroups.map(([category, items]) => (
-                        <Fragment key={category}>
-                          <h3 className={styles.marketGroupTitle}>
-                            {t(MARKET_CATEGORY_LABEL_KEYS[category])}
-                          </h3>
-                          {items.map((item) => (
-                            <div
-                              key={item.id}
-                              className={styles.marketCard}
-                              role="listitem"
-                              draggable
-                              onDragStart={(event) =>
-                                handleMarketDragStart(event, item)
+                    {marketAccountLoading ? (
+                      <p className={styles.marketHint}>
+                        {t(
+                          "projects.workspace.componentsPanel.accountLoading",
+                        )}
+                      </p>
+                    ) : null}
+                    {marketAccountError ? (
+                      <p className={styles.noResults} role="alert">
+                        {marketAccountError}
+                      </p>
+                    ) : null}
+                    {accountMarketItems.length > 0 ? (
+                      <>
+                        <h3 className={styles.marketGroupTitle}>
+                          {t(
+                            "projects.workspace.componentsPanel.accountSection",
+                          )}
+                        </h3>
+                        {accountMarketItems.map((component) => (
+                          <div
+                            key={component.id}
+                            className={styles.marketCard}
+                            data-account="true"
+                            role="listitem"
+                          >
+                            <span
+                              className={styles.marketCover}
+                              aria-hidden="true"
+                            >
+                              <span className={styles.marketCoverCanvas}>
+                                <LayersIcon size={18} />
+                              </span>
+                            </span>
+                            <span className={styles.marketName}>
+                              {component.name}
+                            </span>
+                            <span className={styles.marketDescription}>
+                              {component.description ||
+                                t(
+                                  "projects.workspace.componentsPanel.accountCounts",
+                                  {
+                                    states: component.stateCount,
+                                    nodes: component.nodeCount,
+                                  },
+                                )}
+                            </span>
+                            <button
+                              className={styles.marketImportButton}
+                              type="button"
+                              disabled={marketImportingId === component.id}
+                              onClick={() =>
+                                void importMarketComponent(component)
                               }
                             >
-                              <span
-                                className={styles.marketCover}
-                                aria-hidden="true"
-                              >
-                                {item.type === "widget" ? (
-                                  <span
-                                    className={styles.marketWidgetPreview}
-                                    style={{
-                                      aspectRatio: `${item.width} / ${item.height}`,
-                                    }}
-                                  >
-                                    <CanvasWidgetView
-                                      widget={{
-                                        ...item.widget,
-                                        ...(item.textKey
-                                          ? { text: t(item.textKey) }
-                                          : {}),
-                                      }}
-                                    />
-                                  </span>
-                                ) : item.frame ? (
-                                  <span
-                                    className={styles.marketDevice}
-                                    data-frame={item.frame}
-                                    style={{
-                                      aspectRatio: `${item.width} / ${item.height}`,
+                              {marketImportingId === component.id
+                                ? t(
+                                    "projects.workspace.componentsPanel.accountImporting",
+                                  )
+                                : t(
+                                    "projects.workspace.componentsPanel.accountImport",
+                                  )}
+                            </button>
+                          </div>
+                        ))}
+                      </>
+                    ) : null}
+                    {marketGroups.map(([category, items]) => (
+                      <Fragment key={category}>
+                        <h3 className={styles.marketGroupTitle}>
+                          {t(MARKET_CATEGORY_LABEL_KEYS[category])}
+                        </h3>
+                        {items.map((item) => (
+                          <div
+                            key={item.id}
+                            className={styles.marketCard}
+                            role="listitem"
+                            draggable
+                            onDragStart={(event) =>
+                              handleMarketDragStart(event, item)
+                            }
+                          >
+                            <span
+                              className={styles.marketCover}
+                              aria-hidden="true"
+                            >
+                              {item.type === "widget" ? (
+                                <span
+                                  className={styles.marketWidgetPreview}
+                                  style={{
+                                    aspectRatio: `${item.width} / ${item.height}`,
+                                  }}
+                                >
+                                  <CanvasWidgetView
+                                    widget={{
+                                      ...item.widget,
+                                      ...(item.textKey
+                                        ? { text: t(item.textKey) }
+                                        : {}),
                                     }}
                                   />
-                                ) : (
-                                  <span
-                                    className={styles.marketCoverCanvas}
-                                  >
-                                    <FrameIcon size={18} />
-                                  </span>
-                                )}
-                              </span>
-                              <span className={styles.marketName}>
-                                {t(item.nameKey)}
-                              </span>
-                              <span className={styles.marketDescription}>
-                                {t(item.descriptionKey)}
-                              </span>
-                            </div>
-                          ))}
-                        </Fragment>
-                      ))
-                    ) : (
+                                </span>
+                              ) : item.frame ? (
+                                <span
+                                  className={styles.marketDevice}
+                                  data-frame={item.frame}
+                                  style={{
+                                    aspectRatio: `${item.width} / ${item.height}`,
+                                  }}
+                                />
+                              ) : (
+                                <span
+                                  className={styles.marketCoverCanvas}
+                                >
+                                  <FrameIcon size={18} />
+                                </span>
+                              )}
+                            </span>
+                            <span className={styles.marketName}>
+                              {t(item.nameKey)}
+                            </span>
+                            <span className={styles.marketDescription}>
+                              {t(item.descriptionKey)}
+                            </span>
+                          </div>
+                        ))}
+                      </Fragment>
+                    ))}
+                    {!marketAccountLoading &&
+                    !marketAccountError &&
+                    accountMarketItems.length === 0 &&
+                    marketGroups.length === 0 ? (
                       <p className={styles.noResults}>
                         {t("projects.workspace.componentsPanel.noResults")}
                       </p>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               ) : componentTab === "library" ? (

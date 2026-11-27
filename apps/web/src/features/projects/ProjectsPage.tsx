@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { BrandMark } from "../../components/BrandMark";
-import { LayersIcon, SlidersIcon } from "../../components/icons";
+import { SlidersIcon } from "../../components/icons";
 import { type ProjectSummary } from "../../lib/api";
 import {
   hasProjectHistoryEntry,
@@ -14,6 +14,7 @@ import { projectsStore, useProjects } from "../../lib/projects";
 import { AuthModal } from "../auth/AuthModal";
 import { useAuth } from "../auth/AuthProvider";
 import { VCodeSetupGate } from "../auth/VCodeSetupGate";
+import { AccountComponentsPage } from "./AccountComponentsPage";
 import { ProjectEntry } from "./ProjectEntry";
 import { ProjectLauncher } from "./ProjectLauncher";
 import { ProjectTopBar, type WorkspaceTab } from "./ProjectTopBar";
@@ -280,18 +281,13 @@ export function ProjectsPage() {
           {activeTab === "projects" ? (
             renderProjects()
           ) : activeTab === "components" ? (
-            <section
-              id="panel-components"
-              className={styles.empty}
-              role="tabpanel"
-              aria-labelledby="tab-components"
-            >
-              <span className={styles.placeholderIcon}>
-                <LayersIcon size={22} />
-              </span>
-              <h2>{t("components.emptyTitle")}</h2>
-              <p>{t("components.emptyHint")}</p>
-            </section>
+            <AccountComponentsPage
+              user={user}
+              projects={projects}
+              onLogin={openAuth}
+              onOpenProject={openProject}
+              onGoToProjects={() => setActiveTab("projects")}
+            />
           ) : (
             <section
               id="panel-settings"

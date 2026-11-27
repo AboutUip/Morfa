@@ -541,7 +541,14 @@
           "market": "Component market"
         },
         "searchPlaceholder": "Search components",
-        "noResults": "No components found"
+        "noResults": "No components found",
+        "accountSection": "From account library",
+        "accountLoading": "Loading account components…",
+        "accountLoadFailed": "Could not load account components",
+        "accountCounts": "{{states}} states · {{nodes}} nodes",
+        "accountImport": "Import",
+        "accountImporting": "Importing…",
+        "accountImportFailed": "Could not import the component"
       },
       "library": {
         "loading": "Loading account components…",
@@ -842,8 +849,31 @@
     }
   },
   "components": {
+    "title": "Components",
+    "subtitle": "Published controls from your projects. The component market and project imports read from this account library.",
     "emptyTitle": "No components yet",
-    "emptyHint": "Reusable components and your design system will live here."
+    "emptyHint": "Compile a control in a project, then use “Save to library” in the control toolbar. Published components appear here and in the component market.",
+    "goToProjects": "Go to projects",
+    "loginTitle": "Sign in to manage components",
+    "loginHint": "Components are shared across your projects at the account level.",
+    "loading": "Loading components…",
+    "loadFailed": "Could not load components",
+    "stats": "{{count}} components · {{states}} states · {{nodes}} nodes",
+    "totalStats": "{{count}} available · {{account}} yours · {{builtIn}} built-in",
+    "accountStats": "{{count}} components · {{states}} states · {{nodes}} nodes",
+    "yourComponents": "Your components",
+    "yourComponentsHint": "Published controls available to every project in this account.",
+    "builtInTitle": "Built-in components",
+    "builtInHint": "The same catalog is available from the project component market.",
+    "counts": "{{states}} states · {{nodes}} nodes",
+    "sourceProject": "From {{name}}",
+    "accountLevel": "Account level",
+    "openSource": "Open source project",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "deleteConfirm": "Delete this component? Imported copies stay in their projects.",
+    "deleted": "Deleted {{name}} from the account library.",
+    "deleteFailed": "Could not delete the component"
   },
   "settings": {
     "emptyTitle": "Settings coming soon",

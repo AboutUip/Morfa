@@ -541,7 +541,14 @@
           "market": "组件市场"
         },
         "searchPlaceholder": "搜索组件",
-        "noResults": "没有找到组件"
+        "noResults": "没有找到组件",
+        "accountSection": "来自账号组件库",
+        "accountLoading": "正在加载账号组件…",
+        "accountLoadFailed": "加载账号组件失败",
+        "accountCounts": "{{states}} 个状态 · {{nodes}} 个节点",
+        "accountImport": "导入",
+        "accountImporting": "正在导入…",
+        "accountImportFailed": "导入组件失败"
       },
       "library": {
         "loading": "正在加载账号组件…",
@@ -842,8 +849,31 @@
     }
   },
   "components": {
+    "title": "组件",
+    "subtitle": "这里管理从项目发布的控件组件；项目内的组件市场与导入都从这里读取。",
     "emptyTitle": "还没有组件",
-    "emptyHint": "可复用组件与设计系统将在这里管理。"
+    "emptyHint": "在项目中编译控件后，从控件工具栏点击“保存到组件库”。发布后的组件会出现在这里，也会同步到项目组件市场。",
+    "goToProjects": "前往项目",
+    "loginTitle": "登录后管理组件",
+    "loginHint": "组件是账号级资源，可跨项目复用。",
+    "loading": "正在加载组件…",
+    "loadFailed": "加载组件失败",
+    "stats": "{{count}} 个组件 · {{states}} 个状态 · {{nodes}} 个节点",
+    "totalStats": "共 {{count}} 个可用 · {{account}} 个我的 · {{builtIn}} 个内置",
+    "accountStats": "{{count}} 个组件 · {{states}} 个状态 · {{nodes}} 个节点",
+    "yourComponents": "我的组件库",
+    "yourComponentsHint": "从项目发布到账号级的控件，可在任意项目中导入。",
+    "builtInTitle": "内置组件",
+    "builtInHint": "项目内的组件市场与此处使用同一套组件目录。",
+    "counts": "{{states}} 个状态 · {{nodes}} 个节点",
+    "sourceProject": "来自 {{name}}",
+    "accountLevel": "账号级组件",
+    "openSource": "打开来源项目",
+    "delete": "删除",
+    "cancel": "取消",
+    "deleteConfirm": "删除此组件？已导入项目中的副本不受影响。",
+    "deleted": "已从账号组件库删除 {{name}}。",
+    "deleteFailed": "删除组件失败"
   },
   "settings": {
     "emptyTitle": "设置即将开放",
