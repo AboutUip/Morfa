@@ -131,6 +131,11 @@
   opacity: 0.82;
 }
 
+.card[data-blocked="true"] {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
 .cover {
   position: relative;
   display: flex;
@@ -226,6 +231,13 @@
   line-height: 1.4;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+}
+
+.blockedHint {
+  margin: 0;
+  color: var(--mf-warning, #b45309);
+  font-size: 8px;
+  line-height: 1.4;
 }
 
 .actions {

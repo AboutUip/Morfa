@@ -23,6 +23,8 @@
     "build": "npm run build --workspace @morfa/web && npm run typecheck --workspace @morfa/server",
     "preview": "npm run preview --workspace @morfa/web",
     "test": "tsx --test tests",
+    "test:visual": "node scripts/visual-baseline.mjs",
+    "test:visual:update": "node scripts/visual-baseline.mjs --update",
     "typecheck": "npm run typecheck --workspace @morfa/web && npm run typecheck --workspace @morfa/server",
     "xaiop:build": "npm run build:ts --workspace @bylan280/xaiop",
     "xaiop:test": "npm test --workspace @bylan280/xaiop",

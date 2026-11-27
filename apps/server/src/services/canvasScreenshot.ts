@@ -16,6 +16,10 @@ import {
   type CanvasCaptureMode,
 } from "./canvasScreenshotGeometry.js";
 import { createRenderToken } from "./renderTokens.js";
+import {
+  getScreenshotCache,
+  setScreenshotCache,
+} from "./screenshotCache.js";
 
 const execFileAsync = promisify(execFile);
 const MAX_SCREENSHOT_SCALE = 3;
@@ -241,6 +245,7 @@ interface NodeCaptureResult {
   scale: number;
   data: string;
   updatedAt: number;
+  cacheHit: boolean;
 }
 
 async function renderNodeCapture(
@@ -265,6 +270,27 @@ async function renderNodeCapture(
   assertScreenshotSize(geometry.width, geometry.height, "页面");
 
   const clampedScale = clampScale(scale);
+  const cacheInput = {
+    userId,
+    projectId,
+    mode,
+    pageId: nodeId,
+    scale: clampedScale,
+    updatedAt: document.updatedAt,
+  };
+  const cached = getScreenshotCache(cacheInput);
+  if (cached) {
+    return {
+      node,
+      width: cached.width,
+      height: cached.height,
+      scale: clampedScale,
+      data: cached.data,
+      updatedAt: document.updatedAt,
+      cacheHit: true,
+    };
+  }
+
   const data = await captureWithWebRenderer({
     userId,
     projectId,
@@ -272,6 +298,12 @@ async function renderNodeCapture(
     pageId: nodeId,
     geometry,
     scale: clampedScale,
+  });
+  setScreenshotCache(cacheInput, {
+    data,
+    width: geometry.width,
+    height: geometry.height,
+    pageName: node.name,
   });
 
   return {
@@ -281,6 +313,7 @@ async function renderNodeCapture(
     scale: clampedScale,
     data,
     updatedAt: document.updatedAt,
+    cacheHit: false,
   };
 }
 
@@ -306,6 +339,7 @@ export async function capturePageScreenshot(
     mimeType: "image/png",
     data: result.data,
     updatedAt: result.updatedAt,
+    cacheHit: result.cacheHit,
   };
 }
 
@@ -332,6 +366,7 @@ export async function captureNodeScreenshot(
     mimeType: "image/png",
     data: result.data,
     updatedAt: result.updatedAt,
+    cacheHit: result.cacheHit,
   };
 }
 
@@ -358,12 +393,44 @@ export async function captureCanvasScreenshot(
   }
 
   const clampedScale = clampScale(scale);
+  const cacheInput = {
+    userId,
+    projectId,
+    mode: "canvas",
+    scale: clampedScale,
+    updatedAt: document.updatedAt,
+  };
+  const cached = getScreenshotCache(cacheInput);
+  if (cached) {
+    return {
+      projectId,
+      width: cached.width,
+      height: cached.height,
+      scale: clampedScale,
+      mimeType: "image/png",
+      data: cached.data,
+      updatedAt: document.updatedAt,
+      pageCount: geometry.pageCount ?? 0,
+      nodeCount: geometry.nodeCount ?? document.pages.length,
+      bounds,
+      cacheHit: true,
+    };
+  }
+
   const data = await captureWithWebRenderer({
     userId,
     projectId,
     mode: "canvas",
     geometry,
     scale: clampedScale,
+  });
+  setScreenshotCache(cacheInput, {
+    data,
+    width: geometry.width,
+    height: geometry.height,
+    pageCount: geometry.pageCount ?? 0,
+    nodeCount: geometry.nodeCount ?? document.pages.length,
+    bounds,
   });
 
   return {
@@ -377,5 +444,6 @@ export async function captureCanvasScreenshot(
     pageCount: geometry.pageCount ?? 0,
     nodeCount: geometry.nodeCount ?? document.pages.length,
     bounds,
+    cacheHit: false,
   };
 }

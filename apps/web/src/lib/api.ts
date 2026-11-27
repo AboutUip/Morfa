@@ -263,6 +263,21 @@ export interface CanvasPageDto {
   controlStateId?: string;
 }
 
+export interface AccountComponent {
+  id: string;
+  name: string;
+  description: string;
+  target: string;
+  stateCount: number;
+  nodeCount: number;
+  controlNames: string[];
+  rootControlName: string;
+  sourceProjectId: string | null;
+  sourceControlId: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export type CanvasLinkDirection = "one-way" | "two-way";
 export type CanvasLinkEdge = "top" | "right" | "bottom" | "left";
 
@@ -736,4 +751,49 @@ export const modelProviderApi = {
       throw new ApiError(0, "NETWORK_ERROR", "Cannot reach the Morfa API");
     }
   },
+};
+
+
+export const accountComponentApi = {
+  list: () =>
+    request<{ components: AccountComponent[]; count: number }>(
+      "/api/me/components",
+    ),
+
+  publish: (input: {
+    projectId: string;
+    controlId: string;
+    name?: string;
+    description?: string;
+  }) =>
+    request<{ component: AccountComponent; updated: boolean }>(
+      "/api/me/components",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(input),
+      },
+    ),
+
+  import: (componentId: string, projectId: string) =>
+    request<{
+      component: AccountComponent;
+      controlId: string;
+      controlIds: string[];
+      importedCount: number;
+      nodeCount: number;
+    }>(
+      `/api/me/components/${encodeURIComponent(componentId)}/import`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ projectId }),
+      },
+    ),
+
+  remove: (componentId: string) =>
+    request<{ componentId: string; deleted: boolean }>(
+      `/api/me/components/${encodeURIComponent(componentId)}`,
+      { method: "DELETE" },
+    ),
 };

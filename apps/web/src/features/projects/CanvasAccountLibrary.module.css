@@ -1,0 +1,155 @@
+.library {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 16px;
+  overflow-y: auto;
+}
+
+.stateText {
+  margin: 16px 12px;
+  color: var(--mf-text-tertiary);
+  font-size: 10px;
+}
+
+.notice,
+.error {
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.notice {
+  border: 1px solid var(--mf-accent-soft);
+  background: var(--mf-accent-soft);
+  color: var(--mf-text-primary);
+}
+
+.error {
+  border: 1px solid var(--mf-danger, #dc2626);
+  color: var(--mf-danger, #dc2626);
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 20px 6px;
+  color: var(--mf-text-tertiary);
+  text-align: center;
+}
+
+.empty strong {
+  color: var(--mf-text-secondary);
+  font-size: 11px;
+}
+
+.empty p {
+  margin: 0;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px;
+  border: 1px solid var(--mf-border);
+  border-radius: 8px;
+  background: var(--mf-bg-app);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.name {
+  overflow: hidden;
+  color: var(--mf-text-primary);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.meta {
+  flex: none;
+  color: var(--mf-text-tertiary);
+  font-size: 8px;
+}
+
+.description,
+.controls {
+  margin: 0;
+  color: var(--mf-text-tertiary);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.controls {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions,
+.confirm {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.confirm span {
+  flex: 1;
+  color: var(--mf-text-tertiary);
+  font-size: 8px;
+}
+
+.primary,
+.ghost,
+.danger {
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 5px;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.primary {
+  border: 1px solid var(--mf-accent);
+  background: var(--mf-accent);
+  color: #ffffff;
+}
+
+.ghost {
+  border: 1px solid var(--mf-border);
+  background: var(--mf-bg-panel);
+  color: var(--mf-text-secondary);
+}
+
+.danger {
+  border: 1px solid var(--mf-danger, #dc2626);
+  background: transparent;
+  color: var(--mf-danger, #dc2626);
+}
+
+.primary:disabled,
+.ghost:disabled,
+.danger:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}

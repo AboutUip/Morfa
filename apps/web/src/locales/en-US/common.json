@@ -484,6 +484,9 @@
         "defaultMark": "Default",
         "defaultStateHint": "The default state is used when an instance is created",
         "addState": "Add state",
+        "deleteState": "Delete state",
+        "cannotDeleteDefaultState": "The default state cannot be deleted. Set another state as default first.",
+        "cannotDeleteLastState": "A control must keep at least one state.",
         "setDefault": "Set default",
         "compile": "Compile",
         "recompile": "Recompile",
@@ -494,6 +497,11 @@
         "previewEmpty": "No preview",
         "emptyTitle": "No controls yet",
         "emptyHint": "Create a stateful control, compile it, then drag it onto a page.",
+        "nestingBlocked": "Cannot be nested here: cycle dependency",
+        "saveToLibrary": "Save to library",
+        "publishNeedsCompile": "Compile the control before saving it to the library",
+        "savedToLibrary": "Saved to the account library.",
+        "publishFailed": "Could not save to the account library.",
         "edit": "Edit",
         "delete": "Delete",
         "deleteConfirm": "Delete this control and its instances?",
@@ -520,16 +528,35 @@
         "errors": {
           "controlMissing": "Control definition is missing",
           "noStates": "A control needs at least one state",
-          "defaultStateMissing": "The default state no longer exists"
+          "defaultStateMissing": "The default state no longer exists",
+          "nestedControlMissing": "A nested control no longer exists",
+          "nestedControlUncompiled": "Nested controls must be compiled first",
+          "nestedControlCycle": "Controls cannot nest themselves or form a cycle"
         }
       },
       "componentsPanel": {
         "tabs": {
           "mine": "My components",
+          "library": "Account library",
           "market": "Component market"
         },
         "searchPlaceholder": "Search components",
         "noResults": "No components found"
+      },
+      "library": {
+        "loading": "Loading account components…",
+        "loadFailed": "Could not load the account library",
+        "import": "Import",
+        "importing": "Importing…",
+        "imported": "Imported {{name}} into My components.",
+        "importFailed": "Could not import the component",
+        "delete": "Delete",
+        "deleteConfirm": "Remove this component from the account library?",
+        "deleteFailed": "Could not delete the component",
+        "deleted": "Removed {{name}} from the account library.",
+        "counts": "{{states}} states · {{nodes}} nodes",
+        "emptyTitle": "No account components",
+        "emptyHint": "Compile a control, then save it to the account library from the control toolbar."
       },
       "componentMarket": {
         "categories": {

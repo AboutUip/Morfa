@@ -1,5 +1,9 @@
 import { collectBehaviorLint } from "./canvasBehavior";
 import {
+  getControlStateKey,
+  getScopeInstanceId,
+} from "./canvasRuntime";
+import {
   collectCanvasLint,
   computeControlSignature,
   createPageId,
@@ -71,6 +75,28 @@ export function getControlPreviewState(
     states[0] ??
     null
   );
+}
+
+export type ControlStateDeleteBlock =
+  | "missing"
+  | "default"
+  | "last";
+
+/**
+ * Delete guards shared by the control toolbar and the workspace. The server
+ * enforces the same rules; keeping them pure makes the UI feedback testable.
+ */
+export function getControlStateDeleteBlock(
+  states: Pick<CanvasPage, "id">[],
+  defaultStateId: string | undefined,
+  stateId: string | null,
+): ControlStateDeleteBlock | null {
+  if (!stateId || !states.some((state) => state.id === stateId)) {
+    return "missing";
+  }
+  if (states.length <= 1) return "last";
+  if (stateId === defaultStateId) return "default";
+  return null;
 }
 
 export function isControlDirty(pages: CanvasPage[], controlId: string) {
@@ -172,16 +198,72 @@ export function createControlStatePage(
   };
 }
 
+export type ControlNestingBlock =
+  | "missing"
+  | "uncompiled"
+  | "cycle";
+
+/**
+ * Transitive control dependencies. A dependency is any control instance found
+ * inside one of the control's state trees, including deeper nested controls.
+ */
+export function getControlDependencyIds(
+  pages: CanvasPage[],
+  controlId: string,
+) {
+  const dependencies = new Set<string>();
+  const stack = [controlId];
+  const visited = new Set<string>();
+  while (stack.length) {
+    const current = stack.pop();
+    if (!current || visited.has(current)) continue;
+    visited.add(current);
+    for (const state of getControlStates(pages, current)) {
+      for (const page of getControlStateSubtree(pages, state.id)) {
+        if (!isControlInstancePage(page) || !page.controlId) continue;
+        dependencies.add(page.controlId);
+        stack.push(page.controlId);
+      }
+    }
+  }
+  return dependencies;
+}
+
+export function getControlNestingBlock(
+  pages: CanvasPage[],
+  ownerControlId: string,
+  nestedControlId: string,
+): ControlNestingBlock | null {
+  if (ownerControlId === nestedControlId) return "cycle";
+  const nested = pages.find(
+    (page) =>
+      isControlDefinitionPage(page) && page.id === nestedControlId,
+  );
+  if (!nested?.control) return "missing";
+  if (nested.control.status !== "compiled") return "uncompiled";
+  if (getControlDependencyIds(pages, nestedControlId).has(ownerControlId)) {
+    return "cycle";
+  }
+  return null;
+}
+
 export function createControlInstancePage(
   pages: CanvasPage[],
   links: CanvasLink[],
   controlId: string,
   position: ControlInstancePosition,
+  ownerControlId?: string,
 ): CanvasPage | null {
   const control = pages.find(
     (page) => isControlDefinitionPage(page) && page.id === controlId,
   );
   if (!control?.control || control.control.status !== "compiled") {
+    return null;
+  }
+  if (
+    ownerControlId &&
+    getControlNestingBlock(pages, ownerControlId, controlId)
+  ) {
     return null;
   }
 
@@ -298,6 +380,33 @@ export function collectControlLintItems(
     });
   }
 
+  for (const state of states) {
+    for (const page of getControlStateSubtree(pages, state.id)) {
+      if (!isControlInstancePage(page) || !page.controlId) continue;
+      const blocked = getControlNestingBlock(
+        pages,
+        controlId,
+        page.controlId,
+      );
+      if (!blocked) continue;
+      add({
+        id: `control:${controlId}:nested:${page.id}`,
+        severity: "error",
+        pageId: page.id,
+        pageName: page.name,
+        styleKey: "control",
+        expression: page.controlId,
+        code: "control",
+        messageKey:
+          blocked === "missing"
+            ? "projects.workspace.controls.errors.nestedControlMissing"
+            : blocked === "uncompiled"
+              ? "projects.workspace.controls.errors.nestedControlUncompiled"
+              : "projects.workspace.controls.errors.nestedControlCycle",
+      });
+    }
+  }
+
   const controlPages = getControlDocumentPages(pages, controlId);
   for (const item of collectCanvasLint(controlPages, [])) {
     add(item);
@@ -331,15 +440,16 @@ export function remapControlStateEvent<
   pages: CanvasPage[],
   previous: T,
   next: T,
-  instanceId: string,
+  scope: string,
 ): T {
+  const instanceId = getScopeInstanceId(scope);
   const instance = pages.find(
     (page) => isControlInstancePage(page) && page.id === instanceId,
   );
   if (!instance?.controlId) return next;
 
   const requestedStateId =
-    previous.controlStates[instanceId] ?? instance.controlStateId;
+    previous.controlStates[scope] ?? instance.controlStateId;
   const stateRoot =
     getControlState(pages, requestedStateId) ??
     getControlDisplayState(pages, instance);
@@ -350,12 +460,17 @@ export function remapControlStateEvent<
   );
   if (validStateIds.size === 0) return next;
 
+  const stateKey = getControlStateKey(scope, instanceId);
   const subtree = getControlStateSubtree(pages, stateRoot.id);
   for (const page of subtree) {
+    // Legacy graph actions may target the state root page instead of the
+    // owning instance. Those are the only keys that need remapping; scoped
+    // nested-instance keys are already addressed by getControlStateKey.
+    if (page.nodeKind !== "control-state") continue;
     const value = next.controlStates[page.id];
     if (!value || !validStateIds.has(value)) continue;
     if (value === previous.controlStates[page.id]) continue;
-    next.controlStates[instanceId] = value;
+    next.controlStates[stateKey] = value;
     delete next.controlStates[page.id];
   }
 

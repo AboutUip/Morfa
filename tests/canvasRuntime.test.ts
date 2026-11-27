@@ -405,6 +405,158 @@ test("switches control instance state through a behavior action", () => {
   assert.equal(state.controlStates.instance, "expanded");
 });
 
+test("keeps nested control instances isolated by ancestor scope", () => {
+  const outerControl: CanvasPage = {
+    id: "outer-control",
+    name: "Outer",
+    x: 0,
+    y: 0,
+    styles: {},
+    nodeKind: "control",
+    control: { status: "compiled", defaultStateId: "outer-state" },
+  };
+  const outerState: CanvasPage = {
+    ...page("outer-state"),
+    nodeKind: "control-state",
+    controlId: "outer-control",
+  };
+  const innerControl: CanvasPage = {
+    id: "inner-control",
+    name: "Inner",
+    x: 0,
+    y: 0,
+    styles: {},
+    nodeKind: "control",
+    control: { status: "compiled", defaultStateId: "inner-a" },
+  };
+  const innerA: CanvasPage = {
+    ...page("inner-a"),
+    nodeKind: "control-state",
+    controlId: "inner-control",
+  };
+  const innerB: CanvasPage = {
+    ...page("inner-b"),
+    nodeKind: "control-state",
+    controlId: "inner-control",
+  };
+  const innerChild = page(
+    "inner-child",
+    {
+      triggers: [
+        {
+          id: "t1",
+          event: "click",
+          actions: [
+            {
+              id: "a1",
+              type: "setText",
+              targetId: "inner-child",
+              value: "yes",
+            },
+          ],
+        },
+      ],
+      states: [{ id: "default", name: "Default", initial: true }],
+    },
+    { kind: "button", text: "Inner" },
+  );
+  innerChild.parentId = "inner-a";
+  const innerInstance: CanvasPage = {
+    id: "inner-instance",
+    name: "Inner",
+    x: 0,
+    y: 0,
+    styles: { width: "100px", height: "100px" },
+    parentId: "outer-state",
+    nodeKind: "control-instance",
+    controlId: "inner-control",
+    controlStateId: "inner-a",
+    behavior: {
+      triggers: [
+        {
+          id: "switch",
+          event: "click",
+          actions: [
+            {
+              id: "to-b",
+              type: "setControlState",
+              targetId: "inner-instance",
+              value: "inner-b",
+            },
+          ],
+        },
+      ],
+      states: [{ id: "default", name: "Default", initial: true }],
+    },
+  };
+  const outerInstance = (id: string): CanvasPage => ({
+    id,
+    name: id,
+    x: 0,
+    y: 0,
+    styles: { width: "100px", height: "100px" },
+    nodeKind: "control-instance",
+    controlId: "outer-control",
+    controlStateId: "outer-state",
+  });
+
+  const runtimeSnapshot = snapshot([
+    outerControl,
+    outerState,
+    innerControl,
+    innerA,
+    innerB,
+    innerChild,
+    innerInstance,
+    outerInstance("outer-a"),
+    outerInstance("outer-b"),
+  ]);
+  let runtime = createRuntimeState(runtimeSnapshot);
+
+  runtime = dispatchRuntimeEvent(
+    runtimeSnapshot,
+    runtime,
+    "inner-child",
+    "click",
+    "outer-a::inner-instance",
+  );
+  runtime = dispatchRuntimeEvent(
+    runtimeSnapshot,
+    runtime,
+    "inner-child",
+    "click",
+    "outer-b::inner-instance",
+  );
+  assert.equal(
+    runtime.overrides["outer-a::inner-instance::inner-child"]?.text,
+    "yes",
+  );
+  assert.equal(
+    runtime.overrides["outer-b::inner-instance::inner-child"]?.text,
+    "yes",
+  );
+
+  runtime = dispatchRuntimeEvent(
+    runtimeSnapshot,
+    runtime,
+    "inner-instance",
+    "click",
+    "outer-a::inner-instance",
+  );
+  assert.equal(
+    runtime.controlStates["outer-a::inner-instance"],
+    "inner-b",
+  );
+  assert.equal(
+    runtime.overrides["outer-a::inner-instance::inner-child"],
+    undefined,
+  );
+  assert.equal(
+    runtime.overrides["outer-b::inner-instance::inner-child"]?.text,
+    "yes",
+  );
+});
+
 test("state-scoped triggers only fire in their state and style overrides stay runtime-only", () => {
   const owner = page(
     "owner",

@@ -129,14 +129,14 @@ export function CanvasSimulator({
         current,
         nodeId,
         event,
-        context?.controlInstanceId,
+        context?.controlScope,
       );
-      if (context?.controlInstanceId) {
+      if (context?.controlScope) {
         next = remapControlStateEvent(
           snapshot.pages,
           current,
           next,
-          context.controlInstanceId,
+          context.controlScope,
         );
       }
       if (next.currentPageId !== current.currentPageId) {

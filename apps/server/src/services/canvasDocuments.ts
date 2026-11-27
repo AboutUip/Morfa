@@ -1157,10 +1157,64 @@ function normalizePages(value: unknown): CanvasPageDto[] {
     stateIdsByControl.set(control.id, stateIds);
   }
 
+  const childrenByParent = new Map<string, CanvasPageDto[]>();
+  for (const page of pages) {
+    if (!page.parentId) continue;
+    const list = childrenByParent.get(page.parentId);
+    if (list) list.push(page);
+    else childrenByParent.set(page.parentId, [page]);
+  }
+
+  const collectStateDependencies = (stateId: string) => {
+    const dependencies = new Set<string>();
+    const stack = [stateId];
+    const visited = new Set<string>();
+    while (stack.length) {
+      const current = stack.pop();
+      if (!current || visited.has(current)) continue;
+      visited.add(current);
+      for (const child of childrenByParent.get(current) ?? []) {
+        if (child.nodeKind === "control-instance" && child.controlId) {
+          dependencies.add(child.controlId);
+        }
+        stack.push(child.id);
+      }
+    }
+    return dependencies;
+  };
+
+  const controlDependencies = new Map<string, Set<string>>();
+  for (const control of controls) {
+    const dependencies = new Set<string>();
+    for (const stateId of stateIdsByControl.get(control.id) ?? []) {
+      for (const dependency of collectStateDependencies(stateId)) {
+        dependencies.add(dependency);
+      }
+    }
+    controlDependencies.set(control.id, dependencies);
+  }
+
+  for (const control of controls) {
+    const stack = [...(controlDependencies.get(control.id) ?? [])];
+    const visited = new Set<string>();
+    while (stack.length) {
+      const current = stack.pop();
+      if (!current || visited.has(current)) continue;
+      if (current === control.id) invalidDocument();
+      visited.add(current);
+      stack.push(...(controlDependencies.get(current) ?? []));
+    }
+  }
+
   for (const page of pages) {
     if (page.parentId) {
       const parent = pagesById.get(page.parentId);
-      if (parent?.nodeKind === "control") invalidDocument();
+      if (
+        parent?.nodeKind === "control" ||
+        parent?.nodeKind === "control-instance"
+      ) {
+        invalidDocument();
+      }
     }
     if (page.nodeKind === "control-state") {
       if (!page.controlId || !controlIds.has(page.controlId)) {
@@ -1178,21 +1232,6 @@ function normalizePages(value: unknown): CanvasPageDto[] {
         !stateIds?.has(page.controlStateId)
       ) {
         invalidDocument();
-      }
-      let ancestorId = page.parentId;
-      const visited = new Set<string>();
-      while (ancestorId && !visited.has(ancestorId)) {
-        visited.add(ancestorId);
-        const ancestor = pagesById.get(ancestorId);
-        if (!ancestor) break;
-        if (
-          ancestor.nodeKind === "control" ||
-          ancestor.nodeKind === "control-state" ||
-          ancestor.nodeKind === "control-instance"
-        ) {
-          invalidDocument();
-        }
-        ancestorId = ancestor.parentId;
       }
     }
     if (

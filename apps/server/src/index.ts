@@ -4,6 +4,7 @@ import multipart from "@fastify/multipart";
 import websocket from "@fastify/websocket";
 import Fastify from "fastify";
 
+import { registerAccountComponentRoutes } from "./api/accountComponents.js";
 import { registerAccountRoutes } from "./api/account.js";
 import { registerApiKeyRoutes } from "./api/apiKeys.js";
 import { registerAssetUploadRoutes } from "./api/assets.js";
@@ -14,6 +15,7 @@ import { registerPreferencesRoutes } from "./api/preferences.js";
 import { registerProjectRoutes } from "./api/projects.js";
 import { registerRealtimeRoutes } from "./api/realtime.js";
 import { registerRenderRoutes } from "./api/render.js";
+import { registerScreenshotRoutes } from "./api/screenshots.js";
 import { registerUploadRoutes } from "./api/uploads.js";
 import {
   ASSETS_DIR,
@@ -78,6 +80,7 @@ initializeRealtimeOperations();
 
 registerAuthRoutes(app);
 registerAccountRoutes(app);
+registerAccountComponentRoutes(app);
 registerPreferencesRoutes(app);
 registerApiKeyRoutes(app);
 registerModelProviderRoutes(app);
@@ -87,6 +90,7 @@ registerRealtimeRoutes(app);
 registerUploadRoutes(app);
 registerAssetUploadRoutes(app);
 registerRenderRoutes(app);
+registerScreenshotRoutes(app);
 
 app.setErrorHandler((error, request, reply) => {
   if (error instanceof ApiError) {

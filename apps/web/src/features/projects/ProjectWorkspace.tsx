@@ -8,7 +8,11 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { ProjectSummary } from "../../lib/api";
+import {
+  accountComponentApi,
+  projectCanvasApi,
+  type ProjectSummary,
+} from "../../lib/api";
 import {
   copyPageToClipboard,
   duplicatePageFrom,
@@ -31,6 +35,8 @@ import {
   createControlPages,
   createControlStatePage,
   getControlDocumentPages,
+  getControlNestingBlock,
+  getControlStateDeleteBlock,
   isControlDirty,
   type CreateControlInput,
 } from "./canvasControls";
@@ -44,6 +50,7 @@ import {
   computeControlSignature,
   createLinkId,
   getCanvasLayout,
+  getControlDefinitions,
   getControlStates,
   getControlStateSubtree,
   getPageFrame,
@@ -322,6 +329,7 @@ export function ProjectWorkspace({
   const [controlLintItems, setControlLintItems] = useState<
     CanvasLintItem[] | null
   >(null);
+  const [accountLibraryVersion, setAccountLibraryVersion] = useState(0);
   const [simulator, setSimulator] = useState<{
     snapshot: RuntimeSnapshot;
     sourceSignature: string;
@@ -379,6 +387,19 @@ export function ProjectWorkspace({
   const editingControlDirty = editingControlId
     ? isControlDirty(pages, editingControlId)
     : false;
+  const blockedNestedControlIds = useMemo(() => {
+    const blocked = new Set<string>();
+    if (!editingControlId) return blocked;
+    for (const control of getControlDefinitions(pages)) {
+      if (
+        getControlNestingBlock(pages, editingControlId, control.id) ===
+        "cycle"
+      ) {
+        blocked.add(control.id);
+      }
+    }
+    return blocked;
+  }, [editingControlId, pages]);
   const displayedLintItems = controlLintItems ?? lintItems;
   const documentSignature = useMemo(
     () => JSON.stringify({ pages, links }),
@@ -690,18 +711,79 @@ export function ProjectWorkspace({
     }
   };
 
+  const handlePublishControl = async (controlId: string) => {
+    try {
+      await accountComponentApi.publish({
+        projectId: project.id,
+        controlId,
+      });
+      setAccountLibraryVersion((version) => version + 1);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const handleImportAccountComponent = async (componentId: string) => {
+    const result = await accountComponentApi.import(
+      componentId,
+      project.id,
+    );
+    const response = await projectCanvasApi.get(project.id);
+    setDocument({
+      pages: response.pages,
+      links: response.links ?? [],
+    });
+    setSelectedLinkId(null);
+    setSelectedPageIds([result.controlId]);
+    setEditingControlId(null);
+    setEditingControlStateId(null);
+    return result.controlId;
+  };
+
+  const handleDeleteControlState = (stateId: string) => {
+    if (!editingControl) return;
+    if (
+      getControlStateDeleteBlock(
+        editingControlStates,
+        editingControl.control?.defaultStateId,
+        stateId,
+      )
+    ) {
+      return;
+    }
+    deletePages([stateId]);
+  };
+
   const handleCreateControlInstance = (
     controlId: string,
     position: { x: number; y: number; parentId?: string },
   ) => {
-    if (editingControlId) return;
-    const requestedParent = position.parentId
+    const ownerControlId = editingControlId ?? undefined;
+    let requestedParent = position.parentId
       ? pages.find((page) => page.id === position.parentId) ?? null
       : null;
+
+    if (ownerControlId) {
+      requestedParent =
+        requestedParent ??
+        (editingControlStateId
+          ? pages.find((page) => page.id === editingControlStateId) ?? null
+          : null);
+      const ownerPages = getControlDocumentPages(pages, ownerControlId);
+      if (
+        !requestedParent ||
+        !ownerPages.some((page) => page.id === requestedParent?.id)
+      ) {
+        return;
+      }
+    }
+
     const parent =
       requestedParent && !isControlInstancePage(requestedParent)
         ? requestedParent
         : null;
+    if (ownerControlId && !parent) return;
     let x = position.x;
     let y = position.y;
     if (parent) {
@@ -710,11 +792,17 @@ export function ProjectWorkspace({
       y = position.y - parentFrame.worldY;
     }
 
-    const instance = createControlInstancePage(pages, links, controlId, {
-      x,
-      y,
-      ...(parent ? { parentId: parent.id } : {}),
-    });
+    const instance = createControlInstancePage(
+      pages,
+      links,
+      controlId,
+      {
+        x,
+        y,
+        ...(parent ? { parentId: parent.id } : {}),
+      },
+      ownerControlId,
+    );
     if (!instance) return;
     commitPages((current) => [...current, instance]);
     setSelectedLinkId(null);
@@ -1631,6 +1719,7 @@ export function ProjectWorkspace({
           activeTool={activeTool}
           onToolChange={setActiveTool}
           projectType={project.type}
+          projectId={project.id}
           pages={pages}
           snapSettings={snapSettings}
           onSnapSettingsChange={setSnapSettings}
@@ -1639,6 +1728,9 @@ export function ProjectWorkspace({
           onCompileControl={handleCompileControl}
           onDeleteControl={handleDeleteControl}
           onControlDragStart={() => undefined}
+          blockedControlIds={blockedNestedControlIds}
+          onImportAccountComponent={handleImportAccountComponent}
+          accountLibraryVersion={accountLibraryVersion}
         />
 
         <div className={styles.canvasColumn}>
@@ -1650,8 +1742,10 @@ export function ProjectWorkspace({
               dirty={editingControlDirty}
               onSelectState={switchControlState}
               onAddState={handleAddControlState}
+              onDeleteState={handleDeleteControlState}
               onSetDefaultState={handleSetDefaultControlState}
               onCompile={() => handleCompileControl(editingControl.id)}
+              onPublish={() => handlePublishControl(editingControl.id)}
               onOpenBehavior={() => {
                 setSelectedPageIds([editingControl.id]);
                 setSelectedLinkId(null);

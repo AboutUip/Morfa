@@ -35,6 +35,7 @@ interface CanvasComponentsPanelProps {
   onCompileControl: (controlId: string) => void;
   onDeleteControl: (controlId: string) => void;
   onControlDragStart: (controlId: string) => void;
+  blockedControlIds?: ReadonlySet<string>;
 }
 
 const DEFAULT_WIDTH = 240;
@@ -96,6 +97,7 @@ export function CanvasComponentsPanel({
   onCompileControl,
   onDeleteControl,
   onControlDragStart,
+  blockedControlIds,
 }: CanvasComponentsPanelProps) {
   const { t } = useTranslation();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -230,6 +232,7 @@ export function CanvasComponentsPanel({
             const compiled = control.control.status === "compiled";
             const states = getControlStates(pages, control.id);
             const dirty = compiled && isControlDirty(pages, control.id);
+            const blocked = blockedControlIds?.has(control.id) ?? false;
             const confirming = deleteConfirmId === control.id;
 
             return (
@@ -238,9 +241,10 @@ export function CanvasComponentsPanel({
                 className={styles.card}
                 role="listitem"
                 data-compiled={compiled}
-                draggable={compiled}
+                data-blocked={blocked || undefined}
+                draggable={compiled && !blocked}
                 onDragStart={
-                  compiled
+                  compiled && !blocked
                     ? (event) => handleDragStart(event, control.id)
                     : undefined
                 }
@@ -281,6 +285,11 @@ export function CanvasComponentsPanel({
                   {control.control.description ? (
                     <p className={styles.description}>
                       {control.control.description}
+                    </p>
+                  ) : null}
+                  {blocked ? (
+                    <p className={styles.blockedHint}>
+                      {t("projects.workspace.controls.nestingBlocked")}
                     </p>
                   ) : null}
 

@@ -40,10 +40,11 @@ const CATEGORY_ORDER: Record<McpCategory, number> = {
   layout: 8,
   behavior: 9,
   controls: 10,
-  runtime: 11,
-  screenshot: 12,
-  assets: 13,
-  lint: 14,
+  components: 11,
+  runtime: 12,
+  screenshot: 13,
+  assets: 14,
+  lint: 15,
 };
 
 function compareSummaries(

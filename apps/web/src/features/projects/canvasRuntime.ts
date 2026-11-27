@@ -110,6 +110,33 @@ export function getRuntimeNodeKey(scope: string | undefined, nodeId: string) {
   return scope ? `${scope}::${nodeId}` : nodeId;
 }
 
+/**
+ * A nested control instance is scoped by its ancestor instance path, e.g.
+ * `outer::inner`. The state belongs to the last path segment, while actions
+ * can target deeper instances by appending their id.
+ */
+export function getControlStateKey(
+  scope: string | undefined,
+  instanceId: string,
+) {
+  if (!scope) return instanceId;
+  const segments = scope.split("::");
+  if (segments[segments.length - 1] === instanceId) return scope;
+  return `${scope}::${instanceId}`;
+}
+
+export function getInstanceScope(
+  parentScope: string | undefined,
+  instanceId: string,
+) {
+  return parentScope ? `${parentScope}::${instanceId}` : instanceId;
+}
+
+export function getScopeInstanceId(scope: string) {
+  const segments = scope.split("::");
+  return segments[segments.length - 1] ?? scope;
+}
+
 function isInsideControlState(
   pages: CanvasPage[],
   page: CanvasPage,
@@ -183,17 +210,35 @@ function resetPageRuntime(
 function resetControlStateRuntime(
   state: CanvasRuntimeState,
   snapshot: RuntimeSnapshot,
-  instanceId: string,
+  scope: string,
   stateId: string | undefined,
+  visited = new Set<string>(),
 ) {
   if (!stateId) return;
+  const visitKey = `${scope}|${stateId}`;
+  if (visited.has(visitKey)) return;
+  visited.add(visitKey);
   const statePage = getControlState(snapshot.pages, stateId);
   if (!statePage) return;
   for (const page of getControlStateSubtree(snapshot.pages, stateId)) {
-    const key = getRuntimeNodeKey(instanceId, page.id);
+    const key = getRuntimeNodeKey(scope, page.id);
     delete state.overrides[key];
     const nextState = getInitialBehaviorState(page);
     state.states[key] = nextState;
+
+    if (page.nodeKind === "control-instance") {
+      const nestedKey = getControlStateKey(scope, page.id);
+      const nestedStateId =
+        state.controlStates[nestedKey] ?? page.controlStateId;
+      resetControlStateRuntime(
+        state,
+        snapshot,
+        nestedKey,
+        nestedStateId,
+        visited,
+      );
+      delete state.controlStates[nestedKey];
+    }
   }
 }
 
@@ -310,22 +355,23 @@ function applyAction(
       const instance = snapshot.pages.find(
         (page) => page.id === targetId,
       );
+      const stateKey = getControlStateKey(scope, targetId);
       const previousState =
-        state.controlStates[targetId] ??
+        state.controlStates[stateKey] ??
         instance?.controlStateId;
       resetControlStateRuntime(
         state,
         snapshot,
-        targetId,
+        stateKey,
         previousState,
       );
       resetControlStateRuntime(
         state,
         snapshot,
-        targetId,
+        stateKey,
         action.value,
       );
-      state.controlStates[targetId] = action.value;
+      state.controlStates[stateKey] = action.value;
       return;
     }
     case "setData": {
@@ -441,7 +487,11 @@ export function evaluateBehaviorCondition(
         )
       : "";
   } else if (condition.source === "controlState") {
-    actual = state.controlStates[targetId] ?? "";
+    const target = snapshot.pages.find((item) => item.id === targetId);
+    actual =
+      state.controlStates[getControlStateKey(scope, targetId)] ??
+      target?.controlStateId ??
+      "";
   } else {
     actual = getRuntimeNodeValue(
       snapshot,

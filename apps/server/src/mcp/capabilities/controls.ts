@@ -12,10 +12,12 @@ import {
   computeControlSignature,
   getCompiledControls,
   getControlInstances,
+  getControlNestingBlock,
   getControlPages,
   getControlStates,
   getControlStateSubtree,
   getControlSummary,
+  getOwnerControlIdForParent,
   isControlInstancePage,
   isControlPage,
   isControlStatePage,
@@ -932,6 +934,23 @@ export function controlCapabilities(): McpCapability[] {
         for (const id of stateIds) {
           for (const page of getControlStateSubtree(document.pages, id)) {
             nodeIds.add(page.id);
+            if (!isControlInstancePage(page) || !page.controlId) continue;
+            const blocked = getControlNestingBlock(
+              document.pages,
+              controlId,
+              page.controlId,
+            );
+            if (blocked) {
+              throw new ApiError(
+                400,
+                "CONTROL_COMPILE_FAILED",
+                blocked === "missing"
+                  ? "嵌套控件不存在"
+                  : blocked === "uncompiled"
+                    ? "嵌套控件尚未编译"
+                    : "控件不能嵌套自身或形成循环依赖",
+              );
+            }
           }
         }
         const lint = lintCanvas(document, { pageIds: nodeIds });
@@ -1102,7 +1121,38 @@ export function controlCapabilities(): McpCapability[] {
           typeof args.parentId === "string" && args.parentId.trim()
             ? readPageIdArgument(args.parentId, "parentId")
             : undefined;
-        if (parentId) findPage(document, parentId);
+        const parentPage = parentId ? findPage(document, parentId) : null;
+        if (parentPage && isControlInstancePage(parentPage)) {
+          invalidArgument(
+            "parentId",
+            "控件实例不能作为其他节点的父节点",
+          );
+        }
+        const ownerControlId = parentId
+          ? getOwnerControlIdForParent(document.pages, parentId)
+          : null;
+        if (ownerControlId) {
+          const blocked = getControlNestingBlock(
+            document.pages,
+            ownerControlId,
+            controlId,
+          );
+          if (blocked) {
+            throw new ApiError(
+              409,
+              blocked === "missing"
+                ? "CONTROL_NESTING_MISSING"
+                : blocked === "uncompiled"
+                  ? "CONTROL_NESTING_UNCOMPILED"
+                  : "CONTROL_NESTING_CYCLE",
+              blocked === "missing"
+                ? "嵌套控件不存在"
+                : blocked === "uncompiled"
+                  ? "嵌套控件尚未编译"
+                  : "控件不能嵌套自身或形成循环依赖",
+            );
+          }
+        }
         const instanceId = newPageId(document.pages);
         const sourceStyles = {
           ...(state.styles as Record<string, string>),

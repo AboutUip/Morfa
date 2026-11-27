@@ -17,6 +17,7 @@ export type McpCategory =
   | "layout"
   | "behavior"
   | "controls"
+  | "components"
   | "runtime"
   | "screenshot"
   | "assets"

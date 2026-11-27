@@ -1,4 +1,5 @@
 import type { McpController } from "../controller.js";
+import { accountComponentCapabilities } from "./accountComponents.js";
 import { appearanceCapabilities } from "./appearance.js";
 import { assetCapabilities } from "./assets.js";
 import { batchCapabilities } from "./batch.js";
@@ -29,6 +30,7 @@ export function registerMcpCapabilities(controller: McpController) {
   controller.registerAll(canvasNavigationCapabilities());
   controller.registerAll(behaviorCapabilities());
   controller.registerAll(controlCapabilities());
+  controller.registerAll(accountComponentCapabilities());
   controller.registerAll(layoutCapabilities());
   controller.registerAll(runtimeCapabilities());
   controller.registerAll(lintCapabilities());

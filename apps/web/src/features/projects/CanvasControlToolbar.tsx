@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { CanvasPage } from "./canvasDocument";
+import { getControlStateDeleteBlock } from "./canvasControls";
 import styles from "./CanvasControlToolbar.module.css";
 
 interface CanvasControlToolbarProps {
@@ -11,8 +12,10 @@ interface CanvasControlToolbarProps {
   dirty: boolean;
   onSelectState: (stateId: string) => void;
   onAddState: () => void;
+  onDeleteState: (stateId: string) => void;
   onSetDefaultState: (stateId: string) => void;
   onCompile: () => void;
+  onPublish: () => Promise<boolean>;
   onExit: () => void;
   onOpenBehavior: () => void;
   onRenameControl: (name: string) => void;
@@ -25,16 +28,28 @@ export function CanvasControlToolbar({
   dirty,
   onSelectState,
   onAddState,
+  onDeleteState,
   onSetDefaultState,
   onCompile,
+  onPublish,
   onExit,
   onOpenBehavior,
   onRenameControl,
 }: CanvasControlToolbarProps) {
   const { t } = useTranslation();
   const [renameDraft, setRenameDraft] = useState(control.name);
+  const [notice, setNotice] = useState<{
+    key: string;
+    id: number;
+  } | null>(null);
   const focusedRef = useRef(false);
   const cancelRef = useRef(false);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(null), 3600);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
 
   useEffect(() => {
     if (!focusedRef.current) setRenameDraft(control.name);
@@ -136,6 +151,32 @@ export function CanvasControlToolbar({
       </div>
 
       <div className={styles.actions}>
+        <button
+          className={styles.ghostButton}
+          type="button"
+          disabled={!activeStateId}
+          onClick={() => {
+            if (!activeStateId) return;
+            const blocked = getControlStateDeleteBlock(
+              states,
+              defaultStateId ?? undefined,
+              activeStateId,
+            );
+            if (blocked) {
+              setNotice({
+                key:
+                  blocked === "default"
+                    ? "projects.workspace.controls.cannotDeleteDefaultState"
+                    : "projects.workspace.controls.cannotDeleteLastState",
+                id: Date.now(),
+              });
+              return;
+            }
+            onDeleteState(activeStateId);
+          }}
+        >
+          {t("projects.workspace.controls.deleteState")}
+        </button>
         {activeStateId && activeStateId !== defaultStateId ? (
           <button
             className={styles.ghostButton}
@@ -151,6 +192,28 @@ export function CanvasControlToolbar({
           onClick={onOpenBehavior}
         >
           {t("projects.workspace.controls.rootBehavior")}
+        </button>
+        <button
+          className={styles.ghostButton}
+          type="button"
+          disabled={!compiled || dirty}
+          title={
+            !compiled || dirty
+              ? t("projects.workspace.controls.publishNeedsCompile")
+              : t("projects.workspace.controls.saveToLibrary")
+          }
+          onClick={() => {
+            void onPublish().then((saved) => {
+              setNotice({
+                key: saved
+                  ? "projects.workspace.controls.savedToLibrary"
+                  : "projects.workspace.controls.publishFailed",
+                id: Date.now(),
+              });
+            });
+          }}
+        >
+          {t("projects.workspace.controls.saveToLibrary")}
         </button>
         <button
           className={styles.compileButton}
@@ -169,6 +232,11 @@ export function CanvasControlToolbar({
           {t("projects.workspace.controls.exitEditor")}
         </button>
       </div>
+      {notice ? (
+        <div className={styles.notice} role="status" aria-live="polite">
+          {t(notice.key)}
+        </div>
+      ) : null}
     </div>
   );
 }

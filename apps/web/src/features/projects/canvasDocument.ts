@@ -834,9 +834,11 @@ export function getControlStateSubtree(
   if (!state) return [];
   const childrenByParent = new Map<string, CanvasPage[]>();
   for (const page of pages) {
-    if (!page.parentId || page.nodeKind === "control" ||
-        page.nodeKind === "control-state" ||
-        page.nodeKind === "control-instance") {
+    if (
+      !page.parentId ||
+      page.nodeKind === "control" ||
+      page.nodeKind === "control-state"
+    ) {
       continue;
     }
     const list = childrenByParent.get(page.parentId);
@@ -922,6 +924,24 @@ export function computeControlSignature(
           widget: page.widget ?? null,
           data: page.data ?? [],
           behavior: page.behavior ?? null,
+          nestedControl:
+            page.nodeKind === "control-instance" && page.controlId
+              ? {
+                  id: page.controlId,
+                  compiledSig:
+                    pages.find(
+                      (item) =>
+                        item.nodeKind === "control" &&
+                        item.id === page.controlId,
+                    )?.control?.compiledSig ?? null,
+                  compiledRevision:
+                    pages.find(
+                      (item) =>
+                        item.nodeKind === "control" &&
+                        item.id === page.controlId,
+                    )?.control?.compiledRevision ?? null,
+                }
+              : null,
         })),
     }));
   return JSON.stringify({

@@ -199,6 +199,18 @@ export function RenderPage({ token }: { token: string }) {
         }
         const payload = (await response.json()) as RenderPayload;
         if (cancelled) return;
+
+        // Headless Chrome may capture before a web font finishes loading,
+        // producing flaky visual baselines. Preload both weights used by the
+        // canvas renderer before mounting the scene.
+        if (document.fonts?.load) {
+          await Promise.all([
+            document.fonts.load('400 16px "Maple Mono CN"'),
+            document.fonts.load('600 16px "Maple Mono CN"'),
+          ]).catch(() => []);
+          await document.fonts.ready;
+        }
+        if (cancelled) return;
         setState({ status: "ready", scene: buildScene(payload) });
       } catch (error) {
         if (cancelled) return;

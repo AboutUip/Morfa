@@ -10,6 +10,9 @@ import {
 import { CanvasWidgetView } from "./CanvasWidgetView";
 import {
   applyWidgetRuntimeOverrides,
+  getControlStateKey,
+  getInstanceScope,
+  getRuntimeNodeKey,
   runtimeStyleVariables,
   type CanvasRuntimeState,
 } from "./canvasRuntime";
@@ -50,8 +53,8 @@ function hasBehaviorTrigger(page: CanvasPage, event: string) {
 }
 
 export interface CanvasNodeEventContext {
-  /** Set when the event originates inside a control instance. */
-  controlInstanceId?: string;
+  /** Instance path, e.g. `outerInstance` or `outerInstance::innerInstance`. */
+  controlScope?: string;
   /** The hidden control definition page that owns the instance. */
   controlDefinitionId?: string;
 }
@@ -71,7 +74,7 @@ export interface CanvasNodeViewProps {
     context?: CanvasNodeEventContext,
   ) => void;
   /** Inherited by all state children so runtime can target the instance. */
-  controlInstanceId?: string;
+  controlScope?: string;
   depth?: number;
   maxDepth?: number;
 }
@@ -89,7 +92,7 @@ export function CanvasNodeView({
   position,
   runtime,
   onEvent,
-  controlInstanceId,
+  controlScope,
   depth = 0,
   maxDepth = 8,
 }: CanvasNodeViewProps) {
@@ -99,15 +102,21 @@ export function CanvasNodeView({
   for (const [key, value] of Object.entries(resolved)) {
     if (!FRAME_MANAGED_STYLES.has(key)) cssStyles[key] = value;
   }
-  const runtimeKey = controlInstanceId
-    ? `${controlInstanceId}::${page.id}`
-    : page.id;
+  const instanceScope =
+    page.nodeKind === "control-instance"
+      ? getInstanceScope(controlScope, page.id)
+      : controlScope;
+  const runtimeKey = getRuntimeNodeKey(controlScope, page.id);
   const overrides = runtime?.overrides[runtimeKey];
   const left = position?.left ?? (root ? 0 : frame.localX);
   const top = position?.top ?? (root ? 0 : frame.localY);
   const controlStateId =
     page.nodeKind === "control-instance"
-      ? runtime?.controlStates[page.id] ?? page.controlStateId
+      ? runtime?.controlStates[instanceScope ?? page.id] ??
+        runtime?.controlStates[
+          getControlStateKey(controlScope, page.id)
+        ] ??
+        page.controlStateId
       : undefined;
   const controlState =
     page.nodeKind === "control-instance"
@@ -145,12 +154,14 @@ export function CanvasNodeView({
       : null;
   const controlDefinitionId =
     owningControl?.id ??
-    (controlInstanceId && page.nodeKind === "control-state"
+    (controlScope && page.nodeKind === "control-state"
       ? page.controlId
       : undefined);
+  const eventScope =
+    page.nodeKind === "control-instance" ? instanceScope : controlScope;
   const eventContext =
-    controlInstanceId || controlDefinitionId
-      ? { controlInstanceId, controlDefinitionId }
+    eventScope || controlDefinitionId
+      ? { controlScope: eventScope, controlDefinitionId }
       : undefined;
   const clickable =
     Boolean(onEvent) &&
@@ -225,7 +236,7 @@ export function CanvasNodeView({
             position={{ left: 0, top: 0 }}
             runtime={runtime}
             onEvent={onEvent}
-            controlInstanceId={page.id}
+            controlScope={instanceScope}
             depth={depth + 1}
             maxDepth={maxDepth}
           />
@@ -245,7 +256,7 @@ export function CanvasNodeView({
           links={links}
           runtime={runtime}
           onEvent={onEvent}
-          controlInstanceId={controlInstanceId}
+          controlScope={controlScope}
           depth={depth + 1}
           maxDepth={maxDepth}
         />

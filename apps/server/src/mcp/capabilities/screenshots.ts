@@ -1,12 +1,20 @@
+import { insertScreenshotAudit, listScreenshotAudits } from "../../db/screenshotAudits.js";
+import { ApiError } from "../../lib/errors.js";
 import {
   captureCanvasScreenshot,
   captureNodeScreenshot,
   capturePageScreenshot,
 } from "../../services/canvasScreenshot.js";
 import {
+  createScreenshotArtifact,
+  getScreenshotArtifact,
+} from "../../services/screenshotArtifacts.js";
+import { assertScreenshotRateLimit } from "../../services/screenshotRateLimit.js";
+import {
   READ_ONLY_ANNOTATIONS,
   REQUIRE_NONE,
   type McpCapability,
+  type McpContext,
 } from "../types.js";
 
 const PROJECT_ID_SCHEMA = {
@@ -22,6 +30,111 @@ const PAGE_ID_SCHEMA = {
   minLength: 1,
   maxLength: 120,
 };
+
+interface ScreenshotMeta {
+  projectId: string;
+  mode: "page" | "node" | "canvas";
+  pageId?: string;
+  scale: number;
+}
+
+interface ScreenshotCaptureResult {
+  data: string;
+  mimeType: string;
+  width: number;
+  height: number;
+  cacheHit: boolean;
+}
+
+function screenshotErrorMessage(error: unknown) {
+  if (error instanceof ApiError) return error.code;
+  return "SCREENSHOT_INTERNAL_ERROR";
+}
+
+async function runScreenshotCapture<T extends ScreenshotCaptureResult>(
+  context: McpContext,
+  meta: ScreenshotMeta,
+  capture: () => Promise<T>,
+): Promise<{
+  structuredContent: Record<string, unknown>;
+  imageContent: Array<{
+    type: "image";
+    data: string;
+    mimeType: string;
+  }>;
+}> {
+  const startedAt = Date.now();
+  const actorId = context.apiKey.id;
+
+  try {
+    assertScreenshotRateLimit(actorId);
+    const result = await capture();
+    const { data, mimeType, cacheHit, ...structured } = result;
+    const artifact = createScreenshotArtifact({
+      userId: context.user.id,
+      projectId: meta.projectId,
+      mode: meta.mode,
+      ...(meta.pageId ? { pageId: meta.pageId } : {}),
+      scale: meta.scale,
+      data,
+      mimeType,
+      width: result.width,
+      height: result.height,
+    });
+    const bytes = Math.ceil((data.length * 3) / 4);
+    const auditId = insertScreenshotAudit({
+      userId: context.user.id,
+      apiKeyId: actorId,
+      projectId: meta.projectId,
+      mode: meta.mode,
+      ...(meta.pageId ? { pageId: meta.pageId } : {}),
+      scale: meta.scale,
+      cacheHit,
+      status: "ok",
+      bytes,
+      durationMs: Date.now() - startedAt,
+      artifactToken: artifact.token,
+      now: Date.now(),
+    });
+
+    return {
+      structuredContent: {
+        ...(structured as Record<string, unknown>),
+        projectId: meta.projectId,
+        mode: meta.mode,
+        ...(meta.pageId ? { pageId: meta.pageId } : {}),
+        mimeType,
+        cacheHit,
+        url: `${context.origin}/api/screenshots/${artifact.token}`,
+        expiresAt: artifact.expiresAt,
+        auditId,
+      },
+      imageContent: [
+        {
+          type: "image",
+          data,
+          mimeType,
+        },
+      ],
+    };
+  } catch (error) {
+    insertScreenshotAudit({
+      userId: context.user.id,
+      apiKeyId: actorId,
+      projectId: meta.projectId,
+      mode: meta.mode,
+      ...(meta.pageId ? { pageId: meta.pageId } : {}),
+      scale: meta.scale,
+      cacheHit: false,
+      status: "error",
+      errorCode: screenshotErrorMessage(error),
+      bytes: 0,
+      durationMs: Date.now() - startedAt,
+      now: Date.now(),
+    });
+    throw error;
+  }
+}
 
 export function screenshotCapabilities(): McpCapability[] {
   return [
@@ -39,15 +152,15 @@ export function screenshotCapabilities(): McpCapability[] {
       },
       usage: {
         "zh-CN":
-          "scale 支持 0.5-3。截图使用 Chrome/Chromium，可通过 CHROME_PATH 指定浏览器路径。",
+          "scale 支持 0.5-3。同一项目 revision 与 scale 会命中缓存；每个 API Key 每分钟最多 30 次。返回 5 分钟有效的短链接和 MCP image content。",
         "en-US":
-          "scale supports 0.5-3. Screenshots use Chrome/Chromium; set CHROME_PATH when needed.",
+          "scale supports 0.5-3. Identical project revisions and scales hit the cache; each API key allows 30 requests per minute. Returns a 5-minute short URL and MCP image content.",
       },
       returns: {
         "zh-CN":
-          "页面名称、尺寸、缩放、updatedAt，以及 MCP image content。",
+          "页面名称、尺寸、缩放、updatedAt、cacheHit、短链接、过期时间、审计 id，以及 MCP image content。",
         "en-US":
-          "Page name, dimensions, scale, updatedAt, and MCP image content.",
+          "Page name, dimensions, scale, updatedAt, cacheHit, short URL, expiry, audit id, and MCP image content.",
       },
       category: "screenshot",
       requirements: REQUIRE_NONE,
@@ -77,23 +190,20 @@ export function screenshotCapabilities(): McpCapability[] {
         },
       ],
       async execute(context, args) {
-        const result = await capturePageScreenshot(
-          context.user.id,
-          args.projectId as string,
-          args.pageId as string,
-          typeof args.scale === "number" ? args.scale : 1,
+        const projectId = args.projectId as string;
+        const pageId = args.pageId as string;
+        const scale = typeof args.scale === "number" ? args.scale : 1;
+        return runScreenshotCapture(
+          context,
+          { projectId, mode: "page", pageId, scale },
+          () =>
+            capturePageScreenshot(
+              context.user.id,
+              projectId,
+              pageId,
+              scale,
+            ),
         );
-        const { data, ...meta } = result;
-        return {
-          structuredContent: meta,
-          imageContent: [
-            {
-              type: "image",
-              data,
-              mimeType: result.mimeType,
-            },
-          ],
-        };
       },
     },
     {
@@ -110,15 +220,15 @@ export function screenshotCapabilities(): McpCapability[] {
       },
       usage: {
         "zh-CN":
-          "scale 支持 0.5-3。使用共享布局解析器计算 frame；画布过大时返回 413。",
+          "scale 支持 0.5-3。使用共享布局解析器计算 frame；画布过大时返回 413。结果按 revision 缓存，并返回 5 分钟短链接与审计 id。",
         "en-US":
-          "scale supports 0.5-3. Frames come from the shared layout resolver; an oversized canvas returns 413.",
+          "scale supports 0.5-3. Frames come from the shared layout resolver; an oversized canvas returns 413. Results are cached per revision and include a 5-minute short URL and audit id.",
       },
       returns: {
         "zh-CN":
-          "画布尺寸、缩放、updatedAt、页面/节点数量、边界与 MCP image content。",
+          "画布尺寸、缩放、updatedAt、页面/节点数量、边界、cacheHit、短链接与 MCP image content。",
         "en-US":
-          "Canvas dimensions, scale, updatedAt, page/node counts, bounds, and MCP image content.",
+          "Canvas dimensions, scale, updatedAt, page/node counts, bounds, cacheHit, short URL, and MCP image content.",
       },
       category: "screenshot",
       requirements: REQUIRE_NONE,
@@ -147,22 +257,18 @@ export function screenshotCapabilities(): McpCapability[] {
         },
       ],
       async execute(context, args) {
-        const result = await captureCanvasScreenshot(
-          context.user.id,
-          args.projectId as string,
-          typeof args.scale === "number" ? args.scale : 1,
+        const projectId = args.projectId as string;
+        const scale = typeof args.scale === "number" ? args.scale : 1;
+        return runScreenshotCapture(
+          context,
+          { projectId, mode: "canvas", scale },
+          () =>
+            captureCanvasScreenshot(
+              context.user.id,
+              projectId,
+              scale,
+            ),
         );
-        const { data, ...meta } = result;
-        return {
-          structuredContent: meta,
-          imageContent: [
-            {
-              type: "image",
-              data,
-              mimeType: result.mimeType,
-            },
-          ],
-        };
       },
     },
     {
@@ -179,15 +285,15 @@ export function screenshotCapabilities(): McpCapability[] {
       },
       usage: {
         "zh-CN":
-          "传入 projectId、nodeId；scale 支持 0.5-3。使用共享布局解析器的 frame 计算尺寸与子节点位置。",
+          "传入 projectId、nodeId；scale 支持 0.5-3。使用共享布局解析器的 frame 计算尺寸与子节点位置。结果按 revision/scale 缓存，并返回 5 分钟短链接与审计 id。",
         "en-US":
-          "Pass projectId and nodeId; scale supports 0.5-3. The shared resolver provides the frame size and child positions.",
+          "Pass projectId and nodeId; scale supports 0.5-3. The shared resolver provides the frame size and child positions. Results are cached by revision/scale and include a 5-minute short URL and audit id.",
       },
       returns: {
         "zh-CN":
-          "节点名称、尺寸、缩放、updatedAt 与 MCP image content。",
+          "节点名称、尺寸、缩放、updatedAt、cacheHit、短链接与 MCP image content。",
         "en-US":
-          "Node name, dimensions, scale, updatedAt, and MCP image content.",
+          "Node name, dimensions, scale, updatedAt, cacheHit, short URL, and MCP image content.",
       },
       category: "screenshot",
       requirements: REQUIRE_NONE,
@@ -218,22 +324,111 @@ export function screenshotCapabilities(): McpCapability[] {
         },
       ],
       async execute(context, args) {
-        const result = await captureNodeScreenshot(
-          context.user.id,
-          args.projectId as string,
-          args.nodeId as string,
-          typeof args.scale === "number" ? args.scale : 1,
+        const projectId = args.projectId as string;
+        const nodeId = args.nodeId as string;
+        const scale = typeof args.scale === "number" ? args.scale : 1;
+        return runScreenshotCapture(
+          context,
+          { projectId, mode: "node", pageId: nodeId, scale },
+          () =>
+            captureNodeScreenshot(
+              context.user.id,
+              projectId,
+              nodeId,
+              scale,
+            ),
         );
-        const { data, ...meta } = result;
+      },
+    },
+    {
+      name: "list_screenshot_audits",
+      title: {
+        "zh-CN": "列出截图审计",
+        "en-US": "List screenshot audits",
+      },
+      description: {
+        "zh-CN":
+          "读取当前账号最近的截图审计记录，包括缓存命中、耗时、状态、错误码与短期链接。",
+        "en-US":
+          "List recent screenshot audit records for the current account, including cache hits, duration, status, error code, and short-lived links.",
+      },
+      usage: {
+        "zh-CN":
+          "可选 projectId 过滤；limit 为 1-50，默认 20。截图链接最多保留 5 分钟。",
+        "en-US":
+          "Optional projectId filter; limit is 1-50 and defaults to 20. Screenshot links live for at most 5 minutes.",
+      },
+      returns: {
+        "zh-CN": "截图审计记录、数量与服务器时间。",
+        "en-US":
+          "Screenshot audit records, count, and server time.",
+      },
+      category: "screenshot",
+      requirements: REQUIRE_NONE,
+      annotations: READ_ONLY_ANNOTATIONS,
+      inputSchema: {
+        type: "object",
+        properties: {
+          projectId: {
+            ...PROJECT_ID_SCHEMA,
+            description: "Optional project id filter.",
+          },
+          limit: {
+            type: "number",
+            description:
+              "Maximum audit rows from 1 to 50. Defaults to 20.",
+            minimum: 1,
+            maximum: 50,
+          },
+        },
+        additionalProperties: false,
+      },
+      examples: [
+        { arguments: { projectId: "project-uuid", limit: 10 } },
+        { arguments: {} },
+      ],
+      async execute(context, args) {
+        const projectId =
+          typeof args.projectId === "string" && args.projectId.trim()
+            ? args.projectId.trim()
+            : undefined;
+        const limit =
+          typeof args.limit === "number" && Number.isFinite(args.limit)
+            ? Math.min(50, Math.max(1, Math.round(args.limit)))
+            : 20;
+        const rows = listScreenshotAudits({
+          userId: context.user.id,
+          ...(projectId ? { projectId } : {}),
+          limit,
+        });
+        const audits = rows.map((row) => {
+          const artifact = row.artifact_token
+            ? getScreenshotArtifact(row.artifact_token)
+            : null;
+          return {
+            id: row.id,
+            projectId: row.project_id,
+            mode: row.mode,
+            ...(row.page_id ? { pageId: row.page_id } : {}),
+            scale: row.scale,
+            cacheHit: row.cache_hit === 1,
+            status: row.status,
+            ...(row.error_code ? { errorCode: row.error_code } : {}),
+            bytes: row.bytes,
+            durationMs: row.duration_ms,
+            ...(artifact?.status === "ok"
+              ? {
+                  url: `${context.origin}/api/screenshots/${artifact.artifact.token}`,
+                  expiresAt: artifact.artifact.expiresAt,
+                }
+              : {}),
+            createdAt: row.created_at,
+          };
+        });
         return {
-          structuredContent: meta,
-          imageContent: [
-            {
-              type: "image",
-              data,
-              mimeType: result.mimeType,
-            },
-          ],
+          count: audits.length,
+          audits,
+          serverTime: Date.now(),
         };
       },
     },

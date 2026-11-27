@@ -484,6 +484,9 @@
         "defaultMark": "默认",
         "defaultStateHint": "默认状态会作为控件实例的初始状态",
         "addState": "新增状态",
+        "deleteState": "删除状态",
+        "cannotDeleteDefaultState": "默认状态不能删除，请先把其他状态设为默认。",
+        "cannotDeleteLastState": "控件至少需要保留一个状态。",
         "setDefault": "设为默认",
         "compile": "编译",
         "recompile": "重新编译",
@@ -494,6 +497,11 @@
         "previewEmpty": "无预览",
         "emptyTitle": "还没有控件",
         "emptyHint": "新建一个带状态的控件，编译后即可拖入页面复用。",
+        "nestingBlocked": "无法嵌套：会形成循环依赖",
+        "saveToLibrary": "保存到组件库",
+        "publishNeedsCompile": "请先编译控件，再保存到组件库",
+        "savedToLibrary": "已保存到账号组件库。",
+        "publishFailed": "保存到账号组件库失败。",
         "edit": "编辑",
         "delete": "删除",
         "deleteConfirm": "删除该控件及其实例？",
@@ -520,16 +528,35 @@
         "errors": {
           "controlMissing": "控件定义不存在",
           "noStates": "控件至少需要一个状态",
-          "defaultStateMissing": "控件的默认状态不存在"
+          "defaultStateMissing": "控件的默认状态不存在",
+          "nestedControlMissing": "嵌套的控件不存在",
+          "nestedControlUncompiled": "嵌套控件需要先编译",
+          "nestedControlCycle": "控件不能嵌套自身或形成循环依赖"
         }
       },
       "componentsPanel": {
         "tabs": {
           "mine": "我的组件",
+          "library": "账号组件库",
           "market": "组件市场"
         },
         "searchPlaceholder": "搜索组件",
         "noResults": "没有找到组件"
+      },
+      "library": {
+        "loading": "正在加载账号组件…",
+        "loadFailed": "加载账号组件库失败",
+        "import": "导入",
+        "importing": "正在导入…",
+        "imported": "已将 {{name}} 导入我的组件。",
+        "importFailed": "导入组件失败",
+        "delete": "删除",
+        "deleteConfirm": "从账号组件库移除此组件？",
+        "deleteFailed": "删除组件失败",
+        "deleted": "已从账号组件库移除 {{name}}。",
+        "counts": "{{states}} 个状态 · {{nodes}} 个节点",
+        "emptyTitle": "账号组件库为空",
+        "emptyHint": "编译控件后，可从控件工具栏保存到账号组件库。"
       },
       "componentMarket": {
         "categories": {
