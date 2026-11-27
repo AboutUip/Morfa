@@ -3,6 +3,7 @@
   flex-direction: column;
   gap: 10px;
   width: 100%;
+  padding: clamp(24px, 4vw, 40px) clamp(4px, 1vw, 10px) 0;
 }
 
 .notice,
@@ -304,6 +305,10 @@
 }
 
 @media (max-width: 720px) {
+  .page {
+    padding: 18px 0 0;
+  }
+
   .grid {
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
     gap: 9px;
