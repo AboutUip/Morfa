@@ -92,6 +92,16 @@
   fill: var(--mf-accent);
 }
 
+.startEdgeLine {
+  fill: none;
+  stroke: var(--mf-accent);
+  stroke-dasharray: 4 4;
+  stroke-width: 1.5;
+  opacity: 0.65;
+  pointer-events: none;
+  vector-effect: non-scaling-stroke;
+}
+
 .connectionLine {
   fill: none;
   stroke: var(--mf-accent);
@@ -149,19 +159,63 @@
   border-top: 3px solid var(--mf-accent);
 }
 
-.node[data-start="true"] {
+.startNode {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
   border-color: color-mix(
     in srgb,
-    var(--mf-accent) 55%,
+    var(--mf-accent) 60%,
     var(--mf-border-strong)
   );
+  border-radius: 999px;
   background:
     linear-gradient(
       135deg,
       var(--mf-accent-soft),
-      transparent 48%
+      transparent 60%
     ),
     var(--mf-bg-surface);
+  cursor: default;
+}
+
+.startGlyph {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  place-items: center;
+  padding-left: 2px;
+  border-radius: 50%;
+  background: var(--mf-accent);
+  color: #ffffff;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.startText {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.startText strong {
+  color: var(--mf-text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.startText em {
+  overflow: hidden;
+  color: var(--mf-text-tertiary);
+  font-size: 9px;
+  font-style: normal;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .node[data-type="condition"] {
@@ -198,12 +252,6 @@
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-}
-
-.startGlyphStub {
-  color: var(--mf-accent);
-  font-size: 8px;
-  line-height: 1;
 }
 
 .nodeBadge {

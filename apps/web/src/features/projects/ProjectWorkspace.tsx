@@ -323,7 +323,7 @@ export function ProjectWorkspace({
   const [behaviorHeight, setBehaviorHeight] = useState(() =>
     Math.round(
       Math.min(
-        760,
+        620,
         Math.max(
           420,
           (typeof window === "undefined" ? 900 : window.innerHeight) *

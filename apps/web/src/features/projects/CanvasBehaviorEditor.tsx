@@ -680,7 +680,10 @@ function BlockInspector({
 
   return (
     <div className={styles.inspector}>
-      <div className={styles.inspectorHeader}>
+      <div
+        className={styles.inspectorHeader}
+        data-node-drag-handle="true"
+      >
         <span className={styles.inspectorKind}>
           {t(`projects.workspace.behavior.blockTypes.${block.type}`)}
         </span>
@@ -710,7 +713,7 @@ function BlockInspector({
             </SelectField>
           </label>
           <p className={styles.dropHint}>
-            {t("projects.workspace.behavior.startEditorHint")}
+            {t("projects.workspace.behavior.eventEditorHint")}
           </p>
         </div>
       ) : null}
@@ -1224,7 +1227,7 @@ export function CanvasBehaviorEditor({
     onHeightChange(
       expandedHeightRef.current ??
         Math.round(
-          Math.min(760, Math.max(420, viewportHeight * 0.6)),
+          Math.min(620, Math.max(420, viewportHeight * 0.6)),
         ),
     );
     expandedHeightRef.current = null;
@@ -1489,7 +1492,7 @@ export function CanvasBehaviorEditor({
               onCreateEdge={addEdge}
               onDeleteEdge={deleteEdge}
               onDeleteNode={deleteNode}
-              onCreateStart={() =>
+              onCreateEvent={() =>
                 addBlock({
                   type: "event",
                   event: supportedEvents[0] ?? "click",

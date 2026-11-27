@@ -2131,8 +2131,8 @@ function PropertiesPanel({
                 <p className={styles.styleHint}>
                   {t("projects.workspace.behavior.summary", {
                     blocks:
-                      page.behavior.blocks?.length ??
-                      page.behavior.triggers.length,
+                      (page.behavior.blocks?.length ??
+                        page.behavior.triggers.length) + 1,
                   })}
                 </p>
               ) : (

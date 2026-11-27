@@ -46,13 +46,19 @@ const EDITOR_NODE_HEIGHT: Record<
   note: 220,
 };
 
+const START_NODE_ID = "__morfa_start__";
+const START_NODE_WIDTH = 176;
+const START_NODE_HEIGHT = 64;
+const START_NODE_GAP = 96;
+
 interface GraphNode {
   id: string;
+  kind: "start" | "block";
   x: number;
   y: number;
   width: number;
   height: number;
-  block: CanvasBehaviorBlock;
+  block?: CanvasBehaviorBlock;
 }
 
 interface CanvasView {
@@ -120,7 +126,7 @@ export function BehaviorGraphCanvas({
   onCreateEdge,
   onDeleteEdge,
   onDeleteNode,
-  onCreateStart,
+  onCreateEvent,
   renderBlockEditor,
 }: {
   pages: CanvasPage[];
@@ -136,7 +142,7 @@ export function BehaviorGraphCanvas({
   onCreateEdge: (from: string, to: string) => void;
   onDeleteEdge: (id: string) => void;
   onDeleteNode: (id: string) => void;
-  onCreateStart?: () => void;
+  onCreateEvent?: () => void;
   renderBlockEditor?: (block: CanvasBehaviorBlock) => ReactNode;
 }) {
   const { t } = useTranslation();
@@ -178,25 +184,57 @@ export function BehaviorGraphCanvas({
     [pages],
   );
 
-  const baseNodes = useMemo<GraphNode[]>(
-    () =>
-      blocks.map((block) => {
-        const editing = block.id === selectedNodeId;
-        return {
-          id: block.id,
-          x: block.x,
-          y: block.y,
-          width: editing
-            ? EDITOR_NODE_WIDTH
-            : BEHAVIOR_GRAPH_NODE_WIDTH,
-          height: editing
-            ? EDITOR_NODE_HEIGHT[block.type]
-            : BLOCK_HEIGHT[block.type],
-          block,
-        };
-      }),
-    [blocks, selectedNodeId],
-  );
+  const baseNodes = useMemo<GraphNode[]>(() => {
+    const blockNodes: GraphNode[] = blocks.map((block) => {
+      const editing = block.id === selectedNodeId;
+      return {
+        id: block.id,
+        kind: "block",
+        x: block.x,
+        y: block.y,
+        width: editing
+          ? EDITOR_NODE_WIDTH
+          : BEHAVIOR_GRAPH_NODE_WIDTH,
+        height: editing
+          ? EDITOR_NODE_HEIGHT[block.type]
+          : BLOCK_HEIGHT[block.type],
+        block,
+      };
+    });
+    const blockIds = new Set(blocks.map((block) => block.id));
+    const roots = blocks.filter(
+      (block) =>
+        block.type !== "note" &&
+        !edges.some(
+          (edge) => edge.to === block.id && blockIds.has(edge.from),
+        ),
+    );
+    const minX = blocks.length
+      ? Math.min(...blocks.map((block) => block.x))
+      : 240;
+    const startY = roots.length
+      ? Math.round(
+          roots.reduce(
+            (sum, block) =>
+              sum + block.y + BLOCK_HEIGHT[block.type] / 2,
+            0,
+          ) /
+            roots.length -
+            START_NODE_HEIGHT / 2,
+        )
+      : Math.round(
+          (blocks[0]?.y ?? 120) - START_NODE_HEIGHT / 2,
+        );
+    const startNode: GraphNode = {
+      id: START_NODE_ID,
+      kind: "start",
+      x: minX - START_NODE_WIDTH - START_NODE_GAP,
+      y: startY,
+      width: START_NODE_WIDTH,
+      height: START_NODE_HEIGHT,
+    };
+    return [startNode, ...blockNodes];
+  }, [blocks, edges, selectedNodeId]);
 
   const renderNodes = useMemo(() => {
     if (!drag) return baseNodes;
@@ -332,29 +370,31 @@ export function BehaviorGraphCanvas({
     const node = baseNodes.find((item) => item.id === selectedNodeId);
     if (!element || !node) return;
     focusedSelectionRef.current = selectedNodeId;
-    const padding = 44;
-    const availableWidth = Math.max(
-      160,
-      element.clientWidth - padding * 2,
-    );
-    const availableHeight = Math.max(
-      160,
-      element.clientHeight - padding * 2,
-    );
-    const zoom = clamp(
-      Math.min(
-        availableWidth / node.width,
-        availableHeight / node.height,
-        1.05,
-      ),
-      0.55,
-      1.05,
-    );
-    setView({
-      x: element.clientWidth / 2 - (node.x + node.width / 2) * zoom,
-      y: element.clientHeight / 2 - (node.y + node.height / 2) * zoom,
-      zoom,
-    });
+    const current = viewRef.current;
+    const padding = 40;
+    const left = node.x * current.zoom + current.x;
+    const top = node.y * current.zoom + current.y;
+    const right = left + node.width * current.zoom;
+    const bottom = top + node.height * current.zoom;
+    let dx = 0;
+    let dy = 0;
+
+    if (left < padding) dx = padding - left;
+    else if (right > element.clientWidth - padding) {
+      dx = element.clientWidth - padding - right;
+    }
+    if (top < padding) dy = padding - top;
+    else if (bottom > element.clientHeight - padding) {
+      dy = element.clientHeight - padding - bottom;
+    }
+
+    if (dx || dy) {
+      setView({
+        ...current,
+        x: current.x + dx,
+        y: current.y + dy,
+      });
+    }
   }, [baseNodes, selectedNodeId]);
 
   useEffect(() => {
@@ -527,12 +567,27 @@ export function BehaviorGraphCanvas({
     node: GraphNode,
   ) => {
     if (event.button !== 0 || spaceRef.current) return;
+    if (node.kind === "start") {
+      event.stopPropagation();
+      focusViewport();
+      onSelectNode(null);
+      onSelectEdge(null);
+      setPendingFrom(null);
+      return;
+    }
     const target = event.target as HTMLElement;
     if (target.closest("[data-port]")) return;
     if (
       target.closest(
-        "input, textarea, select, button, [contenteditable='true'], [data-node-editor]",
+        "input, textarea, select, button, [contenteditable='true']",
       )
+    ) {
+      event.stopPropagation();
+      return;
+    }
+    if (
+      target.closest("[data-node-editor]") &&
+      !target.closest("[data-node-drag-handle]")
     ) {
       event.stopPropagation();
       return;
@@ -746,7 +801,7 @@ export function BehaviorGraphCanvas({
 
   const getBlockMeta = (block: CanvasBehaviorBlock) => {
     if (block.type === "event") {
-      return t("projects.workspace.behavior.startHint");
+      return t("projects.workspace.behavior.eventHint");
     }
     if (block.type === "condition") {
       if (block.conditions?.length) {
@@ -822,6 +877,27 @@ export function BehaviorGraphCanvas({
       ? nodeMap.get(pendingFrom)
       : null;
 
+  const startNode = nodeMap.get(START_NODE_ID);
+  const blockIds = new Set(blocks.map((block) => block.id));
+  const startEdges =
+    startNode && blocks.length
+      ? blocks
+          .filter(
+            (block) =>
+              block.type !== "note" &&
+              !edges.some(
+                (edge) =>
+                  edge.to === block.id && blockIds.has(edge.from),
+              ),
+          )
+          .map((block) => nodeMap.get(block.id))
+          .filter((node): node is GraphNode => Boolean(node))
+          .map((node) => ({
+            id: `${START_NODE_ID}:${node.id}`,
+            path: getEdgePath(startNode, node),
+          }))
+      : [];
+
   return (
     <div
       ref={viewportRef}
@@ -869,6 +945,19 @@ export function BehaviorGraphCanvas({
               <path d="M 0 0 L 10 5 L 0 10 z" />
             </marker>
           </defs>
+          {startEdges.map((edge) => (
+            <g
+              key={edge.id}
+              className={styles.startEdge}
+              aria-hidden="true"
+            >
+              <path
+                className={styles.startEdgeLine}
+                d={edge.path}
+                markerEnd={`url(#${arrowId})`}
+              />
+            </g>
+          ))}
           {edges.map((edge) => {
             const from = nodeMap.get(edge.from);
             const to = nodeMap.get(edge.to);
@@ -942,9 +1031,52 @@ export function BehaviorGraphCanvas({
         </svg>
 
         {renderNodes.map((node) => {
-          const selected = node.id === selectedNodeId;
+          if (node.kind === "start") {
+            return (
+              <div
+                key={node.id}
+                className={`${styles.node} ${styles.startNode}`}
+                data-kind="start"
+                role="group"
+                aria-label={`${t(
+                  "projects.workspace.behavior.startNode",
+                )}: ${t(
+                  "projects.workspace.behavior.startNodeHint",
+                )}`}
+                style={{
+                  left: node.x,
+                  top: node.y,
+                  width: node.width,
+                  height: node.height,
+                }}
+                onPointerDown={(event) =>
+                  handleNodePointerDown(event, node)
+                }
+                onContextMenu={(event) => {
+                  focusViewport();
+                  onSelectNode(null);
+                  onSelectEdge(null);
+                  openContextMenu(event);
+                }}
+              >
+                <span className={styles.startGlyph} aria-hidden="true">
+                  ▶
+                </span>
+                <span className={styles.startText}>
+                  <strong>
+                    {t("projects.workspace.behavior.startNode")}
+                  </strong>
+                  <em>
+                    {t("projects.workspace.behavior.startNodeHint")}
+                  </em>
+                </span>
+              </div>
+            );
+          }
+
           const block = node.block;
-          const isStart = block.type === "event";
+          if (!block) return null;
+          const selected = node.id === selectedNodeId;
           const hasPorts = block.type !== "note";
           const inputActive = Boolean(pendingFrom || connection);
           return (
@@ -952,7 +1084,6 @@ export function BehaviorGraphCanvas({
               key={node.id}
               className={styles.node}
               data-type={block.type}
-              data-start={isStart ? "true" : undefined}
               data-selected={selected ? "true" : undefined}
               data-dragging={drag?.id === node.id ? "true" : undefined}
               style={{
@@ -986,7 +1117,7 @@ export function BehaviorGraphCanvas({
                 openContextMenu(event, { nodeId: node.id });
               }}
             >
-              {hasPorts && !isStart ? (
+              {hasPorts ? (
                 <button
                   className={`${styles.port} ${styles.portIn}`}
                   type="button"
@@ -1012,23 +1143,10 @@ export function BehaviorGraphCanvas({
                 <>
                   <div className={styles.nodeHeader}>
                     <span className={styles.nodeType}>
-                      {isStart ? (
-                        <span
-                          className={styles.startGlyphStub}
-                          aria-hidden="true"
-                        >
-                          ▶
-                        </span>
-                      ) : null}
                       {t(
                         `projects.workspace.behavior.blockTypes.${block.type}`,
                       )}
                     </span>
-                    {isStart ? (
-                      <span className={styles.nodeBadge}>
-                        {t("projects.workspace.behavior.startNodeBadge")}
-                      </span>
-                    ) : null}
                   </div>
                   <div className={styles.nodeBody}>
                     <span className={styles.nodeTitle}>
@@ -1080,21 +1198,21 @@ export function BehaviorGraphCanvas({
         ) : null}
       </div>
 
-      {renderNodes.length === 0 ? (
+      {blocks.length === 0 ? (
         <div className={styles.empty}>
           <div className={styles.emptyCard}>
             <span className={styles.emptyHint}>
               {t("projects.workspace.behavior.emptyHint")}
             </span>
-            {onCreateStart ? (
+            {onCreateEvent ? (
               <button
                 className={styles.emptyAction}
                 type="button"
                 data-canvas-control="true"
-                onClick={onCreateStart}
+                onClick={onCreateEvent}
               >
-                <span aria-hidden="true">▶</span>
-                {t("projects.workspace.behavior.addStart")}
+                <span aria-hidden="true">+</span>
+                {t("projects.workspace.behavior.addEvent")}
               </button>
             ) : null}
           </div>
@@ -1209,8 +1327,10 @@ export function BehaviorGraphCanvas({
 }
 
 function getBlockName(node: GraphNode) {
+  if (node.kind === "start") return "start";
   const block = node.block;
-  if (block.type === "event") return block.event ?? "start";
+  if (!block) return node.id;
+  if (block.type === "event") return block.event ?? "event";
   if (block.type === "condition") {
     if (block.conditions?.length) return "condition-group";
     return block.condition?.source ?? "condition";
