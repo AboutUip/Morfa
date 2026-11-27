@@ -352,6 +352,7 @@
         "dropNodeHint": "可从图层面板拖入节点作为目标",
         "conditionTag": "条件",
         "conditionsTitle": "条件",
+        "conditionGroup": "条件组",
         "addCondition": "添加条件",
         "conditionsEmpty": "没有条件，事件会直接执行动作",
         "conditionHint": "添加条件后，只有满足条件才会执行动作",

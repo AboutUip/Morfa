@@ -994,6 +994,9 @@ function rewriteLegacyBehavior(
     ...(block.condition
       ? { condition: rewriteCondition(block.condition) }
       : {}),
+    ...(block.conditions?.length
+      ? { conditions: block.conditions.map(rewriteCondition) }
+      : {}),
     ...(block.action ? { action: rewriteAction(block.action) } : {}),
   }));
   delete behavior.variables;

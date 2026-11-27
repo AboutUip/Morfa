@@ -637,6 +637,9 @@ export function BehaviorGraphCanvas({
       return t(behaviorEventLabelKey(block.event ?? ""));
     }
     if (block.type === "condition") {
+      if (block.conditions?.length) {
+        return t("projects.workspace.behavior.conditionGroup");
+      }
       const source =
         BEHAVIOR_CONDITION_SOURCES.find(
           (item) => item.source === block.condition?.source,
@@ -656,7 +659,19 @@ export function BehaviorGraphCanvas({
     if (block.type === "event") {
       return getStateName(block.stateId);
     }
-    if (block.type === "condition" && block.condition) {
+    if (block.type === "condition") {
+      if (block.conditions?.length) {
+        return [
+          t(
+            block.conditionMode === "any"
+              ? "projects.workspace.behavior.conditionModeAny"
+              : "projects.workspace.behavior.conditionModeAll",
+          ),
+          `${block.conditions.length}`,
+          t("projects.workspace.behavior.conditionsTitle"),
+        ].join(" · ");
+      }
+      if (!block.condition) return "";
       const condition = block.condition;
       return [
         getPageName(condition.targetId),
@@ -1011,6 +1026,7 @@ function getBlockOrStateName(node: GraphNode) {
   if (!node.block) return node.id;
   if (node.block.type === "event") return node.block.event ?? "event";
   if (node.block.type === "condition") {
+    if (node.block.conditions?.length) return "condition-group";
     return node.block.condition?.source ?? "condition";
   }
   if (node.block.type === "action") {

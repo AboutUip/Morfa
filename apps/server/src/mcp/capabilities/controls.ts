@@ -179,6 +179,19 @@ function cloneControlTree(
     if (!page.behavior) return page.behavior;
     const remapTarget = (value: string | undefined) =>
       value ? idMap.get(value) ?? value : value;
+    const remapCondition = (
+      condition: CanvasBehaviorConditionDto,
+    ): CanvasBehaviorConditionDto => ({
+      ...condition,
+      ...(condition.targetId
+        ? { targetId: remapTarget(condition.targetId) }
+        : {}),
+      ...(condition.source === "controlState" && condition.value
+        ? {
+            value: idMap.get(condition.value) ?? condition.value,
+          }
+        : {}),
+    });
     return {
       ...page.behavior,
       triggers: page.behavior.triggers.map((trigger) => ({
@@ -197,19 +210,7 @@ function cloneControlTree(
         })),
         ...(trigger.conditions
           ? {
-              conditions: trigger.conditions.map((condition) => ({
-                ...condition,
-                ...(condition.targetId
-                  ? { targetId: remapTarget(condition.targetId) }
-                  : {}),
-                ...(condition.source === "controlState" &&
-                condition.value
-                  ? {
-                      value:
-                        idMap.get(condition.value) ?? condition.value,
-                    }
-                  : {}),
-              })),
+              conditions: trigger.conditions.map(remapCondition),
             }
           : {}),
       })),
@@ -240,24 +241,10 @@ function cloneControlTree(
             }
           : {}),
         ...(block.condition
-          ? {
-              condition: {
-                ...block.condition,
-                ...(block.condition.targetId
-                  ? {
-                      targetId: remapTarget(block.condition.targetId),
-                    }
-                  : {}),
-                ...(block.condition.source === "controlState" &&
-                block.condition.value
-                  ? {
-                      value:
-                        idMap.get(block.condition.value) ??
-                        block.condition.value,
-                    }
-                  : {}),
-              },
-            }
+          ? { condition: remapCondition(block.condition) }
+          : {}),
+        ...(block.conditions?.length
+          ? { conditions: block.conditions.map(remapCondition) }
           : {}),
       })),
       edges: page.behavior.edges?.map((edge) => ({
