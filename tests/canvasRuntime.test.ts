@@ -28,7 +28,7 @@ function snapshot(pages: CanvasPage[]) {
   return createRuntimeSnapshot(pages, [], "owner", "owner");
 }
 
-test("runs variable, state and visibility conditions", () => {
+test("runs node data, state and visibility conditions", () => {
   const owner = page(
     "owner",
     {
@@ -40,7 +40,8 @@ test("runs variable, state and visibility conditions", () => {
           conditions: [
             {
               id: "c1",
-              source: "variable",
+              source: "nodeData",
+              targetId: "owner",
               key: "count",
               operator: "gte",
               value: "2",
@@ -57,10 +58,10 @@ test("runs variable, state and visibility conditions", () => {
         },
       ],
       states: [{ id: "default", name: "Default", initial: true }],
-      variables: [{ key: "count", type: "number", initialValue: "0" }],
     },
     { kind: "button", text: "Go" },
   );
+  owner.data = [{ key: "count", type: "number", value: "0" }];
   const next = page("next", undefined, { kind: "text", text: "Next" });
   const runtimeSnapshot = snapshot([owner, next]);
   let state = createRuntimeState(runtimeSnapshot);
@@ -68,7 +69,10 @@ test("runs variable, state and visibility conditions", () => {
   state = dispatchRuntimeEvent(runtimeSnapshot, state, "owner", "click");
   assert.equal(state.currentPageId, "owner");
 
-  state = { ...state, variables: { ...state.variables, count: "2" } };
+  state = {
+    ...state,
+    runtimeNodeData: { owner: { count: "2" } },
+  };
   state = dispatchRuntimeEvent(runtimeSnapshot, state, "owner", "click");
   assert.equal(state.currentPageId, "next");
   assert.deepEqual(state.navigationStack, ["owner"]);
@@ -86,7 +90,8 @@ test("supports any mode and negated conditions", () => {
           conditions: [
             {
               id: "c1",
-              source: "variable",
+              source: "nodeData",
+              targetId: "owner",
               key: "blocked",
               operator: "eq",
               value: "true",
@@ -105,10 +110,10 @@ test("supports any mode and negated conditions", () => {
         },
       ],
       states: [{ id: "default", name: "Default", initial: true }],
-      variables: [{ key: "blocked", type: "boolean", initialValue: "false" }],
     },
     { kind: "button", text: "Go" },
   );
+  owner.data = [{ key: "blocked", type: "boolean", value: "false" }];
   const target = page("target", undefined, { kind: "text", text: "before" });
   const runtimeSnapshot = snapshot([owner, target]);
   let state = createRuntimeState(runtimeSnapshot);
@@ -118,7 +123,7 @@ test("supports any mode and negated conditions", () => {
 
   state = {
     ...state,
-    variables: { ...state.variables, blocked: "true" },
+    runtimeNodeData: { owner: { blocked: "true" } },
     states: { ...state.states, owner: "other" },
   };
   state = dispatchRuntimeEvent(runtimeSnapshot, state, "owner", "click");
@@ -149,7 +154,6 @@ test("evaluates node style conditions against design and runtime styles", () => 
         },
       ],
       states: [{ id: "default", name: "Default", initial: true }],
-      variables: [],
     },
     { kind: "button", text: "Go" },
   );
@@ -173,6 +177,232 @@ test("evaluates node style conditions against design and runtime styles", () => 
   };
   state = dispatchRuntimeEvent(runtimeSnapshot, state, "owner", "click");
   assert.equal(state.overrides.target?.text, "stale");
+});
+
+test("executes v2 block graphs, data writes, and state edges", () => {
+  const owner = page(
+    "owner",
+    {
+      version: 2,
+      triggers: [],
+      states: [
+        { id: "idle", name: "Idle", initial: true },
+        { id: "active", name: "Active" },
+      ],
+      blocks: [
+        {
+          id: "e1",
+          type: "event",
+          x: 0,
+          y: 0,
+          event: "click",
+        },
+        {
+          id: "c1",
+          type: "condition",
+          x: 100,
+          y: 0,
+          condition: {
+            id: "c1",
+            source: "nodeData",
+            targetId: "owner",
+            key: "count",
+            operator: "gte",
+            value: "2",
+          },
+        },
+        {
+          id: "a1",
+          type: "action",
+          x: 200,
+          y: 0,
+          action: {
+            id: "a1",
+            type: "setData",
+            targetId: "owner",
+            key: "count",
+            value: "0",
+          },
+        },
+      ],
+      edges: [
+        { id: "edge1", from: "e1", to: "c1" },
+        { id: "edge2", from: "c1", to: "a1" },
+        { id: "edge3", from: "a1", to: "active" },
+      ],
+    },
+    { kind: "button", text: "Go" },
+  );
+  owner.data = [{ key: "count", type: "number", value: "2" }];
+  const runtimeSnapshot = snapshot([owner]);
+  let state = createRuntimeState(runtimeSnapshot);
+  state = dispatchRuntimeEvent(
+    runtimeSnapshot,
+    state,
+    "owner",
+    "click",
+  );
+  assert.equal(state.runtimeNodeData.owner?.count, "0");
+  assert.equal(state.states.owner, "active");
+
+  state = {
+    ...state,
+    runtimeNodeData: { owner: { count: "1" } },
+    states: { ...state.states, owner: "idle" },
+  };
+  state = dispatchRuntimeEvent(
+    runtimeSnapshot,
+    state,
+    "owner",
+    "click",
+  );
+  assert.equal(state.runtimeNodeData.owner?.count, "1");
+  assert.equal(state.states.owner, "idle");
+});
+
+test("keeps control instance child overrides isolated by instance scope", () => {
+  const control: CanvasPage = {
+    id: "control",
+    name: "Control",
+    x: 0,
+    y: 0,
+    styles: {},
+    nodeKind: "control",
+    control: { status: "compiled", defaultStateId: "state" },
+  };
+  const state: CanvasPage = {
+    id: "state",
+    name: "State",
+    x: 0,
+    y: 0,
+    styles: { width: "100px", height: "100px" },
+    nodeKind: "control-state",
+    controlId: "control",
+  };
+  const child = page(
+    "child",
+    {
+      triggers: [
+        {
+          id: "t1",
+          event: "click",
+          actions: [
+            {
+              id: "a1",
+              type: "setText",
+              targetId: "child",
+              value: "clicked",
+            },
+          ],
+        },
+      ],
+      states: [{ id: "default", name: "Default", initial: true }],
+    },
+    { kind: "button", text: "Child" },
+  );
+  child.parentId = "state";
+  const instance = (id: string): CanvasPage => ({
+    id,
+    name: id,
+    x: 0,
+    y: 0,
+    styles: { width: "100px", height: "100px" },
+    nodeKind: "control-instance",
+    controlId: "control",
+    controlStateId: "state",
+  });
+  const runtimeSnapshot = snapshot([
+    control,
+    state,
+    child,
+    instance("one"),
+    instance("two"),
+  ]);
+  let runtime = createRuntimeState(runtimeSnapshot);
+  runtime = dispatchRuntimeEvent(
+    runtimeSnapshot,
+    runtime,
+    "child",
+    "click",
+    "one",
+  );
+  assert.equal(runtime.overrides["one::child"]?.text, "clicked");
+  assert.equal(runtime.overrides["two::child"], undefined);
+
+  runtime = dispatchRuntimeEvent(
+    runtimeSnapshot,
+    runtime,
+    "child",
+    "click",
+    "two",
+  );
+  assert.equal(runtime.overrides["two::child"]?.text, "clicked");
+  assert.equal(runtime.overrides.child, undefined);
+});
+
+test("switches control instance state through a behavior action", () => {
+  const owner = page(
+    "owner",
+    {
+      triggers: [
+        {
+          id: "t1",
+          event: "click",
+          actions: [
+            {
+              id: "a1",
+              type: "setControlState",
+              targetId: "instance",
+              value: "expanded",
+            },
+          ],
+        },
+      ],
+      states: [{ id: "default", name: "Default", initial: true }],
+    },
+    { kind: "button", text: "More" },
+  );
+  const instance: CanvasPage = {
+    id: "instance",
+    name: "More",
+    x: 0,
+    y: 0,
+    styles: { width: "48px", height: "48px" },
+    nodeKind: "control-instance",
+    controlId: "control",
+    controlStateId: "collapsed",
+  };
+  const control: CanvasPage = {
+    id: "control",
+    name: "More",
+    x: 0,
+    y: 0,
+    styles: { width: "48px", height: "48px" },
+    nodeKind: "control",
+    control: { status: "compiled", defaultStateId: "collapsed" },
+  };
+  const collapsed: CanvasPage = {
+    id: "collapsed",
+    name: "Collapsed",
+    x: 0,
+    y: 0,
+    styles: { width: "48px", height: "48px" },
+    nodeKind: "control-state",
+    controlId: "control",
+  };
+  const expanded: CanvasPage = {
+    id: "expanded",
+    name: "Expanded",
+    x: 0,
+    y: 0,
+    styles: { width: "220px", height: "180px" },
+    nodeKind: "control-state",
+    controlId: "control",
+  };
+  const runtimeSnapshot = snapshot([owner, instance, control, collapsed, expanded]);
+  let state = createRuntimeState(runtimeSnapshot);
+  state = dispatchRuntimeEvent(runtimeSnapshot, state, "owner", "click");
+  assert.equal(state.controlStates.instance, "expanded");
 });
 
 test("state-scoped triggers only fire in their state and style overrides stay runtime-only", () => {
@@ -199,7 +429,6 @@ test("state-scoped triggers only fire in their state and style overrides stay ru
         { id: "default", name: "Default", initial: true },
         { id: "active", name: "Active" },
       ],
-      variables: [],
     },
     { kind: "button", text: "Go" },
   );

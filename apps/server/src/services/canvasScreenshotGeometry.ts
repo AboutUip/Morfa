@@ -6,6 +6,10 @@ import type {
   CanvasPageDto,
 } from "./canvasDocuments.js";
 import { resolvePageFrames } from "./canvasFrames.js";
+import {
+  isControlPage,
+  isControlStatePage,
+} from "./canvasControls.js";
 
 export type CanvasCaptureMode = "page" | "node" | "canvas";
 
@@ -67,7 +71,10 @@ export function resolveCanvasCaptureGeometry(
 
   const pagesById = new Map(pages.map((page) => [page.id, page]));
   const roots = pages.filter(
-    (page) => !page.parentId || !pagesById.has(page.parentId),
+    (page) =>
+      (!page.parentId || !pagesById.has(page.parentId)) &&
+      !isControlPage(page) &&
+      !isControlStatePage(page),
   );
   const rootFrames = roots
     .map((page) => frames.get(page.id) ?? null)

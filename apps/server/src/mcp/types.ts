@@ -16,6 +16,7 @@ export type McpCategory =
   | "canvas"
   | "layout"
   | "behavior"
+  | "controls"
   | "runtime"
   | "screenshot"
   | "assets"

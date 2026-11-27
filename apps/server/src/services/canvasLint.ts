@@ -1,4 +1,5 @@
 import type { CanvasLayoutIssue } from "@morfa/shared/canvas-layout";
+import { getSupportedCanvasEvents } from "@morfa/shared/canvas-behavior";
 
 import type {
   CanvasBehaviorActionDto,
@@ -52,6 +53,10 @@ const BEHAVIOR_ACTION_TYPES = new Set<CanvasBehaviorActionType>([
   "setValue",
   "setChecked",
   "setState",
+  "setControlState",
+  "setData",
+  "incrementData",
+  "toggleData",
   "setVariable",
   "incrementVariable",
   "toggleVariable",
@@ -65,10 +70,10 @@ const TARGET_ACTION_TYPES = new Set<string>([
   "setChecked",
 ]);
 
-const VARIABLE_ACTION_TYPES = new Set<string>([
-  "setVariable",
-  "incrementVariable",
-  "toggleVariable",
+const DATA_ACTION_TYPES = new Set<string>([
+  "setData",
+  "incrementData",
+  "toggleData",
 ]);
 
 function layoutIssueCode(issue: CanvasLayoutIssue) {
@@ -217,16 +222,11 @@ export function lintCanvas(
   }
 
   // 3. Behavior graph validation.
-  const variablePages = new Map<string, Set<string>>();
-
   for (const page of document.pages) {
     const behavior = page.behavior;
     if (!behavior) continue;
 
     const states = new Set(behavior.states.map((state) => state.id));
-    const variables = new Set(
-      behavior.variables.map((variable) => variable.key),
-    );
     const initialStates = behavior.states.filter(
       (state) => state.initial,
     );
@@ -239,24 +239,6 @@ export function lintCanvas(
         pageName: page.name,
         message: `页面「${page.name}」存在 ${initialStates.length} 个初始状态`,
       });
-    }
-
-    const localVariableKeys = new Set<string>();
-    for (const variable of behavior.variables) {
-      if (localVariableKeys.has(variable.key)) {
-        push({
-          severity: "error",
-          code: "BEHAVIOR_VARIABLE_DUPLICATE",
-          pageId: page.id,
-          pageName: page.name,
-          message: `页面「${page.name}」存在重复的变量 ${variable.key}`,
-        });
-      }
-      localVariableKeys.add(variable.key);
-
-      const owners = variablePages.get(variable.key) ?? new Set<string>();
-      owners.add(page.id);
-      variablePages.set(variable.key, owners);
     }
 
     for (const trigger of behavior.triggers) {
@@ -288,28 +270,128 @@ export function lintCanvas(
           page,
           pagesById,
           states,
-          variables,
           push,
         });
       }
     }
-  }
 
-  // Variables are global at runtime; the same key on multiple pages causes a
-  // silent last-wins conflict, so surface it as a project-level warning.
-  for (const [key, ownerIds] of variablePages) {
-    if (ownerIds.size <= 1) continue;
-    const ownerPages = [...ownerIds]
-      .map((id) => pagesById.get(id)?.name ?? id)
-      .sort((left, right) => left.localeCompare(right));
-    push({
-      severity: "warning",
-      code: "BEHAVIOR_VARIABLE_SHARED",
-      pageId: null,
-      pageName: null,
-      pageIds: [...ownerIds].sort(),
-      message: `变量 ${key} 在多个页面中重复定义：${ownerPages.join("、")}`,
-    });
+    const blocks = behavior.blocks ?? [];
+    const edges = behavior.edges ?? [];
+    if (blocks.length > 0 || edges.length > 0) {
+      const supportedEvents = new Set(
+        getSupportedCanvasEvents(page.widget?.kind),
+      );
+      const graphIds = new Set(states);
+      const blockIds = new Set<string>();
+      for (const block of blocks) {
+        if (!block || typeof block.id !== "string") {
+          push({
+            severity: "error",
+            code: "BEHAVIOR_BLOCK_INVALID",
+            pageId: page.id,
+            pageName: page.name,
+            message: `页面「${page.name}」存在缺少 id 的行为块`,
+          });
+          continue;
+        }
+        if (graphIds.has(block.id) || blockIds.has(block.id)) {
+          push({
+            severity: "error",
+            code: "BEHAVIOR_BLOCK_DUPLICATE",
+            pageId: page.id,
+            pageName: page.name,
+            message: `行为块 ${block.id} 与状态或其他块重复`,
+          });
+        }
+        blockIds.add(block.id);
+        graphIds.add(block.id);
+        if (
+          block.type === "event" &&
+          (!block.event || !supportedEvents.has(block.event))
+        ) {
+          push({
+            severity: "error",
+            code: "BEHAVIOR_EVENT_UNSUPPORTED",
+            pageId: page.id,
+            pageName: page.name,
+            message: `当前组件不支持事件 ${block.event ?? ""}`,
+          });
+        }
+        if (block.stateId && !states.has(block.stateId)) {
+          push({
+            severity: "error",
+            code: "BEHAVIOR_STATE_MISSING",
+            pageId: page.id,
+            pageName: page.name,
+            message: `事件块 ${block.id} 引用了不存在的状态 ${block.stateId}`,
+          });
+        }
+        if (block.type === "action" && block.action) {
+          validateAction({
+            action: block.action,
+            page,
+            pagesById,
+            states,
+            push,
+          });
+        }
+        if (
+          block.type === "condition" &&
+          block.condition?.source === "nodeData"
+        ) {
+          const target = block.condition.targetId
+            ? pagesById.get(block.condition.targetId)
+            : page;
+          if (
+            !target ||
+            !block.condition.key ||
+            !target.data?.some(
+              (entry) => entry.key === block.condition?.key,
+            )
+          ) {
+            push({
+              severity: "error",
+              code: "BEHAVIOR_DATA_KEY_MISSING",
+              pageId: page.id,
+              pageName: page.name,
+              message: `节点数据 ${block.condition.key ?? ""} 未声明`,
+            });
+          }
+        }
+      }
+      const edgeIds = new Set<string>();
+      for (const edge of edges) {
+        if (!edge || typeof edge.id !== "string") {
+          push({
+            severity: "error",
+            code: "BEHAVIOR_EDGE_INVALID",
+            pageId: page.id,
+            pageName: page.name,
+            message: `页面「${page.name}」存在缺少 id 的行为连线`,
+          });
+          continue;
+        }
+        if (edgeIds.has(edge.id)) {
+          push({
+            severity: "error",
+            code: "BEHAVIOR_EDGE_DUPLICATE",
+            pageId: page.id,
+            pageName: page.name,
+            message: `行为连线 ${edge.id} 重复`,
+          });
+        }
+        edgeIds.add(edge.id);
+        if (!graphIds.has(edge.from) || !graphIds.has(edge.to)) {
+          push({
+            severity: "error",
+            code: "BEHAVIOR_EDGE_DANGLING",
+            pageId: page.id,
+            pageName: page.name,
+            message: `行为连线 ${edge.id} 连接了不存在的块`,
+          });
+        }
+      }
+    }
   }
 
   const scoped = options.pageIds
@@ -338,10 +420,9 @@ function validateAction(input: {
   page: CanvasPageDto;
   pagesById: Map<string, CanvasPageDto>;
   states: Set<string>;
-  variables: Set<string>;
   push: (item: CanvasLintItem) => void;
 }) {
-  const { action, page, pagesById, states, variables, push } = input;
+  const { action, page, pagesById, states, push } = input;
   const actionType = (action as { type: string }).type;
 
   if (!BEHAVIOR_ACTION_TYPES.has(actionType as CanvasBehaviorActionType)) {
@@ -388,16 +469,46 @@ function validateAction(input: {
     return;
   }
 
-  if (VARIABLE_ACTION_TYPES.has(actionType)) {
-    if (!action.key || !variables.has(action.key)) {
+  if (DATA_ACTION_TYPES.has(actionType)) {
+    const target = action.targetId
+      ? pagesById.get(action.targetId)
+      : page;
+    const entry = target?.data?.find(
+      (item) => item.key === action.key,
+    );
+    if (!target || !action.key || !entry) {
       push({
         severity: "error",
-        code: "BEHAVIOR_VARIABLE_MISSING",
+        code: "BEHAVIOR_DATA_KEY_MISSING",
         pageId: page.id,
         pageName: page.name,
-        message: `页面「${page.name}」的动作 ${action.id} 引用了不存在的变量 ${
+        message: `页面「${page.name}」的动作 ${action.id} 引用了不存在的节点数据 ${
           action.key || "(空)"
         }`,
+        actionId: action.id,
+      });
+    } else if (
+      actionType === "incrementData" &&
+      entry.type !== "number"
+    ) {
+      push({
+        severity: "error",
+        code: "BEHAVIOR_DATA_TYPE_MISMATCH",
+        pageId: page.id,
+        pageName: page.name,
+        message: `节点数据 ${action.key} 不是 number 类型`,
+        actionId: action.id,
+      });
+    } else if (
+      actionType === "toggleData" &&
+      entry.type !== "boolean"
+    ) {
+      push({
+        severity: "error",
+        code: "BEHAVIOR_DATA_TYPE_MISMATCH",
+        pageId: page.id,
+        pageName: page.name,
+        message: `节点数据 ${action.key} 不是 boolean 类型`,
         actionId: action.id,
       });
     }

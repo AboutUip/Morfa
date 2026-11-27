@@ -20,7 +20,8 @@ test("flags unreachable behavior states and missing condition references", () =>
           conditions: [
             {
               id: "c1",
-              source: "variable",
+              source: "nodeData",
+              targetId: "owner",
               key: "missing",
               operator: "eq",
               value: "true",
@@ -34,7 +35,6 @@ test("flags unreachable behavior states and missing condition references", () =>
         { id: "active", name: "Active" },
         { id: "orphan", name: "Orphan" },
       ],
-      variables: [],
     },
   };
 
@@ -50,7 +50,7 @@ test("flags unreachable behavior states and missing condition references", () =>
     issues.some(
       (issue) =>
         issue.messageKey ===
-        "projects.workspace.behavior.lint.variableMissing",
+        "projects.workspace.behavior.lint.dataMissing",
     ),
   );
 });

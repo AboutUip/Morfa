@@ -19,11 +19,21 @@ import { CanvasLeftSidebar } from "./CanvasLeftSidebar";
 import { CanvasRightSidebar } from "./CanvasRightSidebar";
 import { CanvasViewport } from "./CanvasViewport";
 import { CanvasBehaviorEditor } from "./CanvasBehaviorEditor";
+import { CanvasControlToolbar } from "./CanvasControlToolbar";
 import { CanvasSimulator } from "./CanvasSimulator";
 import {
   createRuntimeSnapshot,
   type RuntimeSnapshot,
 } from "./canvasRuntime";
+import {
+  collectControlLintItems,
+  createControlInstancePage,
+  createControlPages,
+  createControlStatePage,
+  getControlDocumentPages,
+  isControlDirty,
+  type CreateControlInput,
+} from "./canvasControls";
 import {
   CANVAS_TOOL_SHORTCUTS,
   type CanvasTool,
@@ -31,9 +41,16 @@ import {
 import {
   clearStyleVariableFallbackCache,
   collectCanvasLint,
+  computeControlSignature,
   createLinkId,
   getCanvasLayout,
+  getControlStates,
+  getControlStateSubtree,
   getPageFrame,
+  isControlDefinitionPage,
+  isControlInstancePage,
+  isControlInternalPage,
+  isHiddenCanvasPage,
   renameLinkReferences,
   renameStyleReferences,
   type CanvasDataEntry,
@@ -57,6 +74,7 @@ import styles from "./ProjectWorkspace.module.css";
 
 const DEFAULT_LINK_COLOR = "#8b8ff0";
 const MIN_LINT_PANEL_HEIGHT = 120;
+const EMPTY_LINKS: CanvasLink[] = [];
 
 function isEditableTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
@@ -87,6 +105,10 @@ function clearPositionAnchors(styles: Record<string, string>) {
 
 function LintMessage({ item }: { item: CanvasLintItem }) {
   const { t } = useTranslation();
+
+  if (item.messageKey) {
+    return <>{t(item.messageKey, item.messageParams ?? {})}</>;
+  }
 
   switch (item.code) {
     case "malformed":
@@ -134,6 +156,8 @@ function LintMessage({ item }: { item: CanvasLintItem }) {
           })}
         </>
       );
+    case "control":
+      return <>{item.expression}</>;
   }
 }
 
@@ -289,6 +313,15 @@ export function ProjectWorkspace({
   const [lintOpen, setLintOpen] = useState(false);
   const [behaviorEditorOpen, setBehaviorEditorOpen] = useState(false);
   const [lintHeight, setLintHeight] = useState(220);
+  const [editingControlId, setEditingControlId] = useState<string | null>(
+    null,
+  );
+  const [editingControlStateId, setEditingControlStateId] = useState<
+    string | null
+  >(null);
+  const [controlLintItems, setControlLintItems] = useState<
+    CanvasLintItem[] | null
+  >(null);
   const [simulator, setSimulator] = useState<{
     snapshot: RuntimeSnapshot;
     sourceSignature: string;
@@ -307,6 +340,46 @@ export function ProjectWorkspace({
     () => collectCanvasLint(pages, links),
     [pages, links],
   );
+  const editingControl = useMemo(
+    () =>
+      editingControlId
+        ? pages.find(
+            (page) =>
+              isControlDefinitionPage(page) &&
+              page.id === editingControlId,
+          ) ?? null
+        : null,
+    [editingControlId, pages],
+  );
+  const editingControlStates = useMemo(
+    () =>
+      editingControlId
+        ? getControlStates(pages, editingControlId)
+        : [],
+    [editingControlId, pages],
+  );
+  const canvasPages = useMemo(() => {
+    if (editingControlId) {
+      return editingControlStateId
+        ? getControlStateSubtree(pages, editingControlStateId)
+        : [];
+    }
+    return pages.filter(
+      (page) => !isControlInternalPage(pages, page),
+    );
+  }, [editingControlId, editingControlStateId, pages]);
+  const canvasLinks = editingControlId ? EMPTY_LINKS : links;
+  const behaviorEditorPages = useMemo(
+    () =>
+      editingControlId
+        ? getControlDocumentPages(pages, editingControlId)
+        : pages,
+    [editingControlId, pages],
+  );
+  const editingControlDirty = editingControlId
+    ? isControlDirty(pages, editingControlId)
+    : false;
+  const displayedLintItems = controlLintItems ?? lintItems;
   const documentSignature = useMemo(
     () => JSON.stringify({ pages, links }),
     [pages, links],
@@ -318,6 +391,40 @@ export function ProjectWorkspace({
   useEffect(() => {
     clearStyleVariableFallbackCache();
   }, [project.id]);
+
+  useEffect(() => {
+    if (!editingControlId) {
+      if (editingControlStateId) setEditingControlStateId(null);
+      return;
+    }
+
+    const control = pages.find(
+      (page) =>
+        isControlDefinitionPage(page) && page.id === editingControlId,
+    );
+    if (!control) {
+      setEditingControlId(null);
+      setEditingControlStateId(null);
+      return;
+    }
+
+    const states = getControlStates(pages, editingControlId);
+    const activeState = editingControlStateId
+      ? states.find((state) => state.id === editingControlStateId)
+      : null;
+    if (activeState) return;
+
+    const fallback =
+      states.find(
+        (state) => state.id === control.control?.defaultStateId,
+      ) ?? states[0];
+    setEditingControlStateId(fallback?.id ?? null);
+    setSelectedPageIds(fallback ? [fallback.id] : []);
+  }, [editingControlId, editingControlStateId, pages]);
+
+  useEffect(() => {
+    setControlLintItems(null);
+  }, [pages, links]);
 
   const commitPages = (update: SetStateAction<CanvasPage[]>) => {
     commit((current) => {
@@ -376,6 +483,244 @@ export function ProjectWorkspace({
     setSelectedLinkId(linkId);
   };
 
+  const enterControlEditor = (
+    controlId: string,
+    requestedStateId?: string | null,
+  ) => {
+    const control = pages.find(
+      (page) =>
+        isControlDefinitionPage(page) && page.id === controlId,
+    );
+    if (!control) return;
+    const states = getControlStates(pages, controlId);
+    const state =
+      (requestedStateId
+        ? states.find((item) => item.id === requestedStateId)
+        : null) ??
+      states.find(
+        (item) => item.id === control.control?.defaultStateId,
+      ) ??
+      states[0] ??
+      null;
+    if (!state) return;
+
+    setEditingControlId(controlId);
+    setEditingControlStateId(state.id);
+    setSelectedLinkId(null);
+    setSelectedPageIds([state.id]);
+    setBehaviorEditorOpen(false);
+    setControlLintItems(null);
+    setActiveTool("select");
+  };
+
+  const exitControlEditor = () => {
+    setEditingControlId(null);
+    setEditingControlStateId(null);
+    setSelectedPageIds([]);
+    setSelectedLinkId(null);
+    setBehaviorEditorOpen(false);
+  };
+
+  const switchControlState = (stateId: string) => {
+    if (!editingControlId) return;
+    const state = getControlStates(pages, editingControlId).find(
+      (item) => item.id === stateId,
+    );
+    if (!state) return;
+    setEditingControlStateId(state.id);
+    setSelectedLinkId(null);
+    setSelectedPageIds([state.id]);
+    setBehaviorEditorOpen(false);
+  };
+
+  const handleCreateControl = (input: CreateControlInput) => {
+    const created = createControlPages(pages, input, {
+      defaultStateName: t(
+        "projects.workspace.controls.defaultStateName",
+      ),
+    });
+    commitPages((current) => [...current, created.control, created.state]);
+    setEditingControlId(created.control.id);
+    setEditingControlStateId(created.state.id);
+    setSelectedLinkId(null);
+    setSelectedPageIds([created.state.id]);
+    setBehaviorEditorOpen(false);
+    setControlLintItems(null);
+    setActiveTool("select");
+  };
+
+  const handleEditControl = (controlId: string) => {
+    enterControlEditor(controlId);
+  };
+
+  const handleAddControlState = () => {
+    if (!editingControl || !editingControl.control) return;
+    const state = createControlStatePage(
+      pages,
+      editingControl,
+      t("projects.workspace.controls.newStateName", {
+        index: getControlStates(pages, editingControl.id).length + 1,
+      }),
+      240,
+      120,
+    );
+
+    commitPages((current) => {
+      const control = current.find(
+        (page) =>
+          isControlDefinitionPage(page) &&
+          page.id === editingControl.id,
+      );
+      if (!control?.control) return current;
+      const existingStates = getControlStates(current, control.id);
+      const defaultStateId =
+        control.control.defaultStateId &&
+        existingStates.some(
+          (item) => item.id === control.control?.defaultStateId,
+        )
+          ? control.control.defaultStateId
+          : state.id;
+
+      return [
+        ...current.map((page) =>
+          page.id === control.id
+            ? {
+                ...page,
+                control: { ...control.control!, defaultStateId },
+              }
+            : page,
+        ),
+        state,
+      ];
+    });
+
+    setEditingControlStateId(state.id);
+    setSelectedLinkId(null);
+    setSelectedPageIds([state.id]);
+    setBehaviorEditorOpen(false);
+  };
+
+  const handleSetDefaultControlState = (stateId: string) => {
+    if (!editingControlId) return;
+    if (
+      !getControlStates(pages, editingControlId).some(
+        (state) => state.id === stateId,
+      )
+    ) {
+      return;
+    }
+    commitPages((current) =>
+      current.map((page) =>
+        isControlDefinitionPage(page) &&
+        page.id === editingControlId &&
+        page.control
+          ? {
+              ...page,
+              control: { ...page.control, defaultStateId: stateId },
+            }
+          : page,
+      ),
+    );
+  };
+
+  const handleCompileControl = (controlId: string) => {
+    const control = pages.find(
+      (page) =>
+        isControlDefinitionPage(page) && page.id === controlId,
+    );
+    if (!control?.control) return false;
+
+    const issues = collectControlLintItems(pages, controlId);
+    const blockingIssues = issues.filter(
+      (issue) => issue.severity === "error",
+    );
+    if (blockingIssues.length > 0) {
+      setControlLintItems(issues);
+      setBehaviorEditorOpen(false);
+      setLintOpen(true);
+      return false;
+    }
+
+    commitPages((current) => {
+      const compiledAt = Date.now();
+      const withStatus = current.map((page) => {
+        if (
+          !isControlDefinitionPage(page) ||
+          page.id !== controlId ||
+          !page.control
+        ) {
+          return page;
+        }
+        return {
+          ...page,
+          control: {
+            ...page.control,
+            status: "compiled" as const,
+            compiledAt,
+            compiledRevision:
+              (page.control.compiledRevision ?? 0) + 1,
+            compiledSig: "",
+          },
+        };
+      });
+      const compiledSig = computeControlSignature(
+        withStatus,
+        controlId,
+      );
+      return withStatus.map((page) =>
+        isControlDefinitionPage(page) &&
+        page.id === controlId &&
+        page.control
+          ? {
+              ...page,
+              control: { ...page.control, compiledSig },
+            }
+          : page,
+      );
+    });
+    setControlLintItems(null);
+    setLintOpen(false);
+    return true;
+  };
+
+  const handleDeleteControl = (controlId: string) => {
+    deletePages([controlId]);
+    if (editingControlId === controlId) {
+      exitControlEditor();
+    }
+  };
+
+  const handleCreateControlInstance = (
+    controlId: string,
+    position: { x: number; y: number; parentId?: string },
+  ) => {
+    if (editingControlId) return;
+    const requestedParent = position.parentId
+      ? pages.find((page) => page.id === position.parentId) ?? null
+      : null;
+    const parent =
+      requestedParent && !isControlInstancePage(requestedParent)
+        ? requestedParent
+        : null;
+    let x = position.x;
+    let y = position.y;
+    if (parent) {
+      const parentFrame = getPageFrame(parent, pages, links);
+      x = position.x - parentFrame.worldX;
+      y = position.y - parentFrame.worldY;
+    }
+
+    const instance = createControlInstancePage(pages, links, controlId, {
+      x,
+      y,
+      ...(parent ? { parentId: parent.id } : {}),
+    });
+    if (!instance) return;
+    commitPages((current) => [...current, instance]);
+    setSelectedLinkId(null);
+    setSelectedPageIds([instance.id]);
+  };
+
   const handleCreatePage = (page: CanvasPage) => {
     commitPages((current) => [...current, page]);
   };
@@ -410,13 +755,19 @@ export function ProjectWorkspace({
           const renamedId = page.id === pageId ? id : page.id;
           const parentId =
             page.parentId === pageId ? id : page.parentId;
-
-          return {
+          const next: CanvasPage = {
             ...page,
             id: renamedId,
             ...(parentId ? { parentId } : {}),
             styles: renameStyleReferences(page.styles, pageId, id),
           };
+
+          if (next.controlId === pageId) next.controlId = id;
+          if (next.controlStateId === pageId) next.controlStateId = id;
+          if (next.control?.defaultStateId === pageId) {
+            next.control = { ...next.control, defaultStateId: id };
+          }
+          return next;
         }),
         links: renameLinkReferences(current.links, pageId, id),
       };
@@ -427,19 +778,73 @@ export function ProjectWorkspace({
         selectedId === pageId ? id : selectedId,
       ),
     );
+    setEditingControlId((current) =>
+      current === pageId ? id : current,
+    );
+    setEditingControlStateId((current) =>
+      current === pageId ? id : current,
+    );
   };
 
   const deletePages = (pageIds: string[]) => {
     if (!pageIds.length) return;
 
     const deleting = new Set<string>();
-    const stack = [...pageIds];
-    while (stack.length) {
-      const id = stack.pop();
-      if (!id || deleting.has(id)) continue;
-      deleting.add(id);
-      for (const page of pages) {
-        if (page.parentId === id) stack.push(page.id);
+    const addSubtree = (rootId: string) => {
+      const stack = [rootId];
+      while (stack.length) {
+        const id = stack.pop();
+        if (!id || deleting.has(id)) continue;
+        deleting.add(id);
+        for (const page of pages) {
+          if (page.parentId === id) stack.push(page.id);
+        }
+      }
+    };
+
+    for (const pageId of pageIds) addSubtree(pageId);
+
+    // Deleting a control definition also removes its variants and any
+    // instances that reference it, otherwise the document would be invalid.
+    for (const page of pages) {
+      if (
+        !isControlDefinitionPage(page) ||
+        !deleting.has(page.id)
+      ) {
+        continue;
+      }
+      for (const state of getControlStates(pages, page.id)) {
+        addSubtree(state.id);
+      }
+      for (const instance of pages) {
+        if (
+          isControlInstancePage(instance) &&
+          instance.controlId === page.id
+        ) {
+          addSubtree(instance.id);
+        }
+      }
+    }
+
+    // A control must always keep at least one state. If a delete request would
+    // remove every variant, keep the states instead of writing an invalid doc.
+    for (const control of pages) {
+      if (
+        !isControlDefinitionPage(control) ||
+        deleting.has(control.id)
+      ) {
+        continue;
+      }
+      const states = getControlStates(pages, control.id);
+      if (states.length === 0) continue;
+      const survivors = states.filter(
+        (state) => !deleting.has(state.id),
+      );
+      if (survivors.length > 0) continue;
+      for (const state of states) {
+        for (const id of getSubtreeIds(pages, state.id)) {
+          deleting.delete(id);
+        }
       }
     }
 
@@ -448,17 +853,94 @@ export function ProjectWorkspace({
         (page) => !deleting.has(page.id),
       );
       if (nextPages.length === current.pages.length) return current;
+
+      const repairedDefaults = nextPages.map((page) => {
+        if (!isControlDefinitionPage(page) || !page.control) return page;
+        const states = getControlStates(nextPages, page.id);
+        if (states.length === 0) return page;
+        if (
+          states.some(
+            (state) => state.id === page.control?.defaultStateId,
+          )
+        ) {
+          return page;
+        }
+        return {
+          ...page,
+          control: {
+            ...page.control,
+            defaultStateId: states[0].id,
+          },
+        };
+      });
+
+      const repairedInstances = repairedDefaults.map((page) => {
+        if (!isControlInstancePage(page)) return page;
+        const control = repairedDefaults.find(
+          (item) =>
+            isControlDefinitionPage(item) &&
+            item.id === page.controlId,
+        );
+        if (!control?.control) return page;
+        const states = getControlStates(repairedDefaults, control.id);
+        if (states.length === 0) return page;
+        if (
+          page.controlStateId &&
+          states.some((state) => state.id === page.controlStateId)
+        ) {
+          return page;
+        }
+        return {
+          ...page,
+          controlStateId: control.control.defaultStateId,
+        };
+      });
+
       return {
-        pages: nextPages,
+        pages: repairedInstances,
         links: current.links.filter(
           (link) =>
             !deleting.has(link.fromId) && !deleting.has(link.toId),
         ),
       };
     });
+
     setSelectedPageIds((current) =>
       current.filter((id) => !deleting.has(id)),
     );
+
+    if (editingControlId && deleting.has(editingControlId)) {
+      exitControlEditor();
+      return;
+    }
+
+    if (
+      editingControlId &&
+      editingControlStateId &&
+      deleting.has(editingControlStateId)
+    ) {
+      const control = pages.find(
+        (page) =>
+          isControlDefinitionPage(page) &&
+          page.id === editingControlId,
+      );
+      const remainingStates = control
+        ? getControlStates(pages, control.id).filter(
+            (state) => !deleting.has(state.id),
+          )
+        : [];
+      const fallback =
+        remainingStates.find(
+          (state) => state.id === control?.control?.defaultStateId,
+        ) ?? remainingStates[0];
+      if (fallback) {
+        setEditingControlStateId(fallback.id);
+        setSelectedLinkId(null);
+        setSelectedPageIds([fallback.id]);
+      } else {
+        exitControlEditor();
+      }
+    }
   };
 
   const handleDeletePage = (pageId: string) => {
@@ -709,6 +1191,10 @@ export function ProjectWorkspace({
         if (!page) return current;
 
         const subtreeIds = getSubtreeIds(current.pages, pageId);
+        // A state root must stay top-level; its parent is always the control
+        // definition, not another canvas page.
+        if (editingControlStateId === pageId) return current;
+
         const pageFrame = getPageFrame(
           page,
           current.pages,
@@ -716,10 +1202,17 @@ export function ProjectWorkspace({
         );
         const centerX = pageFrame.worldX + pageFrame.width / 2;
         const centerY = pageFrame.worldY + pageFrame.height / 2;
+        const parentCandidates = editingControlId
+          ? canvasPages
+          : current.pages.filter(
+              (item) =>
+                !isHiddenCanvasPage(item) &&
+                !isControlInstancePage(item),
+            );
 
         let parentPage: CanvasPage | null = null;
-        for (let index = current.pages.length - 1; index >= 0; index -= 1) {
-          const candidate = current.pages[index];
+        for (let index = parentCandidates.length - 1; index >= 0; index -= 1) {
+          const candidate = parentCandidates[index];
           if (subtreeIds.has(candidate.id)) continue;
           const frame = getPageFrame(
             candidate,
@@ -857,6 +1350,12 @@ export function ProjectWorkspace({
     position: LayerDropPosition,
   ) => {
     if (dragId === targetId) return;
+    if (editingControlStateId) {
+      if (dragId === editingControlStateId) return;
+      if (targetId === editingControlStateId && position !== "inside") {
+        return;
+      }
+    }
 
     commit((current) => {
       const dragPage = current.pages.find((page) => page.id === dragId);
@@ -978,6 +1477,7 @@ export function ProjectWorkspace({
     fromAnchor: CanvasLinkAnchor,
     toAnchor: CanvasLinkAnchor,
   ) => {
+    if (editingControlId) return;
     if (fromId === toId) return;
     const id = createLinkId(links);
     commitLinks((current) => [
@@ -1120,7 +1620,7 @@ export function ProjectWorkspace({
   }, [pages, selectedPageId, t]);
 
   const selectedLink =
-    links.find((link) => link.id === selectedLinkId) ?? null;
+    canvasLinks.find((link) => link.id === selectedLinkId) ?? null;
 
   return (
     <div className={styles.shell} data-project-workspace="true">
@@ -1131,42 +1631,77 @@ export function ProjectWorkspace({
           activeTool={activeTool}
           onToolChange={setActiveTool}
           projectType={project.type}
+          pages={pages}
           snapSettings={snapSettings}
           onSnapSettingsChange={setSnapSettings}
+          onCreateControl={handleCreateControl}
+          onEditControl={handleEditControl}
+          onCompileControl={handleCompileControl}
+          onDeleteControl={handleDeleteControl}
+          onControlDragStart={() => undefined}
         />
 
-        <CanvasViewport
-          label={project.name}
-          activeTool={activeTool}
-          pages={pages}
-          links={links}
-          selectedIds={selectedPageIds}
-          selectedLinkId={selectedLinkId}
-          snapSettings={snapSettings}
-          onSelectPage={selectPage}
-          onSelectPages={selectPages}
-          onSelectLink={selectLink}
-          onCreatePage={handleCreatePage}
-          onCreateLink={handleCreateLink}
-          onDeleteLink={handleDeleteLink}
-          onMovePage={handleMovePage}
-          onMovePageStart={handleMovePageStart}
-          onMovePageEnd={handleMovePageEnd}
-          onResizePage={handleResizePage}
-          onResizePageStart={handleResizePageStart}
-          onResizePageEnd={handleResizePageEnd}
-          onRenamePage={handleRenamePage}
-          onDeletePage={handleDeletePage}
-          onCopyPage={handleCopyPage}
-          onCutPage={handleCutPage}
-          onDuplicatePage={handleDuplicatePage}
-          onPastePage={handlePastePage}
-          onRunPage={handleRunPage}
-        />
+        <div className={styles.canvasColumn}>
+          {editingControl ? (
+            <CanvasControlToolbar
+              control={editingControl}
+              states={editingControlStates}
+              activeStateId={editingControlStateId}
+              dirty={editingControlDirty}
+              onSelectState={switchControlState}
+              onAddState={handleAddControlState}
+              onSetDefaultState={handleSetDefaultControlState}
+              onCompile={() => handleCompileControl(editingControl.id)}
+              onOpenBehavior={() => {
+                setSelectedPageIds([editingControl.id]);
+                setSelectedLinkId(null);
+                setBehaviorEditorOpen(true);
+                setLintOpen(false);
+              }}
+              onExit={exitControlEditor}
+              onRenameControl={(name) =>
+                handleRenamePage(editingControl.id, name)
+              }
+            />
+          ) : null}
+
+          <CanvasViewport
+            label={project.name}
+            activeTool={activeTool}
+            pages={canvasPages}
+            fullPages={pages}
+            links={canvasLinks}
+            selectedIds={selectedPageIds}
+            selectedLinkId={selectedLinkId}
+            snapSettings={snapSettings}
+            onSelectPage={selectPage}
+            onSelectPages={selectPages}
+            onSelectLink={selectLink}
+            onCreatePage={handleCreatePage}
+            onCreateControlInstance={
+              editingControlId ? undefined : handleCreateControlInstance
+            }
+            onCreateLink={handleCreateLink}
+            onDeleteLink={handleDeleteLink}
+            onMovePage={handleMovePage}
+            onMovePageStart={handleMovePageStart}
+            onMovePageEnd={handleMovePageEnd}
+            onResizePage={handleResizePage}
+            onResizePageStart={handleResizePageStart}
+            onResizePageEnd={handleResizePageEnd}
+            onRenamePage={handleRenamePage}
+            onDeletePage={handleDeletePage}
+            onCopyPage={handleCopyPage}
+            onCutPage={handleCutPage}
+            onDuplicatePage={handleDuplicatePage}
+            onPastePage={handlePastePage}
+            onRunPage={handleRunPage}
+          />
+        </div>
 
         <CanvasRightSidebar
-          pages={pages}
-          links={links}
+          pages={canvasPages}
+          links={canvasLinks}
           selectedId={selectedPageId}
           selectedIds={selectedPageIds}
           selectedLink={selectedLink}
@@ -1192,7 +1727,7 @@ export function ProjectWorkspace({
 
       {behaviorEditorOpen ? (
         <CanvasBehaviorEditor
-          pages={pages}
+          pages={behaviorEditorPages}
           pageId={selectedPageId}
           height={lintHeight}
           onHeightChange={setLintHeight}
@@ -1201,10 +1736,13 @@ export function ProjectWorkspace({
         />
       ) : lintOpen ? (
         <CanvasLintPanel
-          items={lintItems}
+          items={displayedLintItems}
           height={lintHeight}
           onHeightChange={setLintHeight}
-          onClose={() => setLintOpen(false)}
+          onClose={() => {
+            setLintOpen(false);
+            setControlLintItems(null);
+          }}
         />
       ) : null}
 
@@ -1307,24 +1845,29 @@ export function ProjectWorkspace({
           className={styles.lintStatusButton}
           type="button"
           data-active={lintOpen}
-          data-clean={lintItems.length === 0}
+          data-clean={displayedLintItems.length === 0}
           onClick={() => {
             setBehaviorEditorOpen(false);
-            setLintOpen((current) => !current);
+            if (lintOpen) {
+              setLintOpen(false);
+              setControlLintItems(null);
+              return;
+            }
+            setLintOpen(true);
           }}
           aria-expanded={lintOpen}
           aria-label={
-            lintItems.length
+            displayedLintItems.length
               ? t("projects.workspace.lint.open", {
-                  count: lintItems.length,
+                  count: displayedLintItems.length,
                 })
               : t("projects.workspace.lint.noProblems")
           }
         >
-          {lintItems.length ? (
+          {displayedLintItems.length ? (
             <>
               <span className={styles.lintStatusMark}>×</span>
-              <span>{lintItems.length}</span>
+              <span>{displayedLintItems.length}</span>
             </>
           ) : (
             <>

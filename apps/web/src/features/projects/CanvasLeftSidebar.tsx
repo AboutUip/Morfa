@@ -20,6 +20,9 @@ import {
   ToolsIcon,
 } from "../../components/icons";
 import type { ProjectType } from "../../lib/api";
+import type { CanvasPage } from "./canvasDocument";
+import type { CreateControlInput } from "./canvasControls";
+import { CanvasComponentsPanel } from "./CanvasComponentsPanel";
 import {
   DEFAULT_CANVAS_SNAP_SETTINGS,
   type CanvasSnapSettings,
@@ -88,10 +91,16 @@ interface CanvasLeftSidebarProps {
   activeTool: CanvasTool;
   onToolChange: (tool: CanvasTool) => void;
   projectType: ProjectType;
+  pages: CanvasPage[];
   snapSettings?: CanvasSnapSettings;
   onSnapSettingsChange: (
     update: (current: CanvasSnapSettings) => CanvasSnapSettings,
   ) => void;
+  onCreateControl: (input: CreateControlInput) => void;
+  onEditControl: (controlId: string) => void;
+  onCompileControl: (controlId: string) => void;
+  onDeleteControl: (controlId: string) => void;
+  onControlDragStart: (controlId: string) => void;
 }
 
 type ComponentTab = "mine" | "market";
@@ -110,8 +119,14 @@ export function CanvasLeftSidebar({
   activeTool,
   onToolChange,
   projectType,
+  pages,
   snapSettings = DEFAULT_CANVAS_SNAP_SETTINGS,
   onSnapSettingsChange,
+  onCreateControl,
+  onEditControl,
+  onCompileControl,
+  onDeleteControl,
+  onControlDragStart,
 }: CanvasLeftSidebarProps) {
   const { t } = useTranslation();
   const [activePanel, setActivePanel] = useState<SidePanel | null>(null);
@@ -474,7 +489,17 @@ export function CanvasLeftSidebar({
                   id="components-panel-mine"
                   role="tabpanel"
                   aria-labelledby="components-tab-mine"
-                />
+                >
+                  <CanvasComponentsPanel
+                    pages={pages}
+                    projectType={projectType}
+                    onCreateControl={onCreateControl}
+                    onEditControl={onEditControl}
+                    onCompileControl={onCompileControl}
+                    onDeleteControl={onDeleteControl}
+                    onControlDragStart={onControlDragStart}
+                  />
+                </div>
               )}
             </div>
           ) : (

@@ -7,6 +7,8 @@ import {
 import type {
   CanvasBehaviorActionDto,
   CanvasBehaviorActionType,
+  CanvasBehaviorBlockDto,
+  CanvasBehaviorEdgeDto,
   CanvasBehaviorConditionDto,
   CanvasBehaviorConditionOperator,
   CanvasBehaviorConditionSource,
@@ -20,6 +22,8 @@ import type {
   CanvasLinkDirection,
   CanvasLinkDto,
   CanvasLinkEdge,
+  CanvasControlMetaDto,
+  CanvasNodeKind,
   CanvasPageDto,
   CanvasWidgetDto,
   CanvasWidgetKind,
@@ -32,10 +36,14 @@ export type CanvasLinkAnchor = CanvasLinkAnchorDto;
 export type CanvasWidget = CanvasWidgetDto;
 export type CanvasBehavior = CanvasBehaviorDto;
 export type CanvasBehaviorAction = CanvasBehaviorActionDto;
+export type CanvasBehaviorBlock = CanvasBehaviorBlockDto;
+export type CanvasBehaviorEdge = CanvasBehaviorEdgeDto;
 export type CanvasBehaviorCondition = CanvasBehaviorConditionDto;
 export type CanvasBehaviorTrigger = CanvasBehaviorTriggerDto;
 export type CanvasBehaviorState = CanvasBehaviorStateDto;
 export type CanvasBehaviorVariable = CanvasBehaviorVariableDto;
+export type CanvasControlMeta = CanvasControlMetaDto;
+export type { CanvasNodeKind };
 export type {
   CanvasBehaviorActionType,
   CanvasBehaviorConditionOperator,
@@ -334,7 +342,8 @@ export type CanvasLintCode =
   | "no-access"
   | "missing-self-key"
   | "missing-node-key"
-  | "layout-invalid";
+  | "layout-invalid"
+  | "control";
 
 export interface CanvasLintItem {
   id: string;
@@ -348,6 +357,9 @@ export interface CanvasLintItem {
   targetName?: string;
   key?: string;
   chain?: string[];
+  /** Set for lint producers that carry a localized message instead of code fields. */
+  messageKey?: string;
+  messageParams?: Record<string, string | number>;
 }
 
 function parseVariableExpression(expression: string) {
@@ -757,6 +769,179 @@ export function projectPointToPageEdge(
     y: 1,
     edge: "bottom",
   };
+}
+
+export function isControlDefinitionPage(page: CanvasPage) {
+  return page.nodeKind === "control";
+}
+
+export function isControlStatePage(page: CanvasPage) {
+  return page.nodeKind === "control-state";
+}
+
+export function isControlInstancePage(page: CanvasPage) {
+  return page.nodeKind === "control-instance";
+}
+
+export function isHiddenCanvasPage(page: CanvasPage) {
+  return (
+    page.nodeKind === "control" || page.nodeKind === "control-state"
+  );
+}
+
+export function isControlInternalPage(
+  pages: CanvasPage[],
+  page: CanvasPage,
+) {
+  const pagesById = new Map(pages.map((item) => [item.id, item]));
+  const visited = new Set<string>();
+  let current: CanvasPage | undefined = page;
+  while (current && !visited.has(current.id)) {
+    visited.add(current.id);
+    if (isHiddenCanvasPage(current)) return true;
+    current = current.parentId
+      ? pagesById.get(current.parentId)
+      : undefined;
+  }
+  return false;
+}
+
+export function getControlDefinitions(pages: CanvasPage[]) {
+  return pages.filter(isControlDefinitionPage);
+}
+
+export function getControlStates(pages: CanvasPage[], controlId: string) {
+  return pages.filter(
+    (page) =>
+      isControlStatePage(page) && page.controlId === controlId,
+  );
+}
+
+export function getControlState(pages: CanvasPage[], stateId: string | undefined) {
+  if (!stateId) return null;
+  return (
+    pages.find(
+      (page) => isControlStatePage(page) && page.id === stateId,
+    ) ?? null
+  );
+}
+
+export function getControlStateSubtree(
+  pages: CanvasPage[],
+  stateId: string,
+) {
+  const state = getControlState(pages, stateId);
+  if (!state) return [];
+  const childrenByParent = new Map<string, CanvasPage[]>();
+  for (const page of pages) {
+    if (!page.parentId || page.nodeKind === "control" ||
+        page.nodeKind === "control-state" ||
+        page.nodeKind === "control-instance") {
+      continue;
+    }
+    const list = childrenByParent.get(page.parentId);
+    if (list) list.push(page);
+    else childrenByParent.set(page.parentId, [page]);
+  }
+  const result: CanvasPage[] = [];
+  const stack = [state];
+  const seen = new Set<string>();
+  while (stack.length) {
+    const page = stack.pop();
+    if (!page || seen.has(page.id)) continue;
+    seen.add(page.id);
+    result.push(page);
+    for (const child of childrenByParent.get(page.id) ?? []) {
+      stack.push(child);
+    }
+  }
+  return result;
+}
+
+export function getControlStateNodes(
+  pages: CanvasPage[],
+  stateId: string,
+) {
+  return getControlStateSubtree(pages, stateId).filter(
+    (page) => page.id !== stateId,
+  );
+}
+
+export function getCompiledControls(pages: CanvasPage[]) {
+  return getControlDefinitions(pages).filter(
+    (page) => page.control?.status === "compiled",
+  );
+}
+
+export function getControlDisplayState(
+  pages: CanvasPage[],
+  instance: CanvasPage,
+) {
+  const control = instance.controlId
+    ? pages.find(
+        (page) =>
+          isControlDefinitionPage(page) && page.id === instance.controlId,
+      )
+    : undefined;
+  const requestedState = instance.controlStateId
+    ? getControlState(pages, instance.controlStateId)
+    : null;
+  const requested =
+    requestedState &&
+    requestedState.controlId === instance.controlId
+      ? requestedState
+      : null;
+  const fallback = control?.control?.defaultStateId
+    ? getControlState(pages, control.control.defaultStateId)
+    : null;
+  return requested ?? fallback ?? null;
+}
+
+export function computeControlSignature(
+  pages: CanvasPage[],
+  controlId: string,
+) {
+  const control = pages.find((page) => page.id === controlId) ?? null;
+  if (!control) return "";
+  const states = getControlStates(pages, controlId)
+    .slice()
+    .sort((left, right) => left.id.localeCompare(right.id))
+    .map((state) => ({
+      id: state.id,
+      name: state.name,
+      styles: state.styles,
+      nodes: getControlStateSubtree(pages, state.id)
+        .filter((page) => page.id !== state.id)
+        .map((page) => ({
+          id: page.id,
+          name: page.name,
+          parentId: page.parentId ?? null,
+          x: page.x,
+          y: page.y,
+          styles: page.styles,
+          widget: page.widget ?? null,
+          data: page.data ?? [],
+          behavior: page.behavior ?? null,
+        })),
+    }));
+  return JSON.stringify({
+    id: control.id,
+    name: control.name,
+    behavior: control.behavior ?? null,
+    states,
+  });
+}
+
+export function computeCanvasPageVisibility(
+  pages: CanvasPage[],
+  editingControlStateId: string | null,
+) {
+  if (!editingControlStateId) {
+    return pages.filter(
+      (page) => !isControlInternalPage(pages, page),
+    );
+  }
+  return getControlStateSubtree(pages, editingControlStateId);
 }
 
 export const SEE_THROUGH_STYLE_KEY = "--morfa-see-through";

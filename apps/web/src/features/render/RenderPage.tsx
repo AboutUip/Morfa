@@ -1,7 +1,10 @@
 import { useEffect, useLayoutEffect, useState } from "react";
 
 import type { CanvasLink, CanvasPage } from "../projects/canvasDocument";
-import { getCanvasLayout } from "../projects/canvasDocument";
+import {
+  getCanvasLayout,
+  isControlInternalPage,
+} from "../projects/canvasDocument";
 import { CanvasNodeView } from "../projects/CanvasNodeView";
 import styles from "./RenderPage.module.css";
 
@@ -88,7 +91,9 @@ function buildScene(payload: RenderPayload): RenderScene {
 
   const pagesById = new Map(payload.pages.map((page) => [page.id, page]));
   const roots = payload.pages.filter(
-    (page) => !page.parentId || !pagesById.has(page.parentId),
+    (page) =>
+      (!page.parentId || !pagesById.has(page.parentId)) &&
+      !isControlInternalPage(payload.pages, page),
   );
   if (roots.length === 0) throw new Error("画布没有可渲染的页面");
 

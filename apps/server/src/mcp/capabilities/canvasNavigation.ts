@@ -242,9 +242,11 @@ export function canvasNavigationCapabilities(): McpCapability[] {
         const behavior = node.behavior
           ? {
               counts: {
+                version: node.behavior.version ?? 1,
                 triggers: node.behavior.triggers.length,
                 states: node.behavior.states.length,
-                variables: node.behavior.variables.length,
+                blocks: node.behavior.blocks?.length ?? 0,
+                edges: node.behavior.edges?.length ?? 0,
               },
               initialStateIds: node.behavior.states
                 .filter((state) => state.initial)
@@ -255,10 +257,7 @@ export function canvasNavigationCapabilities(): McpCapability[] {
                 stateId: trigger.stateId ?? null,
                 actionCount: trigger.actions.length,
               })),
-              variables: node.behavior.variables.map((variable) => ({
-                key: variable.key,
-                type: variable.type,
-              })),
+              data: node.data ?? [],
             }
           : null;
 

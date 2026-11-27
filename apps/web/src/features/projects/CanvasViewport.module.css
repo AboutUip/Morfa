@@ -143,6 +143,14 @@
   pointer-events: none;
 }
 
+.controlPreview {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 .deviceFrame {
   --device-bezel: 9px;
 

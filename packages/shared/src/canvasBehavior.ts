@@ -65,6 +65,10 @@ export const CANVAS_BEHAVIOR_ACTION_TYPES = [
   "setValue",
   "setChecked",
   "setState",
+  "setControlState",
+  "setData",
+  "incrementData",
+  "toggleData",
   "setVariable",
   "incrementVariable",
   "toggleVariable",
@@ -81,7 +85,9 @@ export const CANVAS_BEHAVIOR_STYLE_KEYS = [
 
 export const CANVAS_BEHAVIOR_CONDITION_SOURCES = [
   "variable",
+  "nodeData",
   "state",
+  "controlState",
   "nodeVisible",
   "nodeText",
   "nodeValue",

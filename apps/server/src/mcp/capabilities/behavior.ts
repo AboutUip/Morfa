@@ -17,7 +17,6 @@ import {
   type CanvasBehaviorConditionSource,
   type CanvasBehaviorDto,
   type CanvasBehaviorTriggerDto,
-  type CanvasBehaviorVariableDto,
   type CanvasDocumentDto,
   type CanvasPageDto,
 } from "../../services/canvasDocuments.js";
@@ -73,8 +72,6 @@ const TEXT_KINDS = new Set([
 
 const VALUE_KINDS = new Set(["progress", "slider"]);
 const CHECKED_KINDS = new Set(["checkbox", "radio", "toggle"]);
-const VARIABLE_TYPES = new Set(["text", "number", "boolean", "color"]);
-
 function invalidArgument(field: string, message: string): never {
   throw new ApiError(400, "MCP_INVALID_ARGUMENTS", `参数 ${field} ${message}`);
 }
@@ -136,37 +133,20 @@ function findPage(document: CanvasDocumentDto, pageId: string) {
   return page;
 }
 
-function cloneBehavior(
-  behavior: CanvasBehaviorDto | undefined,
-): CanvasBehaviorDto | undefined {
-  return behavior
-    ? (JSON.parse(JSON.stringify(behavior)) as CanvasBehaviorDto)
-    : undefined;
-}
-
-function aggregateVariables(pages: CanvasPageDto[]) {
-  const map = new Map<string, CanvasBehaviorVariableDto & { pageId: string }>();
-  for (const page of pages) {
-    for (const variable of page.behavior?.variables ?? []) {
-      if (!map.has(variable.key)) {
-        map.set(variable.key, { ...variable, pageId: page.id });
-      }
-    }
-  }
-  return [...map.values()];
-}
-
 function pageSummary(page: CanvasPageDto) {
   return {
     id: page.id,
     name: page.name,
     widgetKind: page.widget?.kind ?? null,
     parentId: page.parentId ?? null,
+    nodeKind: page.nodeKind ?? "page",
     behavior: page.behavior
       ? {
+          version: page.behavior.version ?? 1,
           triggers: page.behavior.triggers.length,
           states: page.behavior.states.length,
-          variables: page.behavior.variables.length,
+          blocks: page.behavior.blocks?.length ?? 0,
+          edges: page.behavior.edges?.length ?? 0,
         }
       : null,
   };
@@ -197,12 +177,13 @@ function validateBehavior(
   if (
     !Array.isArray(behavior.triggers) ||
     !Array.isArray(behavior.states) ||
-    !Array.isArray(behavior.variables)
+    (behavior.blocks !== undefined && !Array.isArray(behavior.blocks)) ||
+    (behavior.edges !== undefined && !Array.isArray(behavior.edges))
   ) {
     issues.push({
       severity: "error",
       code: "BEHAVIOR_STRUCTURE_INVALID",
-      message: "行为图必须包含 triggers、states、variables 数组",
+      message: "行为图必须包含 triggers、states 数组，blocks/edges 必须为数组",
       pageId: page.id,
     });
   }
@@ -212,12 +193,6 @@ function validateBehavior(
     states
       .filter((state) => state && typeof state.id === "string")
       .map((state) => state.id),
-  );
-  const variableTypes = new Map(
-    aggregateVariables(document.pages).map((variable) => [
-      variable.key,
-      variable.type,
-    ]),
   );
   const supportedEvents = new Set(getSupportedCanvasEvents(page.widget?.kind));
   const initialStates = states.filter((state) => state?.initial);
@@ -239,6 +214,8 @@ function validateBehavior(
     });
   }
 
+  const blocks = Array.isArray(behavior.blocks) ? behavior.blocks : [];
+  const edges = Array.isArray(behavior.edges) ? behavior.edges : [];
   const referencedStateIds = new Set(initialStates.map((state) => state.id));
   for (const trigger of triggers) {
     if (trigger?.stateId) referencedStateIds.add(trigger.stateId);
@@ -247,6 +224,15 @@ function validateBehavior(
         referencedStateIds.add(action.value);
       }
     }
+  }
+  for (const block of blocks) {
+    if (block?.stateId) referencedStateIds.add(block.stateId);
+    if (block?.action?.type === "setState" && block.action.value) {
+      referencedStateIds.add(block.action.value);
+    }
+  }
+  for (const edge of edges) {
+    if (stateIds.has(edge.to)) referencedStateIds.add(edge.to);
   }
   for (const state of states) {
     if (!state?.id || referencedStateIds.has(state.id)) continue;
@@ -341,7 +327,6 @@ function validateBehavior(
           action,
           pagesById,
           stateIds,
-          variableTypes,
           trigger,
         ),
       );
@@ -375,10 +360,145 @@ function validateBehavior(
           page,
           condition,
           pagesById,
-          variableTypes,
           trigger,
         ),
       );
+    }
+  }
+
+  const blockIds = new Set<string>();
+  for (const block of blocks) {
+    if (!block || typeof block.id !== "string") {
+      issues.push({
+        severity: "error",
+        code: "BLOCK_INVALID",
+        message: "行为块缺少合法 id",
+        pageId: page.id,
+      });
+      continue;
+    }
+    if (stateIds.has(block.id) || blockIds.has(block.id)) {
+      issues.push({
+        severity: "error",
+        code: "BLOCK_DUPLICATE",
+        message: `行为块 ${block.id} 与状态或其他块重复`,
+        pageId: page.id,
+      });
+    }
+    blockIds.add(block.id);
+    if (block.type === "event") {
+      if (!block.event || !supportedEvents.has(block.event)) {
+        issues.push({
+          severity: "error",
+          code: "EVENT_UNSUPPORTED",
+          message: `当前组件不支持事件 ${block.event ?? ""}`,
+          pageId: page.id,
+        });
+      }
+      if (block.stateId && !stateIds.has(block.stateId)) {
+        issues.push({
+          severity: "error",
+          code: "STATE_MISSING",
+          message: `事件块引用了不存在的状态 ${block.stateId}`,
+          pageId: page.id,
+        });
+      }
+    }
+    if (block.type === "condition") {
+      if (!block.condition) {
+        issues.push({
+          severity: "error",
+          code: "CONDITION_MISSING",
+          message: "条件块缺少条件配置",
+          pageId: page.id,
+        });
+      } else {
+        issues.push(
+          ...validateCondition(
+            page,
+            block.condition,
+            pagesById,
+            {
+              id: block.id,
+              event: "graph",
+              actions: [],
+            },
+          ),
+        );
+      }
+    }
+    if (block.type === "action") {
+      if (!block.action) {
+        issues.push({
+          severity: "error",
+          code: "ACTION_MISSING",
+          message: "动作块缺少动作配置",
+          pageId: page.id,
+        });
+      } else {
+        issues.push(
+          ...validateAction(
+            page,
+            block.action,
+            pagesById,
+            stateIds,
+            {
+              id: block.id,
+              event: "graph",
+              actions: [],
+            },
+          ),
+        );
+      }
+    }
+  }
+
+  const allIds = new Set([...stateIds, ...blockIds]);
+  const edgeIds = new Set<string>();
+  const outgoing = new Set<string>();
+  for (const edge of edges) {
+    if (!edge || typeof edge.id !== "string") {
+      issues.push({
+        severity: "error",
+        code: "EDGE_INVALID",
+        message: "行为连线缺少合法 id",
+        pageId: page.id,
+      });
+      continue;
+    }
+    if (edgeIds.has(edge.id)) {
+      issues.push({
+        severity: "error",
+        code: "EDGE_DUPLICATE",
+        message: `行为连线 ${edge.id} 重复`,
+        pageId: page.id,
+      });
+    }
+    edgeIds.add(edge.id);
+    outgoing.add(edge.from);
+    if (!allIds.has(edge.from) || !allIds.has(edge.to)) {
+      issues.push({
+        severity: "error",
+        code: "EDGE_DANGLING",
+        message: `行为连线 ${edge.id} 连接了不存在的块`,
+        pageId: page.id,
+      });
+    }
+  }
+  for (const block of blocks) {
+    if (
+      block &&
+      (block.type === "event" ||
+        block.type === "condition" ||
+        block.type === "action") &&
+      !outgoing.has(block.id)
+    ) {
+      issues.push({
+        severity: "warning",
+        code: "BLOCK_NO_OUTGOING",
+        message: `行为块 ${block.id} 没有后续连线`,
+        pageId: page.id,
+      });
     }
   }
 
@@ -390,7 +510,6 @@ function validateAction(
   action: CanvasBehaviorActionDto,
   pagesById: Map<string, CanvasPageDto>,
   stateIds: Set<string>,
-  variableTypes: Map<string, string>,
   trigger: CanvasBehaviorTriggerDto,
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -439,36 +558,54 @@ function validateAction(
   }
 
   if (
+    action.type === "setData" ||
+    action.type === "incrementData" ||
+    action.type === "toggleData"
+  ) {
+    const targetId = action.targetId ?? page.id;
+    const target = pagesById.get(targetId);
+    const dataEntry = target?.data?.find(
+      (entry) => entry.key === action.key,
+    );
+    if (!target || !action.key || !dataEntry) {
+      issues.push({
+        ...base,
+        severity: "error",
+        code: "DATA_KEY_MISSING",
+        message: `节点数据 ${action.key ?? ""} 未在 ${target?.name ?? targetId} 声明`,
+      });
+      return issues;
+    }
+    if (action.type === "incrementData" && dataEntry.type !== "number") {
+      issues.push({
+        ...base,
+        severity: "error",
+        code: "DATA_TYPE_MISMATCH",
+        message: `节点数据 ${action.key} 不是 number 类型`,
+      });
+    }
+    if (action.type === "toggleData" && dataEntry.type !== "boolean") {
+      issues.push({
+        ...base,
+        severity: "error",
+        code: "DATA_TYPE_MISMATCH",
+        message: `节点数据 ${action.key} 不是 boolean 类型`,
+      });
+    }
+    return issues;
+  }
+
+  if (
     action.type === "setVariable" ||
     action.type === "incrementVariable" ||
     action.type === "toggleVariable"
   ) {
-    if (!action.key || !variableTypes.has(action.key)) {
-      issues.push({
-        ...base,
-        severity: "error",
-        code: "VARIABLE_MISSING",
-        message: `变量 ${action.key ?? ""} 未声明`,
-      });
-      return issues;
-    }
-    const variableType = variableTypes.get(action.key);
-    if (action.type === "incrementVariable" && variableType !== "number") {
-      issues.push({
-        ...base,
-        severity: "error",
-        code: "VARIABLE_TYPE_MISMATCH",
-        message: `变量 ${action.key} 不是 number 类型`,
-      });
-    }
-    if (action.type === "toggleVariable" && variableType !== "boolean") {
-      issues.push({
-        ...base,
-        severity: "error",
-        code: "VARIABLE_TYPE_MISMATCH",
-        message: `变量 ${action.key} 不是 boolean 类型`,
-      });
-    }
+    issues.push({
+      ...base,
+      severity: "warning",
+      code: "VARIABLE_ACTION_DEPRECATED",
+      message: "旧变量动作会在保存时迁移为节点数据动作",
+    });
     return issues;
   }
 
@@ -533,7 +670,6 @@ function validateCondition(
   page: CanvasPageDto,
   condition: CanvasBehaviorConditionDto,
   pagesById: Map<string, CanvasPageDto>,
-  variableTypes: Map<string, string>,
   trigger: CanvasBehaviorTriggerDto,
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -570,20 +706,43 @@ function validateCondition(
     return issues;
   }
 
+  const targetId = condition.targetId ?? page.id;
+  const target = pagesById.get(targetId);
+
   if (condition.source === "variable") {
-    if (!condition.key || !variableTypes.has(condition.key)) {
+    issues.push({
+      ...base,
+      severity: "warning",
+      code: "VARIABLE_CONDITION_DEPRECATED",
+      message: "旧变量条件会在保存时迁移为节点数据条件",
+    });
+    return issues;
+  }
+
+  if (condition.source === "nodeData" || condition.source === "controlState") {
+    if (!target) {
       issues.push({
         ...base,
         severity: "error",
-        code: "VARIABLE_MISSING",
-        message: `变量 ${condition.key ?? ""} 未声明`,
+        code: "TARGET_MISSING",
+        message: `条件目标 ${targetId} 不存在`,
       });
+      return issues;
+    }
+    if (condition.source === "nodeData") {
+      if (!condition.key || !target.data?.some((entry) => entry.key === condition.key)) {
+        issues.push({
+          ...base,
+          severity: "error",
+          code: "DATA_KEY_MISSING",
+          message: `节点数据 ${condition.key ?? ""} 未在 ${target.name} 声明`,
+        });
+      }
+      return issues;
     }
     return issues;
   }
 
-  const targetId = condition.targetId ?? page.id;
-  const target = pagesById.get(targetId);
   if (!target) {
     issues.push({
       ...base,
@@ -664,8 +823,9 @@ function behaviorResult(
     updatedAt: document.updatedAt,
     pageId: page.id,
     pageName: page.name,
+    nodeKind: page.nodeKind ?? "page",
+    data: page.data ?? [],
     behavior: page.behavior ?? null,
-    variables: aggregateVariables(document.pages),
     supportedEvents: [...getSupportedCanvasEvents(page.widget?.kind)],
     actions: [...CANVAS_BEHAVIOR_ACTION_TYPES],
     conditionSources: [...CANVAS_BEHAVIOR_CONDITION_SOURCES],
@@ -729,7 +889,6 @@ export function behaviorCapabilities(): McpCapability[] {
             projectId,
             updatedAt: document.updatedAt,
             pages: document.pages.map(pageSummary),
-            variables: aggregateVariables(document.pages),
           };
         }
         return behaviorResult(
@@ -1052,9 +1211,10 @@ export function behaviorCapabilities(): McpCapability[] {
             { type: "setValue", needsTarget: true, needsValue: true, config: ["targetId", "value"] },
             { type: "setChecked", needsTarget: true, needsValue: true, config: ["targetId", "value"] },
             { type: "setState", needsTarget: false, needsValue: true, config: ["value"] },
-            { type: "setVariable", needsTarget: false, needsValue: true, config: ["key", "value"] },
-            { type: "incrementVariable", needsTarget: false, needsValue: true, config: ["key", "value"] },
-            { type: "toggleVariable", needsTarget: false, needsValue: false, config: ["key"] },
+            { type: "setControlState", needsTarget: true, needsValue: true, config: ["targetId", "value"] },
+            { type: "setData", needsTarget: true, needsValue: true, config: ["targetId", "key", "value"] },
+            { type: "incrementData", needsTarget: true, needsValue: true, config: ["targetId", "key", "value"] },
+            { type: "toggleData", needsTarget: true, needsValue: false, config: ["targetId", "key"] },
           ],
           styleKeys: [...CANVAS_BEHAVIOR_STYLE_KEYS],
           actionTypes: [...CANVAS_BEHAVIOR_ACTION_TYPES],
@@ -1099,8 +1259,9 @@ export function behaviorCapabilities(): McpCapability[] {
           operators: [...CANVAS_BEHAVIOR_CONDITION_OPERATORS],
           modes: ["all", "any"],
           sourcesDetail: [
-            { source: "variable", config: ["key", "operator", "value", "negate"] },
+            { source: "nodeData", config: ["targetId", "key", "operator", "value", "negate"] },
             { source: "state", config: ["targetId", "operator", "value"] },
+            { source: "controlState", config: ["targetId", "operator", "value"] },
             { source: "nodeVisible", config: ["targetId", "operator", "value"] },
             { source: "nodeText", config: ["targetId", "operator", "value"] },
             { source: "nodeValue", config: ["targetId", "operator", "value"] },
@@ -1109,140 +1270,6 @@ export function behaviorCapabilities(): McpCapability[] {
               config: ["targetId", "key", "operator", "value"],
             },
           ],
-        };
-      },
-    },
-    {
-      name: "update_runtime_variables",
-      title: {
-        "zh-CN": "更新运行时变量",
-        "en-US": "Update runtime variables",
-      },
-      description: {
-        "zh-CN":
-          "更新节点行为中的变量声明。变量在运行时按项目聚合并由模拟器会话持有。",
-        "en-US":
-          "Update variable declarations in a node behavior. Variables are aggregated project-wide at runtime and held by the simulator session.",
-      },
-      usage: {
-        "zh-CN":
-          "variables 是 JSON 数组 [{\"key\":\"count\",\"type\":\"number\",\"initialValue\":\"0\"}]，会整体替换该节点变量。pageId 省略时仅在项目唯一变量所有者可推断时自动选择。",
-        "en-US":
-          "variables is a JSON array [{\"key\":\"count\",\"type\":\"number\",\"initialValue\":\"0\"}] that replaces that node's variables. Omit pageId only when a single variable owner can be inferred.",
-      },
-      returns: {
-        "zh-CN": "更新后的聚合变量与 updatedAt。",
-        "en-US": "Updated aggregated variables and updatedAt.",
-      },
-      category: "behavior",
-      requirements: REQUIRE_NONE,
-      annotations: WRITE_ANNOTATIONS,
-      inputSchema: {
-        type: "object",
-        properties: {
-          projectId: PROJECT_ID_SCHEMA,
-          pageId: PAGE_ID_SCHEMA,
-          variables: {
-            type: "string",
-            description:
-              'JSON array of variables: [{"key":"count","type":"number","initialValue":"0"}].',
-            maxLength: 200000,
-          },
-          expectedUpdatedAt: {
-            type: "number",
-            description:
-              "Optional optimistic concurrency check. Mismatch returns 409.",
-          },
-        },
-        required: ["projectId", "variables"],
-        additionalProperties: false,
-      },
-      examples: [
-        {
-          arguments: {
-            projectId: "project-uuid",
-            pageId: "n1a2b3c4",
-            variables:
-              '[{"key":"count","type":"number","initialValue":"0"},{"key":"loggedIn","type":"boolean","initialValue":"false"}]',
-          },
-        },
-      ],
-      async execute(context, args) {
-        const projectId = readPageIdArgument(args.projectId, "projectId");
-        const document = loadCanvasForWrite(
-          context,
-          projectId,
-          readExpectedUpdatedAt(args),
-        );
-        const parsed = parseJsonArgument(args.variables, "variables");
-        if (!Array.isArray(parsed)) {
-          invalidArgument("variables", "必须是 JSON 数组");
-        }
-        const variables: CanvasBehaviorVariableDto[] = parsed.map(
-          (raw, index) => {
-            if (!isRecord(raw)) {
-              invalidArgument("variables", `第 ${index + 1} 项必须是 JSON 对象`);
-            }
-            const key = typeof raw.key === "string" ? raw.key.trim() : "";
-            if (!key) invalidArgument("variables", `第 ${index + 1} 项缺少 key`);
-            if (typeof raw.type !== "string" || !VARIABLE_TYPES.has(raw.type)) {
-              invalidArgument(
-                "variables",
-                `第 ${index + 1} 项 type 必须是 text / number / boolean / color`,
-              );
-            }
-            return {
-              key,
-              type: raw.type as CanvasBehaviorVariableDto["type"],
-              initialValue:
-                typeof raw.initialValue === "string"
-                  ? raw.initialValue
-                  : "",
-            };
-          },
-        );
-
-        const explicitPageId =
-          typeof args.pageId === "string" && args.pageId.trim()
-            ? readPageIdArgument(args.pageId, "pageId")
-            : "";
-        const owners = document.pages.filter(
-          (page) => page.behavior && page.behavior.variables.length > 0,
-        );
-        const targetPage = explicitPageId
-          ? findPage(document, explicitPageId)
-          : owners.length === 1
-            ? owners[0]
-            : null;
-        if (!targetPage) {
-          throw new ApiError(
-            400,
-            "CANVAS_VARIABLE_OWNER_REQUIRED",
-            owners.length > 1
-              ? "项目存在多个变量所有者，请传入 pageId"
-              : "请传入 pageId 作为变量所有者",
-          );
-        }
-        if (!targetPage.behavior) {
-          targetPage.behavior = {
-            triggers: [],
-            states: [{ id: "default", name: "Default", initial: true }],
-            variables: [],
-          };
-        }
-        targetPage.behavior.variables = variables;
-
-        const saved = saveProjectCanvas(
-          context.user.id,
-          projectId,
-          document.pages,
-          document.links,
-        );
-        return {
-          projectId,
-          pageId: targetPage.id,
-          updatedAt: saved.updatedAt,
-          variables: aggregateVariables(saved.pages),
         };
       },
     },

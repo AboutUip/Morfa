@@ -8,7 +8,7 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import { getPageFrame } from "./canvasDocument";
-import { CanvasNodeView } from "./CanvasNodeView";
+import { CanvasNodeView, type CanvasNodeEventContext } from "./CanvasNodeView";
 import {
   createRuntimeState,
   dispatchPageLoad,
@@ -17,6 +17,7 @@ import {
   type CanvasRuntimeState,
   type RuntimeSnapshot,
 } from "./canvasRuntime";
+import { remapControlStateEvent } from "./canvasControls";
 import styles from "./CanvasSimulator.module.css";
 
 const TITLE_BAR_HEIGHT = 34;
@@ -117,9 +118,27 @@ export function CanvasSimulator({
   const contentTop =
     (screenDesignHeight - currentSize.height * contentScale) / 2;
 
-  const handleRuntimeEvent = (nodeId: string, event: string) => {
+  const handleRuntimeEvent = (
+    nodeId: string,
+    event: string,
+    context?: CanvasNodeEventContext,
+  ) => {
     setRuntime((current) => {
-      const next = dispatchRuntimeEvent(snapshot, current, nodeId, event);
+      let next = dispatchRuntimeEvent(
+        snapshot,
+        current,
+        nodeId,
+        event,
+        context?.controlInstanceId,
+      );
+      if (context?.controlInstanceId) {
+        next = remapControlStateEvent(
+          snapshot.pages,
+          current,
+          next,
+          context.controlInstanceId,
+        );
+      }
       if (next.currentPageId !== current.currentPageId) {
         return stabilizeRuntime(snapshot, next);
       }

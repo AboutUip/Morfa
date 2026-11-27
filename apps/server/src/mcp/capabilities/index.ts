@@ -5,6 +5,7 @@ import { batchCapabilities } from "./batch.js";
 import { behaviorCapabilities } from "./behavior.js";
 import { canvasCapabilities } from "./canvas.js";
 import { canvasNavigationCapabilities } from "./canvasNavigation.js";
+import { controlCapabilities } from "./controls.js";
 import { dataCapabilities } from "./data.js";
 import { layoutCapabilities } from "./layout.js";
 import { lintCapabilities } from "./lint.js";
@@ -27,6 +28,7 @@ export function registerMcpCapabilities(controller: McpController) {
   controller.registerAll(canvasCapabilities());
   controller.registerAll(canvasNavigationCapabilities());
   controller.registerAll(behaviorCapabilities());
+  controller.registerAll(controlCapabilities());
   controller.registerAll(layoutCapabilities());
   controller.registerAll(runtimeCapabilities());
   controller.registerAll(lintCapabilities());

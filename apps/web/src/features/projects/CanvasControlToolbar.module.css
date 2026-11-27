@@ -1,0 +1,230 @@
+.toolbar {
+  display: flex;
+  flex: none;
+  min-height: 42px;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--mf-border);
+  background: var(--mf-bg-panel);
+}
+
+.identity {
+  display: flex;
+  min-width: 140px;
+  align-items: center;
+  gap: 6px;
+}
+
+.kindBadge {
+  flex: none;
+  padding: 2px 5px;
+  border: 1px solid var(--mf-accent-soft);
+  border-radius: 4px;
+  background: var(--mf-accent-soft);
+  color: var(--mf-accent);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.nameInput {
+  width: min(180px, 22vw);
+  min-width: 84px;
+  height: 26px;
+  padding: 0 5px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  outline: none;
+  background: transparent;
+  color: var(--mf-text-primary);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.nameInput:hover {
+  border-color: var(--mf-border);
+}
+
+.nameInput:focus {
+  border-color: var(--mf-accent);
+  background: var(--mf-bg-app);
+  box-shadow: 0 0 0 3px var(--mf-accent-soft);
+}
+
+.dirtyBadge {
+  flex: none;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: var(--mf-warning-soft, var(--mf-accent-soft));
+  color: var(--mf-warning, var(--mf-accent));
+  font-size: 8px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.states {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.stateTab {
+  display: inline-flex;
+  height: 28px;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+  border: 1px solid var(--mf-border);
+  border-radius: 6px;
+  background: var(--mf-bg-app);
+  color: var(--mf-text-secondary);
+  font-size: 10px;
+  white-space: nowrap;
+  transition:
+    border-color var(--mf-transition),
+    background var(--mf-transition),
+    color var(--mf-transition);
+}
+
+.stateTab:hover {
+  border-color: var(--mf-border-strong);
+  color: var(--mf-text-primary);
+}
+
+.stateTab[data-active="true"] {
+  border-color: var(--mf-accent);
+  background: var(--mf-bg-selected);
+  color: var(--mf-text-primary);
+}
+
+.stateName {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.defaultMark {
+  color: var(--mf-accent);
+  font-size: 8px;
+  font-weight: 600;
+}
+
+.addStateButton {
+  display: inline-flex;
+  height: 28px;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+  padding: 0 8px;
+  border: 1px dashed var(--mf-border-strong);
+  border-radius: 6px;
+  color: var(--mf-text-tertiary);
+  font-size: 10px;
+  white-space: nowrap;
+  transition:
+    border-color var(--mf-transition),
+    color var(--mf-transition);
+}
+
+.addStateButton span {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.addStateButton:hover {
+  border-color: var(--mf-accent);
+  color: var(--mf-text-primary);
+}
+
+.actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+}
+
+.ghostButton,
+.compileButton,
+.exitButton {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  padding: 0 9px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    background var(--mf-transition),
+    border-color var(--mf-transition),
+    color var(--mf-transition);
+}
+
+.ghostButton {
+  border: 1px solid var(--mf-border);
+  background: var(--mf-bg-app);
+  color: var(--mf-text-secondary);
+}
+
+.ghostButton:hover {
+  border-color: var(--mf-border-strong);
+  color: var(--mf-text-primary);
+}
+
+.compileButton {
+  border: 1px solid var(--mf-accent);
+  background: var(--mf-accent);
+  color: #ffffff;
+}
+
+.compileButton:hover {
+  filter: brightness(1.08);
+}
+
+.exitButton {
+  border: 1px solid var(--mf-border-strong);
+  background: var(--mf-bg-app);
+  color: var(--mf-text-primary);
+}
+
+.exitButton:hover {
+  border-color: var(--mf-accent);
+  background: var(--mf-bg-hover);
+}
+
+@media (max-width: 900px) {
+  .toolbar {
+    flex-wrap: wrap;
+  }
+
+  .identity {
+    flex: 1;
+  }
+
+  .states {
+    order: 3;
+    flex-basis: 100%;
+  }
+
+  .actions {
+    order: 2;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stateTab,
+  .addStateButton,
+  .ghostButton,
+  .compileButton,
+  .exitButton {
+    transition: none;
+  }
+}

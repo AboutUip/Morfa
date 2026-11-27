@@ -1,10 +1,16 @@
 import type {
   CanvasBehaviorAction,
   CanvasBehaviorCondition,
+  CanvasBehaviorEdge,
   CanvasBehaviorTrigger,
   CanvasLink,
   CanvasPage,
   CanvasWidget,
+} from "./canvasDocument";
+import {
+  getControlState,
+  getControlStateSubtree,
+  getEffectivePageData,
 } from "./canvasDocument";
 import { getInitialBehaviorState } from "./canvasBehavior";
 
@@ -27,7 +33,8 @@ export interface RuntimeNodeOverrides {
 export interface CanvasRuntimeState {
   currentPageId: string;
   navigationStack: string[];
-  variables: Record<string, string>;
+  runtimeNodeData: Record<string, Record<string, string>>;
+  controlStates: Record<string, string>;
   states: Record<string, string>;
   overrides: Record<string, RuntimeNodeOverrides>;
 }
@@ -83,25 +90,54 @@ export function getPageSubtreeIds(pages: CanvasPage[], pageId: string) {
 export function createRuntimeState(
   snapshot: RuntimeSnapshot,
 ): CanvasRuntimeState {
-  const variables: Record<string, string> = {};
   const states: Record<string, string> = {};
 
   for (const page of snapshot.pages) {
-    if (page.behavior) {
-      for (const variable of page.behavior.variables) {
-        variables[variable.key] = variable.initialValue;
-      }
-    }
     states[page.id] = getInitialBehaviorState(page);
   }
 
   return {
     currentPageId: snapshot.entryPageId,
     navigationStack: [],
-    variables,
+    runtimeNodeData: {},
+    controlStates: {},
     states,
     overrides: {},
   };
+}
+
+export function getRuntimeNodeKey(scope: string | undefined, nodeId: string) {
+  return scope ? `${scope}::${nodeId}` : nodeId;
+}
+
+function isInsideControlState(
+  pages: CanvasPage[],
+  page: CanvasPage,
+) {
+  const pagesById = new Map(pages.map((item) => [item.id, item]));
+  const visited = new Set<string>();
+  let current: CanvasPage | undefined = page;
+  while (current && !visited.has(current.id)) {
+    visited.add(current.id);
+    if (current.nodeKind === "control-state") return true;
+    current = current.parentId
+      ? pagesById.get(current.parentId)
+      : undefined;
+  }
+  return false;
+}
+
+function resolveRuntimeTargetKey(
+  snapshot: RuntimeSnapshot,
+  scope: string | undefined,
+  targetId: string | undefined,
+) {
+  if (!scope || !targetId) return targetId;
+  const target = snapshot.pages.find((page) => page.id === targetId);
+  if (!target) return targetId;
+  return isInsideControlState(snapshot.pages, target)
+    ? getRuntimeNodeKey(scope, targetId)
+    : targetId;
 }
 
 function getOverrides(
@@ -144,6 +180,23 @@ function resetPageRuntime(
   }
 }
 
+function resetControlStateRuntime(
+  state: CanvasRuntimeState,
+  snapshot: RuntimeSnapshot,
+  instanceId: string,
+  stateId: string | undefined,
+) {
+  if (!stateId) return;
+  const statePage = getControlState(snapshot.pages, stateId);
+  if (!statePage) return;
+  for (const page of getControlStateSubtree(snapshot.pages, stateId)) {
+    const key = getRuntimeNodeKey(instanceId, page.id);
+    delete state.overrides[key];
+    const nextState = getInitialBehaviorState(page);
+    state.states[key] = nextState;
+  }
+}
+
 function parseBoolean(value: string | undefined, fallback = false) {
   if (value === "true") return true;
   if (value === "false") return false;
@@ -155,12 +208,52 @@ function parseNumber(value: string | undefined, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function getNodeDataValue(
+  snapshot: RuntimeSnapshot,
+  state: CanvasRuntimeState,
+  nodeId: string,
+  key: string,
+  scope?: string,
+) {
+  const runtimeKey = getRuntimeNodeKey(scope, nodeId);
+  const override = state.runtimeNodeData[runtimeKey]?.[key];
+  if (override !== undefined) return override;
+  const page = snapshot.pages.find((item) => item.id === nodeId);
+  if (!page) return "";
+  return (
+    getEffectivePageData(
+      snapshot.pages,
+      snapshot.links,
+      page,
+    ).get(key) ?? ""
+  );
+}
+
+function setNodeDataValue(
+  state: CanvasRuntimeState,
+  nodeId: string,
+  key: string,
+  value: string,
+  scope?: string,
+) {
+  const runtimeKey = getRuntimeNodeKey(scope, nodeId);
+  const values = state.runtimeNodeData[runtimeKey] ?? {};
+  state.runtimeNodeData[runtimeKey] = { ...values, [key]: value };
+}
+
 function applyAction(
   snapshot: RuntimeSnapshot,
   state: CanvasRuntimeState,
   owner: CanvasPage,
   action: CanvasBehaviorAction,
+  scope?: string,
 ) {
+  const ownerKey = getRuntimeNodeKey(scope, owner.id);
+  const targetKey = resolveRuntimeTargetKey(
+    snapshot,
+    scope,
+    action.targetId,
+  );
   switch (action.type) {
     case "navigate": {
       if (!action.pageId || action.pageId === state.currentPageId) return;
@@ -171,9 +264,9 @@ function applyAction(
       return;
     }
     case "setStyle": {
-      if (!action.targetId || !action.key) return;
-      const overrides = getOverrides(state, action.targetId);
-      setOverride(state, action.targetId, {
+      if (!targetKey || !action.key) return;
+      const overrides = getOverrides(state, targetKey);
+      setOverride(state, targetKey, {
         styles: {
           ...overrides.styles,
           [action.key]: action.value ?? "",
@@ -182,52 +275,109 @@ function applyAction(
       return;
     }
     case "setText": {
-      if (!action.targetId) return;
-      setOverride(state, action.targetId, { text: action.value ?? "" });
+      if (!targetKey) return;
+      setOverride(state, targetKey, { text: action.value ?? "" });
       return;
     }
     case "setVisible": {
-      if (!action.targetId) return;
-      setOverride(state, action.targetId, {
+      if (!targetKey) return;
+      setOverride(state, targetKey, {
         visible: parseBoolean(action.value, true),
       });
       return;
     }
     case "setValue": {
-      if (!action.targetId) return;
-      setOverride(state, action.targetId, {
+      if (!targetKey) return;
+      setOverride(state, targetKey, {
         value: parseNumber(action.value),
       });
       return;
     }
     case "setChecked": {
-      if (!action.targetId) return;
-      setOverride(state, action.targetId, {
+      if (!targetKey) return;
+      setOverride(state, targetKey, {
         checked: parseBoolean(action.value),
       });
       return;
     }
     case "setState": {
-      if (action.value) state.states[owner.id] = action.value;
+      if (action.value) state.states[ownerKey] = action.value;
       return;
     }
-    case "setVariable": {
-      if (!action.key) return;
-      state.variables[action.key] = action.value ?? "";
+    case "setControlState": {
+      if (!action.value) return;
+      const targetId = action.targetId ?? owner.id;
+      const instance = snapshot.pages.find(
+        (page) => page.id === targetId,
+      );
+      const previousState =
+        state.controlStates[targetId] ??
+        instance?.controlStateId;
+      resetControlStateRuntime(
+        state,
+        snapshot,
+        targetId,
+        previousState,
+      );
+      resetControlStateRuntime(
+        state,
+        snapshot,
+        targetId,
+        action.value,
+      );
+      state.controlStates[targetId] = action.value;
       return;
     }
-    case "incrementVariable": {
+    case "setData": {
       if (!action.key) return;
-      const current = parseNumber(state.variables[action.key], 0);
-      state.variables[action.key] = String(
-        current + parseNumber(action.value, 0),
+      setNodeDataValue(
+        state,
+        action.targetId ?? owner.id,
+        action.key,
+        action.value ?? "",
+        scope,
       );
       return;
     }
-    case "toggleVariable": {
+    case "incrementData": {
       if (!action.key) return;
-      state.variables[action.key] =
-        state.variables[action.key] === "true" ? "false" : "true";
+      const targetId = action.targetId ?? owner.id;
+      const current = parseNumber(
+        getNodeDataValue(
+          snapshot,
+          state,
+          targetId,
+          action.key,
+          scope,
+        ),
+        0,
+      );
+      setNodeDataValue(
+        state,
+        targetId,
+        action.key,
+        String(current + parseNumber(action.value, 0)),
+        scope,
+      );
+      return;
+    }
+    case "toggleData": {
+      if (!action.key) return;
+      const targetId = action.targetId ?? owner.id;
+      const current = getNodeDataValue(
+        snapshot,
+        state,
+        targetId,
+        action.key,
+        scope,
+      );
+      setNodeDataValue(
+        state,
+        targetId,
+        action.key,
+        current === "true" ? "false" : "true",
+        scope,
+      );
       return;
     }
   }
@@ -239,10 +389,11 @@ function getRuntimeNodeValue(
   nodeId: string,
   source: CanvasBehaviorCondition["source"],
   styleKey?: string,
+  scope?: string,
 ) {
   const node = snapshot.pages.find((item) => item.id === nodeId);
   if (!node) return "";
-  const overrides = state.overrides[nodeId];
+  const overrides = state.overrides[getRuntimeNodeKey(scope, nodeId)];
 
   if (source === "nodeStyle") {
     if (!styleKey) return "";
@@ -250,7 +401,10 @@ function getRuntimeNodeValue(
   }
 
   if (source === "state") {
-    return state.states[nodeId] ?? getInitialBehaviorState(node);
+    return (
+      state.states[getRuntimeNodeKey(scope, nodeId)] ??
+      getInitialBehaviorState(node)
+    );
   }
   if (source === "nodeVisible") {
     if (overrides?.visible !== undefined) {
@@ -272,17 +426,30 @@ export function evaluateBehaviorCondition(
   state: CanvasRuntimeState,
   owner: CanvasPage,
   condition: CanvasBehaviorCondition,
+  scope?: string,
 ): boolean {
+  const targetId = condition.targetId ?? owner.id;
   let actual: string;
-  if (condition.source === "variable") {
-    actual = condition.key ? state.variables[condition.key] ?? "" : "";
+  if (condition.source === "nodeData") {
+    actual = condition.key
+      ? getNodeDataValue(
+          snapshot,
+          state,
+          targetId,
+          condition.key,
+          scope,
+        )
+      : "";
+  } else if (condition.source === "controlState") {
+    actual = state.controlStates[targetId] ?? "";
   } else {
     actual = getRuntimeNodeValue(
       snapshot,
       state,
-      condition.targetId ?? owner.id,
+      targetId,
       condition.source,
       condition.key,
+      scope,
     );
   }
 
@@ -322,16 +489,17 @@ export function evaluateTriggerConditions(
   state: CanvasRuntimeState,
   owner: CanvasPage,
   trigger: CanvasBehaviorTrigger,
+  scope?: string,
 ): boolean {
   const conditions = trigger.conditions ?? [];
   if (conditions.length === 0) return true;
   if (trigger.conditionMode === "any") {
     return conditions.some((condition) =>
-      evaluateBehaviorCondition(snapshot, state, owner, condition),
+      evaluateBehaviorCondition(snapshot, state, owner, condition, scope),
     );
   }
   return conditions.every((condition) =>
-    evaluateBehaviorCondition(snapshot, state, owner, condition),
+    evaluateBehaviorCondition(snapshot, state, owner, condition, scope),
   );
 }
 
@@ -340,12 +508,13 @@ function executeTrigger(
   state: CanvasRuntimeState,
   owner: CanvasPage,
   trigger: CanvasBehaviorTrigger,
+  scope?: string,
 ) {
   let remaining = 200;
   for (const action of trigger.actions) {
     if (remaining <= 0) break;
     remaining -= 1;
-    applyAction(snapshot, state, owner, action);
+    applyAction(snapshot, state, owner, action, scope);
   }
 }
 
@@ -356,19 +525,110 @@ function getMatchingTriggers(page: CanvasPage, event: string) {
   );
 }
 
+function executeBehaviorGraph(
+  snapshot: RuntimeSnapshot,
+  state: CanvasRuntimeState,
+  owner: CanvasPage,
+  event: string,
+  scope?: string,
+) {
+  const behavior = owner.behavior;
+  if (!behavior?.blocks?.length) return false;
+  const ownerKey = getRuntimeNodeKey(scope, owner.id);
+
+  const blocks = new Map(
+    behavior.blocks.map((block) => [block.id, block]),
+  );
+  const states = new Map(
+    behavior.states.map((item) => [item.id, item]),
+  );
+  const outgoing = new Map<string, CanvasBehaviorEdge[]>();
+  for (const edge of behavior.edges ?? []) {
+    const list = outgoing.get(edge.from);
+    if (list) list.push(edge);
+    else outgoing.set(edge.from, [edge]);
+  }
+
+  const currentState =
+    state.states[ownerKey] ?? getInitialBehaviorState(owner);
+  const starts = behavior.blocks.filter(
+    (block) =>
+      block.type === "event" &&
+      block.event === event &&
+      (!block.stateId || block.stateId === currentState),
+  );
+
+  for (const start of starts) {
+    const stack: { id: string; visited: Set<string> }[] = [
+      { id: start.id, visited: new Set([start.id]) },
+    ];
+    let steps = 0;
+
+    while (stack.length && steps < 200) {
+      const current = stack.pop();
+      if (!current) break;
+      steps += 1;
+      const block = blocks.get(current.id);
+      const targetState = states.get(current.id);
+
+      if (targetState) {
+        state.states[ownerKey] = targetState.id;
+        continue;
+      }
+      if (!block) continue;
+
+      if (block.type === "condition") {
+        if (
+          !block.condition ||
+          !evaluateBehaviorCondition(
+            snapshot,
+            state,
+            owner,
+            block.condition,
+            scope,
+          )
+        ) {
+          continue;
+        }
+      } else if (block.type === "action" && block.action) {
+        applyAction(snapshot, state, owner, block.action, scope);
+      } else if (block.type === "event") {
+        // Entry block: flow continues through outgoing edges.
+      }
+
+      for (const edge of outgoing.get(current.id) ?? []) {
+        if (current.visited.has(edge.to)) continue;
+        const visited = new Set(current.visited);
+        visited.add(edge.to);
+        stack.push({ id: edge.to, visited });
+      }
+    }
+  }
+
+  return true;
+}
+
 export function dispatchRuntimeEvent(
   snapshot: RuntimeSnapshot,
   previous: CanvasRuntimeState,
   nodeId: string,
   event: string,
+  scope?: string,
 ): CanvasRuntimeState {
   const page = snapshot.pages.find((item) => item.id === nodeId);
   if (!page) return previous;
+  const ownerKey = getRuntimeNodeKey(scope, page.id);
 
   const next: CanvasRuntimeState = {
     ...previous,
     navigationStack: [...previous.navigationStack],
-    variables: { ...previous.variables },
+    runtimeNodeData: Object.fromEntries(
+      Object.entries(previous.runtimeNodeData).map(([id, values]) => [
+        id,
+        { ...values },
+      ]),
+    ),
+    controlStates: { ...previous.controlStates },
     states: { ...previous.states },
     overrides: Object.fromEntries(
       Object.entries(previous.overrides).map(([id, value]) => [
@@ -378,15 +638,27 @@ export function dispatchRuntimeEvent(
     ),
   };
 
-  const currentState = next.states[page.id] ?? getInitialBehaviorState(page);
+  if (page.behavior?.blocks?.length) {
+    executeBehaviorGraph(snapshot, next, page, event, scope);
+    return next;
+  }
+
+  const currentState =
+    next.states[ownerKey] ?? getInitialBehaviorState(page);
   const triggers = getMatchingTriggers(page, event).filter(
     (trigger) =>
       (!trigger.stateId || trigger.stateId === currentState) &&
-      evaluateTriggerConditions(snapshot, next, page, trigger),
+      evaluateTriggerConditions(
+        snapshot,
+        next,
+        page,
+        trigger,
+        scope,
+      ),
   );
 
   for (const trigger of triggers) {
-    executeTrigger(snapshot, next, page, trigger);
+    executeTrigger(snapshot, next, page, trigger, scope);
   }
 
   return next;

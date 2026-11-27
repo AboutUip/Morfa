@@ -2,6 +2,8 @@ import type { CSSProperties } from "react";
 
 import type { CanvasLink, CanvasPage } from "./canvasDocument";
 import {
+  getControlDisplayState,
+  getControlState,
   getPageFrame,
   resolveStyleVariables,
 } from "./canvasDocument";
@@ -47,6 +49,13 @@ function hasBehaviorTrigger(page: CanvasPage, event: string) {
   );
 }
 
+export interface CanvasNodeEventContext {
+  /** Set when the event originates inside a control instance. */
+  controlInstanceId?: string;
+  /** The hidden control definition page that owns the instance. */
+  controlDefinitionId?: string;
+}
+
 export interface CanvasNodeViewProps {
   page: CanvasPage;
   pages: CanvasPage[];
@@ -56,7 +65,13 @@ export interface CanvasNodeViewProps {
   /** Canvas mode places root pages at their padded world position. */
   position?: { left: number; top: number };
   runtime?: CanvasRuntimeState;
-  onEvent?: (nodeId: string, event: string) => void;
+  onEvent?: (
+    nodeId: string,
+    event: string,
+    context?: CanvasNodeEventContext,
+  ) => void;
+  /** Inherited by all state children so runtime can target the instance. */
+  controlInstanceId?: string;
   depth?: number;
   maxDepth?: number;
 }
@@ -74,6 +89,7 @@ export function CanvasNodeView({
   position,
   runtime,
   onEvent,
+  controlInstanceId,
   depth = 0,
   maxDepth = 8,
 }: CanvasNodeViewProps) {
@@ -83,17 +99,32 @@ export function CanvasNodeView({
   for (const [key, value] of Object.entries(resolved)) {
     if (!FRAME_MANAGED_STYLES.has(key)) cssStyles[key] = value;
   }
-  const overrides = runtime?.overrides[page.id];
+  const runtimeKey = controlInstanceId
+    ? `${controlInstanceId}::${page.id}`
+    : page.id;
+  const overrides = runtime?.overrides[runtimeKey];
   const left = position?.left ?? (root ? 0 : frame.localX);
   const top = position?.top ?? (root ? 0 : frame.localY);
+  const controlStateId =
+    page.nodeKind === "control-instance"
+      ? runtime?.controlStates[page.id] ?? page.controlStateId
+      : undefined;
+  const controlState =
+    page.nodeKind === "control-instance"
+      ? getControlState(pages, controlStateId) ??
+        getControlDisplayState(pages, page)
+      : null;
+  const controlStateFrame = controlState
+    ? getPageFrame(controlState, pages, links)
+    : null;
   const nodeStyle: CSSProperties = {
     ...toReactStyle(cssStyles),
     ...(runtimeStyleVariables(overrides) as CSSProperties),
     position: position ? "absolute" : root ? "relative" : "absolute",
     left,
     top,
-    width: frame.width,
-    height: frame.height,
+    width: controlStateFrame?.width ?? frame.width,
+    height: controlStateFrame?.height ?? frame.height,
     overflow: "hidden",
   };
   const children =
@@ -101,12 +132,32 @@ export function CanvasNodeView({
       ? pages.filter((item) => item.parentId === page.id)
       : [];
   const widget = applyWidgetRuntimeOverrides(page.widget, overrides);
-  const clickable = Boolean(onEvent) && hasBehaviorTrigger(page, "click");
   const hoverable =
     Boolean(onEvent) &&
     (hasBehaviorTrigger(page, "hoverEnter") ||
       hasBehaviorTrigger(page, "hoverLeave"));
-
+  const owningControl =
+    page.nodeKind === "control-instance" && page.controlId
+      ? pages.find(
+          (item) =>
+            item.nodeKind === "control" && item.id === page.controlId,
+        ) ?? null
+      : null;
+  const controlDefinitionId =
+    owningControl?.id ??
+    (controlInstanceId && page.nodeKind === "control-state"
+      ? page.controlId
+      : undefined);
+  const eventContext =
+    controlInstanceId || controlDefinitionId
+      ? { controlInstanceId, controlDefinitionId }
+      : undefined;
+  const clickable =
+    Boolean(onEvent) &&
+    (hasBehaviorTrigger(page, "click") ||
+      Boolean(
+        owningControl && hasBehaviorTrigger(owningControl, "click"),
+      ));
   return (
     <div
       className={styles.node}
@@ -120,7 +171,13 @@ export function CanvasNodeView({
         clickable
           ? (event) => {
               event.stopPropagation();
-              onEvent?.(page.id, "click");
+              onEvent?.(page.id, "click", eventContext);
+              if (
+                owningControl &&
+                hasBehaviorTrigger(owningControl, "click")
+              ) {
+                onEvent?.(owningControl.id, "click", eventContext);
+              }
             }
           : undefined
       }
@@ -130,7 +187,13 @@ export function CanvasNodeView({
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault();
                 event.stopPropagation();
-                onEvent?.(page.id, "click");
+                onEvent?.(page.id, "click", eventContext);
+                if (
+                  owningControl &&
+                  hasBehaviorTrigger(owningControl, "click")
+                ) {
+                  onEvent?.(owningControl.id, "click", eventContext);
+                }
               }
             }
           : undefined
@@ -139,7 +202,7 @@ export function CanvasNodeView({
         hoverable
           ? (event) => {
               event.stopPropagation();
-              onEvent?.(page.id, "hoverEnter");
+              onEvent?.(page.id, "hoverEnter", eventContext);
             }
           : undefined
       }
@@ -147,18 +210,34 @@ export function CanvasNodeView({
         hoverable
           ? (event) => {
               event.stopPropagation();
-              onEvent?.(page.id, "hoverLeave");
+              onEvent?.(page.id, "hoverLeave", eventContext);
             }
           : undefined
       }
     >
-      {widget ? (
+      {page.nodeKind === "control-instance" ? (
+        controlState ? (
+          <CanvasNodeView
+            page={controlState}
+            pages={pages}
+            links={links}
+            root
+            position={{ left: 0, top: 0 }}
+            runtime={runtime}
+            onEvent={onEvent}
+            controlInstanceId={page.id}
+            depth={depth + 1}
+            maxDepth={maxDepth}
+          />
+        ) : null
+      ) : widget ? (
         <CanvasWidgetView
           widget={widget}
           style={runtimeStyleVariables(overrides) as CSSProperties}
         />
       ) : null}
-      {children.map((child) => (
+      {page.nodeKind !== "control-instance" &&
+      children.map((child) => (
         <CanvasNodeView
           key={child.id}
           page={child}
@@ -166,6 +245,7 @@ export function CanvasNodeView({
           links={links}
           runtime={runtime}
           onEvent={onEvent}
+          controlInstanceId={controlInstanceId}
           depth={depth + 1}
           maxDepth={maxDepth}
         />

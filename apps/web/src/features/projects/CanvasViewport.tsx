@@ -36,6 +36,8 @@ import {
   CONTAINER_DRAG_MIME,
   getMarketItem,
 } from "./componentMarket";
+import { CONTROL_DRAG_MIME } from "./canvasControls";
+import { CanvasNodeView } from "./CanvasNodeView";
 import { CanvasWidgetView } from "./CanvasWidgetView";
 import styles from "./CanvasViewport.module.css";
 
@@ -163,6 +165,11 @@ interface CanvasViewportProps {
   label: string;
   activeTool: CanvasTool;
   pages: CanvasPage[];
+  /**
+   * Full document used to resolve control state content for instances. The
+   * `pages` prop still only contains visible top-level nodes.
+   */
+  fullPages?: CanvasPage[];
   links: CanvasLink[];
   selectedIds: string[];
   selectedLinkId: string | null;
@@ -171,6 +178,10 @@ interface CanvasViewportProps {
   onSelectPages: (pageIds: string[]) => void;
   onSelectLink: (linkId: string) => void;
   onCreatePage: (page: CanvasPage) => void;
+  onCreateControlInstance?: (
+    controlId: string,
+    position: { x: number; y: number; parentId?: string },
+  ) => void;
   onCreateLink: (
     fromId: string,
     toId: string,
@@ -307,7 +318,7 @@ function findLinkSourcePageAt(
 
   for (let index = pages.length - 1; index >= 0; index -= 1) {
     const page = pages[index];
-    if (page.parentId) continue;
+    if (page.parentId || page.nodeKind === "control-instance") continue;
     const frame = layout.get(page.id);
     if (!frame) continue;
     if (
@@ -362,7 +373,13 @@ function findLinkTargetPageAt(
 
   for (let index = pages.length - 1; index >= 0; index -= 1) {
     const page = pages[index];
-    if (page.id === excludeId || page.parentId) continue;
+    if (
+      page.id === excludeId ||
+      page.parentId ||
+      page.nodeKind === "control-instance"
+    ) {
+      continue;
+    }
     const frame = layout.get(page.id);
     if (!frame) continue;
     if (
@@ -735,6 +752,7 @@ export function CanvasViewport({
   label,
   activeTool,
   pages,
+  fullPages,
   links,
   selectedIds,
   selectedLinkId,
@@ -743,6 +761,7 @@ export function CanvasViewport({
   onSelectPages,
   onSelectLink,
   onCreatePage,
+  onCreateControlInstance,
   onCreateLink,
   onDeleteLink,
   onMovePage,
@@ -761,6 +780,7 @@ export function CanvasViewport({
 }: CanvasViewportProps) {
   const { t } = useTranslation();
   const layout = getCanvasLayout(pages, links);
+  const renderPages = fullPages ?? pages;
   const viewportRef = useRef<HTMLElement>(null);
   const [view, setView] = useState<CanvasView>({
     x: 0,
@@ -1686,9 +1706,11 @@ export function CanvasViewport({
   };
 
   const handleDragOver = (event: ReactDragEvent<HTMLElement>) => {
-    if (
-      !Array.from(event.dataTransfer.types).includes(CONTAINER_DRAG_MIME)
-    ) {
+    const types = Array.from(event.dataTransfer.types);
+    const acceptsControl =
+      Boolean(onCreateControlInstance) &&
+      types.includes(CONTROL_DRAG_MIME);
+    if (!types.includes(CONTAINER_DRAG_MIME) && !acceptsControl) {
       return;
     }
 
@@ -1705,6 +1727,28 @@ export function CanvasViewport({
   };
 
   const handleDrop = (event: ReactDragEvent<HTMLElement>) => {
+    const controlId = event.dataTransfer.getData(CONTROL_DRAG_MIME);
+    if (controlId) {
+      if (!onCreateControlInstance) return;
+
+      event.preventDefault();
+      setDropActive(false);
+
+      const rect = event.currentTarget.getBoundingClientRect();
+      const currentView = viewRef.current;
+      const worldX =
+        (event.clientX - rect.left - currentView.x) / currentView.zoom;
+      const worldY =
+        (event.clientY - rect.top - currentView.y) / currentView.zoom;
+      const parentPage = findPageAt(pages, layout, worldX, worldY);
+      onCreateControlInstance(controlId, {
+        x: worldX,
+        y: worldY,
+        ...(parentPage ? { parentId: parentPage.id } : {}),
+      });
+      return;
+    }
+
     const containerId = event.dataTransfer.getData(CONTAINER_DRAG_MIME);
     if (!containerId) return;
 
@@ -1807,7 +1851,14 @@ export function CanvasViewport({
     const fromPage = pages.find((page) => page.id === link.fromId);
     const toPage = pages.find((page) => page.id === link.toId);
     if (!fromPage || !toPage) return [];
-    if (fromPage.parentId || toPage.parentId) return [];
+    if (
+      fromPage.parentId ||
+      toPage.parentId ||
+      fromPage.nodeKind === "control-instance" ||
+      toPage.nodeKind === "control-instance"
+    ) {
+      return [];
+    }
 
     const from = toScreenPoint(
       getLinkAnchorPoint(fromPage, link.fromAnchor, pages, links),
@@ -2033,6 +2084,19 @@ export function CanvasViewport({
               {page.widget ? (
                 <div className={styles.widgetLayer}>
                   <CanvasWidgetView widget={page.widget} />
+                </div>
+              ) : null}
+
+              {page.nodeKind === "control-instance" ? (
+                <div className={styles.controlPreview} aria-hidden="true">
+                  <CanvasNodeView
+                    page={page}
+                    pages={renderPages}
+                    links={links}
+                    root
+                    position={{ left: 0, top: 0 }}
+                    maxDepth={8}
+                  />
                 </div>
               ) : null}
 

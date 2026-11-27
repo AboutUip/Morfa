@@ -121,6 +121,10 @@ export type CanvasBehaviorActionType =
   | "setValue"
   | "setChecked"
   | "setState"
+  | "setControlState"
+  | "setData"
+  | "incrementData"
+  | "toggleData"
   | "setVariable"
   | "incrementVariable"
   | "toggleVariable";
@@ -136,7 +140,9 @@ export interface CanvasBehaviorActionDto {
 
 export type CanvasBehaviorConditionSource =
   | "variable"
+  | "nodeData"
   | "state"
+  | "controlState"
   | "nodeVisible"
   | "nodeText"
   | "nodeValue"
@@ -175,6 +181,33 @@ export interface CanvasBehaviorStateDto {
   id: string;
   name: string;
   initial?: boolean;
+  x?: number;
+  y?: number;
+}
+
+export type CanvasBehaviorBlockType =
+  | "event"
+  | "condition"
+  | "action"
+  | "note";
+
+export interface CanvasBehaviorBlockDto {
+  id: string;
+  type: CanvasBehaviorBlockType;
+  x: number;
+  y: number;
+  event?: string;
+  stateId?: string;
+  condition?: CanvasBehaviorConditionDto;
+  action?: CanvasBehaviorActionDto;
+  text?: string;
+}
+
+export interface CanvasBehaviorEdgeDto {
+  id: string;
+  from: string;
+  to: string;
+  label?: string;
 }
 
 export interface CanvasBehaviorVariableDto {
@@ -184,9 +217,30 @@ export interface CanvasBehaviorVariableDto {
 }
 
 export interface CanvasBehaviorDto {
+  version?: 2;
   triggers: CanvasBehaviorTriggerDto[];
   states: CanvasBehaviorStateDto[];
-  variables: CanvasBehaviorVariableDto[];
+  /** v2 graph. When present it is the source of truth. */
+  blocks?: CanvasBehaviorBlockDto[];
+  edges?: CanvasBehaviorEdgeDto[];
+  /** Legacy v1 field. Migrated to node data on load and never edited again. */
+  variables?: CanvasBehaviorVariableDto[];
+}
+
+export type CanvasNodeKind =
+  | "page"
+  | "control"
+  | "control-state"
+  | "control-instance";
+
+export interface CanvasControlMetaDto {
+  status: "draft" | "compiled";
+  defaultStateId: string;
+  description?: string;
+  target?: "software" | "website" | "both";
+  compiledAt?: number;
+  compiledRevision?: number;
+  compiledSig?: string;
 }
 
 export interface CanvasPageDto {
@@ -195,12 +249,16 @@ export interface CanvasPageDto {
   x: number;
   y: number;
   styles: Record<string, string>;
+  nodeKind?: CanvasNodeKind;
   frame?: "iphone" | "android" | "watch";
   lockedSize?: boolean;
   parentId?: string;
   data?: CanvasDataEntryDto[];
   widget?: CanvasWidgetDto;
   behavior?: CanvasBehaviorDto;
+  control?: CanvasControlMetaDto;
+  controlId?: string;
+  controlStateId?: string;
 }
 
 export type CanvasLinkDirection = "one-way" | "two-way";
@@ -290,6 +348,7 @@ export type McpCategory =
   | "canvas"
   | "layout"
   | "behavior"
+  | "controls"
   | "runtime"
   | "screenshot"
   | "assets"
