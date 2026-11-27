@@ -164,8 +164,8 @@ function applyLayoutPatch(page: CanvasPageDto, patch: LayoutPatch) {
   if (patch.hasX) page.x = patch.x as number;
   if (patch.hasY) page.y = patch.y as number;
 
-  // x/y are world coordinates. Any explicit edge anchor would win over them
-  // in the resolver, so moving by coordinates also removes all four anchors.
+  // x/y are offsets from the parent, or world coordinates on a root.
+  // An edge anchor would override them, so a coordinate move clears all four.
   if (patch.hasX || patch.hasY) {
     clearPositionAnchors(page.styles);
   }
@@ -268,9 +268,9 @@ export function layoutCapabilities(): McpCapability[] {
       },
       description: {
         "zh-CN":
-          "用一组布局字段更新页面：世界坐标、宽高、四边锚点与最小/最大尺寸。x/y 会清除四边锚点。",
+          "用一组布局字段更新页面：相对父节点的 x/y、宽高、四边锚点与最小/最大尺寸。根节点的 x/y 是世界坐标。设置 x/y 会清除四边锚点。",
         "en-US":
-          "Update a page with layout fields: world position, size, edge anchors, and min/max constraints. Setting x/y clears all four edge anchors.",
+          "Update a page with layout fields: x/y offset from the parent, size, edge anchors, and min/max constraints. A root node's x/y is its world position. Setting x/y clears all four edge anchors.",
       },
       usage: {
         "zh-CN":

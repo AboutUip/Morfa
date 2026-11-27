@@ -335,3 +335,11 @@ export function getWidgetStyleFields(
   if (!kind) return [];
   return SCHEMAS[kind] ?? [];
 }
+
+export function collectWidgetStyleKeys(): string[] {
+  const keys = new Set<string>();
+  for (const fields of Object.values(SCHEMAS)) {
+    for (const field of fields ?? []) keys.add(field.key);
+  }
+  return [...keys];
+}

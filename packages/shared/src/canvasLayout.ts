@@ -599,19 +599,21 @@ export function resolveCanvasLayout(
     let worldX: number;
     let worldY: number;
     if (parentFrame) {
+      // 没有 left/right、top/bottom 时，x/y 是相对父节点的偏移。
+      // 世界坐标由父节点推出来，拖动父节点时子节点跟着走。
       if (left !== null) {
         worldX = parentFrame.worldX + left;
       } else if (right !== null) {
         worldX = parentFrame.worldX + parentFrame.width - right - width;
       } else {
-        worldX = node.x;
+        worldX = parentFrame.worldX + node.x;
       }
       if (top !== null) {
         worldY = parentFrame.worldY + top;
       } else if (bottom !== null) {
         worldY = parentFrame.worldY + parentFrame.height - bottom - height;
       } else {
-        worldY = node.y;
+        worldY = parentFrame.worldY + node.y;
       }
     } else {
       worldX = left ?? node.x;
@@ -636,6 +638,42 @@ export function resolveCanvasLayout(
 
   for (const node of nodes) resolveNode(node, 0);
   return frames;
+}
+
+/**
+ * 把旧文档里“子节点 x/y 就是世界坐标”换成相对父节点的偏移。
+ * 根节点不变。转换后世界位置保持原样。
+ */
+export function convertStoredWorldPositions<
+  T extends { id: string; parentId?: string; x: number; y: number },
+>(nodes: T[]): T[] {
+  const nodesById = new Map(nodes.map((node) => [node.id, node]));
+  const world = new Map<string, { x: number; y: number }>();
+  const visiting = new Set<string>();
+
+  const place = (node: T): { x: number; y: number } => {
+    const cached = world.get(node.id);
+    if (cached) return cached;
+    if (visiting.has(node.id)) return { x: node.x, y: node.y };
+    visiting.add(node.id);
+
+    const storedX = node.x;
+    const storedY = node.y;
+    const parent = node.parentId
+      ? nodesById.get(node.parentId)
+      : undefined;
+    if (parent) {
+      const parentWorld = place(parent);
+      node.x = storedX - parentWorld.x;
+      node.y = storedY - parentWorld.y;
+    }
+    const result = { x: storedX, y: storedY };
+    world.set(node.id, result);
+    return result;
+  };
+
+  for (const node of nodes) place(node);
+  return nodes;
 }
 
 /**

@@ -248,6 +248,9 @@ function cloneControlTree(
         ...(block.conditions?.length
           ? { conditions: block.conditions.map(remapCondition) }
           : {}),
+        ...(block.nodeId
+          ? { nodeId: remapTarget(block.nodeId) }
+          : {}),
       })),
       edges: page.behavior.edges?.map((edge) => ({
         ...edge,

@@ -1,8 +1,11 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -11,6 +14,7 @@ export type ThemeMode = "system" | "light" | "dark";
 export type ResolvedTheme = "light" | "dark";
 
 const THEME_STORAGE_KEY = "morfa.theme";
+const THEME_TRANSITION_MS = 320;
 
 function readStoredMode(): ThemeMode {
   try {
@@ -40,20 +44,55 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [mode, setModeState] = useState<ThemeMode>(readStoredMode);
   const [systemTheme, setSystemTheme] =
     useState<ResolvedTheme>(readSystemTheme);
+  const transitionTimer = useRef<number | null>(null);
 
   const resolved: ResolvedTheme = mode === "system" ? systemTheme : mode;
+
+  const animateThemeChange = useCallback((update: () => void) => {
+    if (
+      typeof window === "undefined" ||
+      typeof document === "undefined" ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      update();
+      return;
+    }
+
+    const root = document.documentElement;
+    root.dataset.themeTransition = "true";
+    update();
+
+    if (transitionTimer.current !== null) {
+      window.clearTimeout(transitionTimer.current);
+    }
+    transitionTimer.current = window.setTimeout(() => {
+      delete root.dataset.themeTransition;
+      transitionTimer.current = null;
+    }, THEME_TRANSITION_MS);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (transitionTimer.current !== null) {
+        window.clearTimeout(transitionTimer.current);
+        delete document.documentElement.dataset.themeTransition;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const query = window.matchMedia("(prefers-color-scheme: dark)");
     const onChange = (event: MediaQueryListEvent) => {
-      setSystemTheme(event.matches ? "dark" : "light");
+      animateThemeChange(() => {
+        setSystemTheme(event.matches ? "dark" : "light");
+      });
     };
 
     query.addEventListener("change", onChange);
     return () => query.removeEventListener("change", onChange);
-  }, []);
+  }, [animateThemeChange]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const root = document.documentElement;
     root.dataset.theme = resolved;
     root.dataset.themeMode = mode;
@@ -71,17 +110,17 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
       if (event.key === THEME_STORAGE_KEY) {
-        setModeState(readStoredMode());
+        animateThemeChange(() => setModeState(readStoredMode()));
       }
     };
 
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, []);
+  }, [animateThemeChange]);
 
   const value = useMemo<ThemeContextValue>(() => {
     const setMode = (next: ThemeMode) => {
-      setModeState(next);
+      animateThemeChange(() => setModeState(next));
       try {
         if (next === "system") {
           localStorage.removeItem(THEME_STORAGE_KEY);
@@ -99,7 +138,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       setMode,
       toggle: () => setMode(resolved === "dark" ? "light" : "dark"),
     };
-  }, [mode, resolved]);
+  }, [mode, resolved, animateThemeChange]);
 
   return (
     <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { projectCanvasApi } from "../../lib/api";
 import { projectsStore } from "../../lib/projects";
+import { liftSharedBehaviors } from "./canvasBehavior";
 import type {
   CanvasDocument,
   CanvasLink,
@@ -57,6 +58,7 @@ export function useProjectCanvas(projectId: string) {
         body: JSON.stringify({
           pages: snapshot.pages,
           links: snapshot.links,
+          behavior: snapshot.behavior ?? null,
         }),
       },
     ).catch(() => {
@@ -84,6 +86,7 @@ export function useProjectCanvas(projectId: string) {
           projectId,
           parsed.pages,
           parsed.links,
+          parsed.behavior ?? null,
         );
         lastSavedRef.current = snapshot;
         projectsStore.touch(projectId, response.updatedAt);
@@ -122,14 +125,15 @@ export function useProjectCanvas(projectId: string) {
       .then((response) => {
         if (cancelled) return;
 
-        const nextDocument: CanvasDocument = {
+        const stored: CanvasDocument = {
           pages: response.pages,
           links: response.links ?? [],
+          ...(response.behavior ? { behavior: response.behavior } : {}),
         };
-        const serialized = JSON.stringify(nextDocument);
+        const nextDocument = liftSharedBehaviors(stored);
         documentRef.current = nextDocument;
-        pendingRef.current = serialized;
-        lastSavedRef.current = serialized;
+        pendingRef.current = JSON.stringify(nextDocument);
+        lastSavedRef.current = JSON.stringify(stored);
         setDocument(nextDocument);
         loadedRef.current = true;
         setLoaded(true);
@@ -185,10 +189,27 @@ export function useProjectCanvas(projectId: string) {
     };
   }, [projectId]);
 
+  const flushNow = async () => {
+    clearSaveTimer();
+    await flush();
+  };
+
+  const adoptRemote = (next: CanvasDocument) => {
+    const lifted = liftSharedBehaviors(next);
+    const serialized = JSON.stringify(lifted);
+    documentRef.current = lifted;
+    pendingRef.current = serialized;
+    lastSavedRef.current = serialized;
+    setDocument(lifted);
+  };
+
   return {
     pages: document.pages as CanvasPage[],
     links: document.links as CanvasLink[],
+    behavior: document.behavior,
     setDocument,
     loaded,
+    flushNow,
+    adoptRemote,
   };
 }

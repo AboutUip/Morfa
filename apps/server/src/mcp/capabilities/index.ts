@@ -8,6 +8,7 @@ import { canvasCapabilities } from "./canvas.js";
 import { canvasNavigationCapabilities } from "./canvasNavigation.js";
 import { controlCapabilities } from "./controls.js";
 import { dataCapabilities } from "./data.js";
+import { designCapabilities } from "./design.js";
 import { layoutCapabilities } from "./layout.js";
 import { lintCapabilities } from "./lint.js";
 import { registerMetaCapabilities } from "./meta.js";
@@ -27,6 +28,7 @@ export function registerMcpCapabilities(controller: McpController) {
   controller.registerAll(projectCapabilities());
   controller.registerAll(assetCapabilities());
   controller.registerAll(canvasCapabilities());
+  controller.registerAll(designCapabilities());
   controller.registerAll(canvasNavigationCapabilities());
   controller.registerAll(behaviorCapabilities());
   controller.registerAll(controlCapabilities());

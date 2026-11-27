@@ -1,5 +1,9 @@
 import { ApiError } from "../lib/errors.js";
-import type { McpInputSchema, McpPropertySchema } from "./types.js";
+import type {
+  McpInputSchema,
+  McpObjectSchema,
+  McpPropertySchema,
+} from "./types.js";
 
 function invalid(field: string, message: string): never {
   throw new ApiError(
@@ -34,10 +38,47 @@ function validateProperty(
     if (schema.maximum !== undefined && value > schema.maximum) {
       invalid(field, `不能大于 ${schema.maximum}`);
     }
+  } else if (schema.type === "array") {
+    if (!Array.isArray(value)) invalid(field, "必须是数组");
+    if (schema.minItems !== undefined && value.length < schema.minItems) {
+      invalid(field, `至少需要 ${schema.minItems} 项`);
+    }
+    if (schema.maxItems !== undefined && value.length > schema.maxItems) {
+      invalid(field, `不能超过 ${schema.maxItems} 项`);
+    }
+    if (schema.items) {
+      value.forEach((item, index) => {
+        validateObject(`${field}[${index}]`, item, schema.items as McpObjectSchema);
+      });
+    }
+    return;
   }
 
   if (schema.enum && !schema.enum.includes(value as string)) {
     invalid(field, `必须是 ${schema.enum.join(" / ")} 之一`);
+  }
+}
+
+function validateObject(
+  field: string,
+  value: unknown,
+  schema: McpObjectSchema,
+) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    invalid(field, "必须是对象");
+  }
+  const record = value as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    if (!(key in schema.properties)) {
+      invalid(field, `包含未知字段 ${key}`);
+    }
+  }
+  for (const key of schema.required ?? []) {
+    if (record[key] === undefined) invalid(`${field}.${key}`, "不能为空");
+  }
+  for (const [key, property] of Object.entries(schema.properties)) {
+    if (record[key] === undefined) continue;
+    validateProperty(`${field}.${key}`, record[key], property);
   }
 }
 

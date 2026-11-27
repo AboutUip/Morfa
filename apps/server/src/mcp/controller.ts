@@ -277,4 +277,44 @@ export class McpController {
 
     return { name, data: result };
   }
+
+  get(name: string): McpCapability | undefined {
+    return this.capabilities.get(name);
+  }
+
+  agentTools(): McpCapability[] {
+    return [...this.capabilities.values()].sort((left, right) =>
+      left.name.localeCompare(right.name),
+    );
+  }
+
+  private sessionKey(userId: string): ApiKeyRow {
+    return {
+      id: `agent:${userId}`,
+      user_id: userId,
+      name: "工作区 Agent",
+      token_hash: "",
+      token_prefix: "agent",
+      allow_vcode: 0,
+      allow_password: 0,
+      last_used_at: null,
+      created_at: 0,
+      updated_at: 0,
+    };
+  }
+
+  invokeForUser(
+    user: UserRow,
+    origin: string,
+    name: string,
+    input: unknown,
+  ): Promise<McpInvocation> {
+    return this.invoke(
+      this.sessionKey(user.id),
+      user,
+      origin,
+      name,
+      input,
+    );
+  }
 }

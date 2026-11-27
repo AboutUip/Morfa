@@ -10,6 +10,7 @@ import {
 } from "../../services/canvasDocuments.js";
 import {
   collectSubtreeIds,
+  localFromWorld,
   resolvePageFrames,
 } from "../../services/canvasFrames.js";
 import {
@@ -19,7 +20,6 @@ import {
   assertParentAssignable,
   clearPositionAnchors,
   findPage,
-  hasPositionAnchors,
   invalidArgument,
   loadCanvasForWrite,
   readCssLength,
@@ -345,9 +345,9 @@ export function canvasNavigationCapabilities(): McpCapability[] {
       },
       description: {
         "zh-CN":
-          "把页面移动到指定世界坐标，并按相同位移移动其后代；带四边锚点的后代保持锚定不移动。目标页面的四边锚点会被清除。",
+          "把节点移动到指定世界坐标。有父节点时写入相对父节点的偏移，子节点保持自己的偏移并跟着父节点移动。目标节点的四边锚点会被清除。",
         "en-US":
-          "Move a page to world coordinates and shift its descendants by the same delta. Descendants with edge anchors stay anchored; the moved page's edge anchors are cleared.",
+          "Move a node to a world position. A child stores the offset from its parent, and descendants keep their own offsets so they follow. The moved node's edge anchors are cleared.",
       },
       usage: {
         "zh-CN":
@@ -371,11 +371,13 @@ export function canvasNavigationCapabilities(): McpCapability[] {
           pageId: PAGE_ID_SCHEMA,
           x: {
             type: "number",
-            description: "Target world X coordinate.",
+            description:
+              "Target world X. A child stores this as an offset from its parent.",
           },
           y: {
             type: "number",
-            description: "Target world Y coordinate.",
+            description:
+              "Target world Y. A child stores this as an offset from its parent.",
           },
           expectedUpdatedAt: EXPECTED_UPDATED_AT_SCHEMA,
         },
@@ -412,27 +414,10 @@ export function canvasNavigationCapabilities(): McpCapability[] {
         const y = args.y as number;
         const deltaX = x - startX;
         const deltaY = y - startY;
-
-        const subtreeIds = collectSubtreeIds(
-          document.pages,
-          pageId,
-        );
-        subtreeIds.delete(pageId);
-
-        let shiftedDescendants = 0;
-        for (const item of document.pages) {
-          if (item.id === pageId) {
-            clearPositionAnchors(item.styles);
-            item.x = x;
-            item.y = y;
-            continue;
-          }
-          if (!subtreeIds.has(item.id)) continue;
-          if (hasPositionAnchors(item.styles)) continue;
-          item.x += deltaX;
-          item.y += deltaY;
-          shiftedDescendants += 1;
-        }
+        const local = localFromWorld(x, y, page.parentId, frames);
+        clearPositionAnchors(page.styles);
+        page.x = local.x;
+        page.y = local.y;
 
         const saved = saveProjectCanvas(
           context.user.id,
@@ -455,8 +440,8 @@ export function canvasNavigationCapabilities(): McpCapability[] {
             y,
             deltaX,
             deltaY,
-            shiftedDescendants,
-            anchoredDescendants: subtreeIds.size - shiftedDescendants,
+            localX: local.x,
+            localY: local.y,
           },
         };
       },
@@ -619,15 +604,31 @@ export function canvasNavigationCapabilities(): McpCapability[] {
           ? readPageIdArgument(args.parentId, "parentId")
           : null;
 
+        const previousParentId = page.parentId ?? null;
         if (nextParentId) {
           assertParentAssignable(
             page.id,
             nextParentId,
             document.pages,
           );
-          page.parentId = nextParentId;
-        } else {
-          delete page.parentId;
+        }
+        if (previousParentId !== nextParentId) {
+          const frames = resolvePageFrames(
+            document.pages,
+            document.links,
+          );
+          const frame = frames.get(page.id);
+          const local = localFromWorld(
+            frame?.worldX ?? page.x,
+            frame?.worldY ?? page.y,
+            nextParentId ?? undefined,
+            frames,
+          );
+          if (nextParentId) page.parentId = nextParentId;
+          else delete page.parentId;
+          page.x = local.x;
+          page.y = local.y;
+          clearPositionAnchors(page.styles);
         }
 
         const parentedPageIds = new Set(
@@ -780,12 +781,26 @@ export function canvasNavigationCapabilities(): McpCapability[] {
         }
 
         const target = pagesById.get(targetId) as CanvasPageDto;
+        const moving = pagesById.get(pageId) as CanvasPageDto;
         const targetParentId =
           target.parentId && pagesById.has(target.parentId)
             ? target.parentId
             : null;
         const nextParentId =
           position === "inside" ? target.id : targetParentId;
+        const frames = resolvePageFrames(
+          document.pages,
+          document.links,
+        );
+        const movingFrame = frames.get(pageId);
+        const keptWorld = localFromWorld(
+          movingFrame?.worldX ?? moving.x,
+          movingFrame?.worldY ?? moving.y,
+          nextParentId ?? undefined,
+          frames,
+        );
+        const parentChanges =
+          (moving.parentId ?? null) !== nextParentId;
 
         const remaining = document.pages.filter(
           (page) => !subtreeIds.has(page.id),
@@ -819,9 +834,17 @@ export function canvasNavigationCapabilities(): McpCapability[] {
           insertIndex = lastTargetIndex + 1;
         }
 
-        const nextSubtree = subtree.map((page, index) =>
-          index === 0 ? withParentId(page, nextParentId) : page,
-        );
+        const nextSubtree = subtree.map((page, index) => {
+          if (index !== 0) return page;
+          const next = withParentId(page, nextParentId);
+          if (!parentChanges) return next;
+          const placed = next === page ? { ...next } : next;
+          placed.x = keptWorld.x;
+          placed.y = keptWorld.y;
+          placed.styles = { ...placed.styles };
+          clearPositionAnchors(placed.styles);
+          return placed;
+        });
         const nextPages = [
           ...remaining.slice(0, insertIndex),
           ...nextSubtree,

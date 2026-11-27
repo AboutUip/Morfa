@@ -1,4 +1,5 @@
 import {
+  createContext,
   useEffect,
   useId,
   useMemo,
@@ -14,47 +15,177 @@ import { useTranslation } from "react-i18next";
 import type {
   CanvasBehaviorBlock,
   CanvasBehaviorEdge,
-  CanvasPage,
 } from "./canvasDocument";
 import {
   BEHAVIOR_CONDITION_SOURCES,
   behaviorActionLabelKey,
   behaviorEventLabelKey,
+  behaviorOutputPorts,
 } from "./canvasBehavior";
 import styles from "./BehaviorGraphCanvas.module.css";
+import type { CanvasTool } from "./canvasTools";
 
-export const BEHAVIOR_GRAPH_NODE_WIDTH = 208;
+export const BEHAVIOR_GRAPH_NODE_WIDTH = 252;
 
-const MIN_ZOOM = 0.25;
-const MAX_ZOOM = 2.5;
-
-const BLOCK_HEIGHT: Record<CanvasBehaviorBlock["type"], number> = {
-  event: 78,
-  condition: 94,
-  action: 94,
-  note: 106,
-};
-
-const EDITOR_NODE_WIDTH = 344;
-const EDITOR_NODE_HEIGHT: Record<
+export const BEHAVIOR_GRAPH_NODE_HEIGHT: Record<
   CanvasBehaviorBlock["type"],
   number
 > = {
-  event: 156,
-  condition: 420,
-  action: 340,
-  note: 220,
+  event: 112,
+  condition: 300,
+  action: 220,
+  switch: 180,
+  note: 160,
+  reference: 88,
+  function: 120,
+  call: 140,
 };
 
-export const BEHAVIOR_START_NODE_ID = "__morfa_start__";
-const START_NODE_ID = BEHAVIOR_START_NODE_ID;
-const START_NODE_WIDTH = 176;
-const START_NODE_HEIGHT = 64;
-const START_NODE_GAP = 96;
+const MIN_ZOOM = 0.25;
+const MAX_ZOOM = 2.5;
+const ZOOM_SENSITIVITY = 0.0015;
 
+const LAYER_DRAG_MIME = "application/x-morfa-layer";
+export const BEHAVIOR_PHRASE_MIME = "application/x-morfa-behavior-phrase";
+
+export interface BehaviorTargetDragState {
+  sourceBlockId: string | null;
+  hoverKey: string | null;
+}
+
+export interface BehaviorTargetDrop {
+  blockId: string;
+  kind: "action" | "condition" | "event" | "switch";
+  index: number | null;
+}
+
+export const BehaviorTargetDragContext =
+  createContext<BehaviorTargetDragState>({
+    sourceBlockId: null,
+    hoverKey: null,
+  });
+
+function isFlowBlock(type: CanvasBehaviorBlock["type"]) {
+  return type !== "note" && type !== "reference";
+}
+
+function blurEditableExcept(target: EventTarget | null) {
+  const active = document.activeElement;
+  if (!(active instanceof HTMLElement)) return;
+  const editable =
+    active.isContentEditable ||
+    active.tagName === "INPUT" ||
+    active.tagName === "TEXTAREA" ||
+    active.tagName === "SELECT";
+  if (!editable) return;
+  if (target instanceof Node && active.contains(target)) return;
+  active.blur();
+}
+
+function outputPortY(
+  node: { y: number; height: number; block?: CanvasBehaviorBlock },
+  portId: string | undefined,
+) {
+  const ports = node.block ? behaviorOutputPorts(node.block) : [{ id: "out" }];
+  const index = ports.findIndex((port) => port.id === (portId || "out"));
+  if (ports.length <= 1 || index < 0) return node.y + node.height / 2;
+  return node.y + (node.height * (index + 1)) / (ports.length + 1);
+}
+
+function flowNodeUnderPoint(clientX: number, clientY: number) {
+  for (const element of document.elementsFromPoint(clientX, clientY)) {
+    if (!(element instanceof Element)) continue;
+    const port = element.closest<HTMLElement>('[data-port="in"]');
+    const portNodeId = port?.dataset.nodeId;
+    if (portNodeId) return portNodeId;
+    const node = element.closest<HTMLElement>("[data-graph-node]");
+    if (!node) continue;
+    const type = node.dataset.type;
+    if (type === "note" || type === "reference") continue;
+    if (node.dataset.graphNode) return node.dataset.graphNode;
+  }
+  return null;
+}
+
+function edgeSpread(
+  edges: CanvasBehaviorEdge[],
+  edge: CanvasBehaviorEdge,
+  end: "from" | "to",
+) {
+  const siblings = edges.filter((item) =>
+    end === "from"
+      ? item.from === edge.from && (item.label ?? "") === (edge.label ?? "")
+      : item.to === edge.to,
+  );
+  if (siblings.length < 2) return 0;
+  const index = siblings.findIndex((item) => item.id === edge.id);
+  return (index - (siblings.length - 1) / 2) * 16;
+}
+
+function slotUnderPoint(clientX: number, clientY: number) {
+  for (const element of document.elementsFromPoint(clientX, clientY)) {
+    if (!(element instanceof Element)) continue;
+    const slot = element.closest("[data-target-slot]");
+    if (!(slot instanceof HTMLElement)) continue;
+    const blockId = slot.dataset.targetBlock;
+    const kind = slot.dataset.targetKind;
+    if (
+      !blockId ||
+      (kind !== "action" &&
+        kind !== "condition" &&
+        kind !== "event" &&
+        kind !== "switch")
+    ) {
+      continue;
+    }
+    const indexText = slot.dataset.targetIndex ?? "";
+    const index = indexText === "" ? null : Number(indexText);
+    return {
+      blockId,
+      kind,
+      index: Number.isInteger(index) ? index : null,
+      key: `${blockId}\0${kind}\0${indexText}`,
+    } satisfies BehaviorTargetDrop & { key: string };
+  }
+  return null;
+}
+
+function hasLayerDrag(dataTransfer: DataTransfer) {
+  return [...dataTransfer.types].includes(LAYER_DRAG_MIME);
+}
+
+function nodesInMarquee(
+  nodes: GraphNode[],
+  startX: number,
+  startY: number,
+  endX: number,
+  endY: number,
+  view: CanvasView,
+) {
+  const left = Math.min(startX, endX);
+  const top = Math.min(startY, endY);
+  const right = Math.max(startX, endX);
+  const bottom = Math.max(startY, endY);
+  if (right - left < 2 && bottom - top < 2) return [];
+
+  const worldLeft = (left - view.x) / view.zoom;
+  const worldTop = (top - view.y) / view.zoom;
+  const worldRight = (right - view.x) / view.zoom;
+  const worldBottom = (bottom - view.y) / view.zoom;
+
+  return nodes
+    .filter(
+      (node) =>
+        node.x < worldRight &&
+        node.x + node.width > worldLeft &&
+        node.y < worldBottom &&
+        node.y + node.height > worldTop,
+    )
+    .map((node) => node.id);
+}
 interface GraphNode {
   id: string;
-  kind: "start" | "block";
+  kind: "block";
   x: number;
   y: number;
   width: number;
@@ -76,6 +207,21 @@ interface PanSession {
   originY: number;
 }
 
+interface MarqueeSession {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  currentX: number;
+  currentY: number;
+}
+
+interface MarqueeRect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
 interface NodeDragSession {
   pointerId: number;
   id: string;
@@ -86,16 +232,19 @@ interface NodeDragSession {
   x: number;
   y: number;
   moved: boolean;
+  companions: { id: string; originX: number; originY: number }[];
 }
 
 interface ConnectionSession {
   pointerId: number;
   from: string;
+  port: string;
   startClientX: number;
   startClientY: number;
   cursorX: number;
   cursorY: number;
   dragging: boolean;
+  hoverId: string | null;
 }
 
 export interface BehaviorGraphCanvasApi {
@@ -114,45 +263,50 @@ function round(value: number) {
 }
 
 export function BehaviorGraphCanvas({
-  pages,
   blocks,
   edges,
-  selectedNodeId,
-  editingNodeId,
+  activeTool,
+  selectedNodeIds,
   selectedEdgeId,
-  startPosition,
   fitKey,
   apiRef,
-  onSelectNode,
+  onSelectNodes,
   onSelectEdge,
-  onStartEditNode,
-  onStopEditNode,
   onMoveNode,
+  onMoveNodes,
   onCreateEdge,
   onDeleteEdge,
   onDeleteNode,
   onCreateEvent,
+  onCreateReference,
+  onCreatePhrase,
+  onAssignReference,
   renderBlockEditor,
 }: {
-  pages: CanvasPage[];
   blocks: CanvasBehaviorBlock[];
   edges: CanvasBehaviorEdge[];
-  selectedNodeId: string | null;
-  editingNodeId: string | null;
+  activeTool: CanvasTool;
+  selectedNodeIds: string[];
   selectedEdgeId: string | null;
-  startPosition?: { x: number; y: number } | null;
   fitKey?: string;
   apiRef?: { current: BehaviorGraphCanvasApi | null };
-  onSelectNode: (id: string | null) => void;
+  onSelectNodes: (ids: string[]) => void;
   onSelectEdge: (id: string | null) => void;
-  onStartEditNode: (id: string) => void;
-  onStopEditNode: () => void;
   onMoveNode: (id: string, x: number, y: number) => void;
-  onCreateEdge: (from: string, to: string) => void;
+  onMoveNodes?: (
+    moves: { id: string; x: number; y: number }[],
+  ) => void;
+  onCreateEdge: (from: string, to: string, label?: string) => void;
   onDeleteEdge: (id: string) => void;
   onDeleteNode: (id: string) => void;
   onCreateEvent?: () => void;
-  renderBlockEditor?: (block: CanvasBehaviorBlock) => ReactNode;
+  onCreateReference?: (nodeId: string, x: number, y: number) => void;
+  onCreatePhrase?: (phrase: string, x: number, y: number) => void;
+  onAssignReference?: (
+    referenceBlockId: string,
+    target: BehaviorTargetDrop,
+  ) => void;
+  renderBlockEditor: (block: CanvasBehaviorBlock) => ReactNode;
 }) {
   const { t } = useTranslation();
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -162,15 +316,31 @@ export function BehaviorGraphCanvas({
     zoom: 1,
   });
   const viewRef = useRef(view);
+  const gestureRef = useRef<{
+    view: CanvasView;
+    px: number;
+    py: number;
+  } | null>(null);
   const [panning, setPanning] = useState(false);
+  const [marquee, setMarquee] = useState<MarqueeRect | null>(null);
   const panRef = useRef<PanSession | null>(null);
+  const marqueeRef = useRef<MarqueeSession | null>(null);
   const [drag, setDrag] = useState<NodeDragSession | null>(null);
   const dragRef = useRef<NodeDragSession | null>(null);
+  const targetDragRef = useRef<BehaviorTargetDragState>({
+    sourceBlockId: null,
+    hoverKey: null,
+  });
+  const targetDropRef = useRef<BehaviorTargetDrop | null>(null);
+  const [targetDrag, setTargetDrag] = useState<BehaviorTargetDragState>(
+    targetDragRef.current,
+  );
   const [connection, setConnection] = useState<ConnectionSession | null>(
     null,
   );
   const connectionRef = useRef<ConnectionSession | null>(null);
   const [pendingFrom, setPendingFrom] = useState<string | null>(null);
+  const pendingPortRef = useRef("out");
   const [spaceHeld, setSpaceHeld] = useState(false);
   const spaceRef = useRef(false);
   const [contextMenu, setContextMenu] = useState<{
@@ -180,6 +350,10 @@ export function BehaviorGraphCanvas({
     edgeId?: string;
   } | null>(null);
   const lastFitKeyRef = useRef<string | null>(null);
+  const worldRef = useRef<HTMLDivElement | null>(null);
+  const [nodeSizes, setNodeSizes] = useState<
+    Record<string, { width: number; height: number }>
+  >({});
   const markerBase = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const arrowId = `morfa-behavior-arrow-${markerBase}`;
   const selectedArrowId = `morfa-behavior-arrow-selected-${markerBase}`;
@@ -188,70 +362,90 @@ export function BehaviorGraphCanvas({
     viewRef.current = view;
   }, [view]);
 
-  const pagesById = useMemo(
-    () => new Map(pages.map((page) => [page.id, page])),
-    [pages],
-  );
+  useEffect(() => {
+    const root = worldRef.current;
+    if (!root) return;
+    let frame = 0;
+    const measure = () => {
+      const next: Record<string, { width: number; height: number }> = {};
+      root
+        .querySelectorAll<HTMLElement>("[data-graph-node]")
+        .forEach((element) => {
+          const id = element.dataset.graphNode;
+          if (!id) return;
+          next[id] = {
+            width: Math.round(element.offsetWidth),
+            height: Math.round(element.offsetHeight),
+          };
+        });
+      setNodeSizes((current) => {
+        const currentIds = Object.keys(current);
+        const nextIds = Object.keys(next);
+        if (currentIds.length !== nextIds.length) return next;
+        for (const id of nextIds) {
+          const item = next[id];
+          const previous = current[id];
+          if (
+            !item ||
+            !previous ||
+            previous.width !== item.width ||
+            previous.height !== item.height
+          ) {
+            return next;
+          }
+        }
+        return current;
+      });
+    };
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(measure);
+    });
+    const watch = () => {
+      root
+        .querySelectorAll<HTMLElement>("[data-graph-node]")
+        .forEach((element) => observer.observe(element));
+      measure();
+    };
+    watch();
+    const mutation = new MutationObserver(watch);
+    mutation.observe(root, { childList: true });
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      mutation.disconnect();
+    };
+  }, [blocks]);
 
   const baseNodes = useMemo<GraphNode[]>(() => {
-    const blockNodes: GraphNode[] = blocks.map((block) => {
-      const editing = block.id === editingNodeId;
-      return {
-        id: block.id,
-        kind: "block",
-        x: block.x,
-        y: block.y,
-        width: editing
-          ? EDITOR_NODE_WIDTH
-          : BEHAVIOR_GRAPH_NODE_WIDTH,
-        height: editing
-          ? EDITOR_NODE_HEIGHT[block.type]
-          : BLOCK_HEIGHT[block.type],
-        block,
-      };
-    });
-    const blockIds = new Set(blocks.map((block) => block.id));
-    const roots = blocks.filter(
-      (block) =>
-        block.type !== "note" &&
-        !edges.some(
-          (edge) => edge.to === block.id && blockIds.has(edge.from),
-        ),
-    );
-    const minX = blocks.length
-      ? Math.min(...blocks.map((block) => block.x))
-      : 240;
-    const startY = roots.length
-      ? Math.round(
-          roots.reduce(
-            (sum, block) =>
-              sum + block.y + BLOCK_HEIGHT[block.type] / 2,
-            0,
-          ) /
-            roots.length -
-            START_NODE_HEIGHT / 2,
-        )
-      : Math.round(
-          (blocks[0]?.y ?? 120) - START_NODE_HEIGHT / 2,
-        );
-    const startNode: GraphNode = {
-      id: START_NODE_ID,
-      kind: "start",
-      x:
-        startPosition?.x ??
-        minX - START_NODE_WIDTH - START_NODE_GAP,
-      y: startPosition?.y ?? startY,
-      width: START_NODE_WIDTH,
-      height: START_NODE_HEIGHT,
-    };
-    return [startNode, ...blockNodes];
-  }, [blocks, editingNodeId, edges, startPosition]);
+    return blocks.map((block) => ({
+      id: block.id,
+      kind: "block" as const,
+      x: block.x,
+      y: block.y,
+      width: nodeSizes[block.id]?.width ?? 160,
+      height: nodeSizes[block.id]?.height ?? 44,
+      block,
+    }));
+  }, [blocks, nodeSizes]);
 
   const renderNodes = useMemo(() => {
     if (!drag) return baseNodes;
-    return baseNodes.map((node) =>
-      node.id === drag.id ? { ...node, x: drag.x, y: drag.y } : node,
+    const dx = drag.x - drag.originX;
+    const dy = drag.y - drag.originY;
+    const companions = new Map(
+      drag.companions.map((item) => [item.id, item]),
     );
+    return baseNodes.map((node) => {
+      if (node.id === drag.id) return { ...node, x: drag.x, y: drag.y };
+      const companion = companions.get(node.id);
+      if (!companion) return node;
+      return {
+        ...node,
+        x: companion.originX + dx,
+        y: companion.originY + dy,
+      };
+    });
   }, [baseNodes, drag]);
 
   const nodeMap = useMemo(
@@ -372,11 +566,13 @@ export function BehaviorGraphCanvas({
   const focusedSelectionRef = useRef<string | null>(null);
 
   useEffect(() => {
+    const selectedNodeId =
+      selectedNodeIds.length === 1 ? selectedNodeIds[0] : null;
     if (!selectedNodeId) {
       focusedSelectionRef.current = null;
       return;
     }
-    const focusKey = `${selectedNodeId}:${editingNodeId ?? ""}`;
+    const focusKey = selectedNodeId;
     if (focusedSelectionRef.current === focusKey) return;
     const element = viewportRef.current;
     const node = baseNodes.find((item) => item.id === selectedNodeId);
@@ -407,39 +603,135 @@ export function BehaviorGraphCanvas({
         y: current.y + dy,
       });
     }
-  }, [baseNodes, editingNodeId, selectedNodeId]);
+  }, [baseNodes, selectedNodeIds]);
 
   useEffect(() => {
     const element = viewportRef.current;
     if (!element) return;
 
     const handleWheel = (event: WheelEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (target?.closest("[data-node-editor]")) return;
       event.preventDefault();
-      const rect = element.getBoundingClientRect();
-      const px = event.clientX - rect.left;
-      const py = event.clientY - rect.top;
-      const delta =
-        event.deltaMode === 1 ? event.deltaY * 16 : event.deltaY;
-      const factor = Math.exp(-delta * 0.0016);
-      if (factor === 1) return;
+      const unit =
+        event.deltaMode === 1
+          ? 16
+          : event.deltaMode === 2
+            ? element.clientHeight
+            : 1;
+      const deltaX = event.deltaX * unit;
+      const deltaY = event.deltaY * unit;
 
-      setView((current) => {
-        const zoom = clamp(current.zoom * factor, MIN_ZOOM, MAX_ZOOM);
-        if (zoom === current.zoom) return current;
-        const worldX = (px - current.x) / current.zoom;
-        const worldY = (py - current.y) / current.zoom;
-        return {
-          x: px - worldX * zoom,
-          y: py - worldY * zoom,
-          zoom,
-        };
-      });
+      if (event.ctrlKey || event.metaKey) {
+        const rect = element.getBoundingClientRect();
+        const px = event.clientX - rect.left;
+        const py = event.clientY - rect.top;
+        const factor = Math.exp(-deltaY * ZOOM_SENSITIVITY);
+        setView((current) => {
+          const zoom = clamp(current.zoom * factor, MIN_ZOOM, MAX_ZOOM);
+          if (zoom === current.zoom) return current;
+          const worldX = (px - current.x) / current.zoom;
+          const worldY = (py - current.y) / current.zoom;
+          return {
+            x: px - worldX * zoom,
+            y: py - worldY * zoom,
+            zoom,
+          };
+        });
+        return;
+      }
+
+      let x = deltaX;
+      let y = deltaY;
+      // 鼠标滚轮的 Shift 横向滚动；触控板已经自带 deltaX 时不改写。
+      if (event.shiftKey && x === 0) {
+        x = y;
+        y = 0;
+      }
+      if (x === 0 && y === 0) return;
+      setView((current) => ({
+        ...current,
+        x: current.x - x,
+        y: current.y - y,
+      }));
     };
 
     element.addEventListener("wheel", handleWheel, { passive: false });
     return () => element.removeEventListener("wheel", handleWheel);
+  }, []);
+
+  useEffect(() => {
+    const element = viewportRef.current;
+    if (!element) return;
+
+    type GestureLikeEvent = Event & {
+      scale?: number;
+      clientX?: number;
+      clientY?: number;
+    };
+
+    const pointFromEvent = (event: GestureLikeEvent) => {
+      const rect = element.getBoundingClientRect();
+      const clientX =
+        typeof event.clientX === "number" && Number.isFinite(event.clientX)
+          ? event.clientX
+          : rect.left + rect.width / 2;
+      const clientY =
+        typeof event.clientY === "number" && Number.isFinite(event.clientY)
+          ? event.clientY
+          : rect.top + rect.height / 2;
+      return {
+        x: clientX - rect.left,
+        y: clientY - rect.top,
+      };
+    };
+
+    const handleGestureStart = (rawEvent: Event) => {
+      rawEvent.preventDefault();
+      const point = pointFromEvent(rawEvent as GestureLikeEvent);
+      gestureRef.current = {
+        view: viewRef.current,
+        px: point.x,
+        py: point.y,
+      };
+    };
+
+    const handleGestureChange = (rawEvent: Event) => {
+      rawEvent.preventDefault();
+      const event = rawEvent as GestureLikeEvent;
+      const session = gestureRef.current;
+      if (!session || typeof event.scale !== "number") return;
+      const zoom = clamp(
+        session.view.zoom * event.scale,
+        MIN_ZOOM,
+        MAX_ZOOM,
+      );
+      const worldX = (session.px - session.view.x) / session.view.zoom;
+      const worldY = (session.py - session.view.y) / session.view.zoom;
+      setView({
+        x: session.px - worldX * zoom,
+        y: session.py - worldY * zoom,
+        zoom,
+      });
+    };
+
+    const handleGestureEnd = (rawEvent: Event) => {
+      rawEvent.preventDefault();
+      gestureRef.current = null;
+    };
+
+    element.addEventListener("gesturestart", handleGestureStart, {
+      passive: false,
+    });
+    element.addEventListener("gesturechange", handleGestureChange, {
+      passive: false,
+    });
+    element.addEventListener("gestureend", handleGestureEnd, {
+      passive: false,
+    });
+    return () => {
+      element.removeEventListener("gesturestart", handleGestureStart);
+      element.removeEventListener("gesturechange", handleGestureChange);
+      element.removeEventListener("gestureend", handleGestureEnd);
+    };
   }, []);
 
   useEffect(() => {
@@ -491,12 +783,11 @@ export function BehaviorGraphCanvas({
       setConnection(null);
       setPendingFrom(null);
       setContextMenu(null);
-      onStopEditNode();
     };
     window.addEventListener("keydown", handleKeyDown, true);
     return () =>
       window.removeEventListener("keydown", handleKeyDown, true);
-  }, [onStopEditNode]);
+  }, []);
 
   const clientToWorld = (clientX: number, clientY: number) => {
     const element = viewportRef.current;
@@ -525,15 +816,18 @@ export function BehaviorGraphCanvas({
     };
     setPanning(true);
     setPendingFrom(null);
-    onStopEditNode();
-    onSelectNode(null);
-    onSelectEdge(null);
   };
 
   const handleCanvasPointerDown = (
     event: ReactPointerEvent<HTMLDivElement>,
   ) => {
     const target = event.target as HTMLElement;
+    if (
+      !target.closest("input, textarea, select, [contenteditable='true']")
+    ) {
+      blurEditableExcept(event.target);
+      focusViewport();
+    }
     if (target.closest("[data-canvas-control]")) return;
 
     if (
@@ -545,15 +839,59 @@ export function BehaviorGraphCanvas({
       return;
     }
 
-    if (event.button === 0) {
+    if (event.button !== 0) return;
+
+    if (activeTool === "hand") {
       event.preventDefault();
       startPan(event);
+      return;
     }
+
+    if (activeTool === "move") {
+      event.preventDefault();
+      onSelectNodes([]);
+      onSelectEdge(null);
+      return;
+    }
+
+    if (activeTool !== "select") return;
+
+    event.preventDefault();
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    onSelectNodes([]);
+    onSelectEdge(null);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    marqueeRef.current = {
+      pointerId: event.pointerId,
+      startX: x,
+      startY: y,
+      currentX: x,
+      currentY: y,
+    };
+    setMarquee({ left: x, top: y, width: 0, height: 0 });
   };
 
   const handleCanvasPointerMove = (
     event: ReactPointerEvent<HTMLDivElement>,
   ) => {
+    const selection = marqueeRef.current;
+    if (selection && selection.pointerId === event.pointerId) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      selection.currentX = x;
+      selection.currentY = y;
+      setMarquee({
+        left: Math.min(selection.startX, x),
+        top: Math.min(selection.startY, y),
+        width: Math.abs(x - selection.startX),
+        height: Math.abs(y - selection.startY),
+      });
+      return;
+    }
+
     const session = panRef.current;
     if (!session || session.pointerId !== event.pointerId) return;
     setView((current) => ({
@@ -576,41 +914,114 @@ export function BehaviorGraphCanvas({
     }
   };
 
+  const endMarquee = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const selection = marqueeRef.current;
+    if (!selection || selection.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    marqueeRef.current = null;
+    setMarquee(null);
+    onSelectNodes(
+      nodesInMarquee(
+        baseNodes,
+        selection.startX,
+        selection.startY,
+        selection.currentX,
+        selection.currentY,
+        viewRef.current,
+      ),
+    );
+  };
+
+  const handleCanvasPointerUp = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    if (panRef.current?.pointerId === event.pointerId) {
+      endPan(event);
+      return;
+    }
+    endMarquee(event);
+  };
+
+  const handleCanvasLostPointerCapture = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    if (marqueeRef.current?.pointerId === event.pointerId) {
+      marqueeRef.current = null;
+      setMarquee(null);
+    }
+    endPan(event);
+  };
+
   const handleNodePointerDown = (
     event: ReactPointerEvent<HTMLDivElement>,
     node: GraphNode,
   ) => {
-    if (event.button !== 0 || spaceRef.current) return;
+    if (
+      event.button !== 0 ||
+      spaceRef.current ||
+      activeTool === "hand"
+    ) {
+      return;
+    }
     const target = event.target as HTMLElement;
     if (target.closest("[data-port]")) return;
     if (
-      target.closest(
-        "input, textarea, select, button, [contenteditable='true']",
-      )
+      !target.closest("input, textarea, select, [contenteditable='true']")
     ) {
-      event.stopPropagation();
-      return;
+      blurEditableExcept(event.target);
     }
     if (
-      target.closest("[data-node-editor]") &&
-      !target.closest("[data-node-drag-handle]")
+      pendingFrom &&
+      pendingFrom !== node.id &&
+      node.block &&
+      isFlowBlock(node.block.type) &&
+      !target.closest(
+        "input, textarea, select, button, a, [contenteditable='true']",
+      )
     ) {
-      event.stopPropagation();
+      event.preventDefault();
+      onCreateEdge(pendingFrom, node.id, pendingPortRef.current);
+      setPendingFrom(null);
+      setConnection(null);
       return;
     }
 
-    event.preventDefault();
+    const referenceDrag = node.block?.type === "reference";
+    const fieldTarget =
+      !referenceDrag &&
+      target.closest(
+        "input, textarea, select, button, [contenteditable='true']",
+      );
+    const editorBody =
+      !referenceDrag &&
+      target.closest("[data-node-editor]") &&
+      !target.closest("[data-node-drag-handle]");
+
     event.stopPropagation();
     focusViewport();
-    if (node.kind === "start") {
-      onStopEditNode();
-      onSelectNode(null);
-    } else {
-      if (node.id !== editingNodeId) onStopEditNode();
-      onSelectNode(node.id);
-    }
+    const keepGroup =
+      activeTool === "move" &&
+      !referenceDrag &&
+      selectedNodeIds.includes(node.id) &&
+      selectedNodeIds.length > 1;
+    if (!keepGroup) onSelectNodes([node.id]);
     onSelectEdge(null);
     setPendingFrom(null);
+
+    if (activeTool !== "move" || fieldTarget || editorBody) return;
+
+    event.preventDefault();
+    const companions = keepGroup
+      ? selectedNodeIds.flatMap((id) => {
+          if (id === node.id) return [];
+          const block = blocks.find((item) => item.id === id);
+          return block
+            ? [{ id, originX: block.x, originY: block.y }]
+            : [];
+        })
+      : [];
 
     const session: NodeDragSession = {
       pointerId: event.pointerId,
@@ -622,9 +1033,16 @@ export function BehaviorGraphCanvas({
       x: node.x,
       y: node.y,
       moved: false,
+      companions,
     };
     dragRef.current = session;
     setDrag(session);
+    if (referenceDrag) {
+      targetDropRef.current = null;
+      const nextDrag = { sourceBlockId: node.id, hoverKey: null };
+      targetDragRef.current = nextDrag;
+      setTargetDrag(nextDrag);
+    }
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
@@ -649,6 +1067,16 @@ export function BehaviorGraphCanvas({
     };
     dragRef.current = next;
     setDrag(next);
+    if (targetDragRef.current.sourceBlockId === session.id) {
+      const hover = slotUnderPoint(event.clientX, event.clientY);
+      targetDropRef.current = hover;
+      const hoverKey = hover?.key ?? null;
+      if (hoverKey !== targetDragRef.current.hoverKey) {
+        const nextDrag = { sourceBlockId: session.id, hoverKey };
+        targetDragRef.current = nextDrag;
+        setTargetDrag(nextDrag);
+      }
+    }
   };
 
   const finishNodeDrag = (pointerId: number) => {
@@ -656,8 +1084,32 @@ export function BehaviorGraphCanvas({
     if (!session || session.pointerId !== pointerId) return;
     dragRef.current = null;
     setDrag(null);
+    const assignTarget =
+      targetDragRef.current.sourceBlockId === session.id
+        ? targetDropRef.current
+        : null;
+    if (targetDragRef.current.sourceBlockId) {
+      targetDragRef.current = { sourceBlockId: null, hoverKey: null };
+      targetDropRef.current = null;
+      setTargetDrag(targetDragRef.current);
+    }
+    if (assignTarget && session.moved && onAssignReference) {
+      onAssignReference(session.id, assignTarget);
+      return;
+    }
     if (session.moved) {
-      onMoveNode(session.id, round(session.x), round(session.y));
+      const dx = session.x - session.originX;
+      const dy = session.y - session.originY;
+      const moves = [
+        { id: session.id, x: round(session.x), y: round(session.y) },
+        ...session.companions.map((item) => ({
+          id: item.id,
+          x: round(item.originX + dx),
+          y: round(item.originY + dy),
+        })),
+      ];
+      if (onMoveNodes) onMoveNodes(moves);
+      else onMoveNode(session.id, round(session.x), round(session.y));
     }
   };
 
@@ -665,6 +1117,14 @@ export function BehaviorGraphCanvas({
     event: ReactPointerEvent<HTMLDivElement>,
   ) => {
     if (dragRef.current?.pointerId !== event.pointerId) return;
+    if (targetDragRef.current.sourceBlockId === dragRef.current.id) {
+      const hover = slotUnderPoint(event.clientX, event.clientY);
+      targetDropRef.current = hover;
+      targetDragRef.current = {
+        sourceBlockId: dragRef.current.id,
+        hoverKey: hover?.key ?? null,
+      };
+    }
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
@@ -678,19 +1138,31 @@ export function BehaviorGraphCanvas({
   const handleOutputPointerDown = (
     event: ReactPointerEvent<HTMLButtonElement>,
     nodeId: string,
+    portId: string,
   ) => {
+    if (
+      event.button !== 0 ||
+      spaceRef.current ||
+      activeTool === "hand"
+    ) {
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
+    if (activeTool !== "select") return;
     setPendingFrom(null);
+    pendingPortRef.current = portId;
     const point = clientToWorld(event.clientX, event.clientY);
     const session: ConnectionSession = {
       pointerId: event.pointerId,
       from: nodeId,
+      port: portId,
       startClientX: event.clientX,
       startClientY: event.clientY,
       cursorX: point.x,
       cursorY: point.y,
       dragging: false,
+      hoverId: null,
     };
     connectionRef.current = session;
     setConnection(session);
@@ -708,11 +1180,13 @@ export function BehaviorGraphCanvas({
       Math.abs(event.clientX - session.startClientX) +
         Math.abs(event.clientY - session.startClientY) >
         4;
+    const hoverId = flowNodeUnderPoint(event.clientX, event.clientY);
     const next = {
       ...session,
       cursorX: point.x,
       cursorY: point.y,
       dragging,
+      hoverId: hoverId && hoverId !== session.from ? hoverId : null,
     };
     connectionRef.current = next;
     setConnection(next);
@@ -724,20 +1198,15 @@ export function BehaviorGraphCanvas({
     const session = connectionRef.current;
     if (!session || session.pointerId !== event.pointerId) return;
 
-    const element = document.elementFromPoint(
-      event.clientX,
-      event.clientY,
-    );
-    const port =
-      element instanceof Element
-        ? element.closest<HTMLElement>('[data-port="in"]')
-        : null;
-    const targetId = port?.dataset.nodeId;
+    const hovered = flowNodeUnderPoint(event.clientX, event.clientY);
+    const targetId =
+      hovered && hovered !== session.from ? hovered : null;
 
     if (targetId) {
-      onCreateEdge(session.from, targetId);
+      onCreateEdge(session.from, targetId, session.port);
       setPendingFrom(null);
     } else if (!session.dragging) {
+      pendingPortRef.current = session.port;
       setPendingFrom(session.from);
     }
 
@@ -752,10 +1221,17 @@ export function BehaviorGraphCanvas({
     event: ReactPointerEvent<HTMLButtonElement>,
     nodeId: string,
   ) => {
+    if (
+      event.button !== 0 ||
+      spaceRef.current ||
+      activeTool === "hand"
+    ) {
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
-    if (!pendingFrom) return;
-    onCreateEdge(pendingFrom, nodeId);
+    if (activeTool !== "select" || !pendingFrom) return;
+    onCreateEdge(pendingFrom, nodeId, pendingPortRef.current);
     setPendingFrom(null);
     setConnection(null);
   };
@@ -765,11 +1241,17 @@ export function BehaviorGraphCanvas({
     setConnection(null);
   };
 
-  const getEdgePath = (from: GraphNode, to: GraphNode) => {
+  const getEdgePath = (
+    from: GraphNode,
+    to: GraphNode,
+    portId?: string,
+    sourceSpread = 0,
+    targetSpread = 0,
+  ) => {
     const sourceX = from.x + from.width;
-    const sourceY = from.y + from.height / 2;
+    const sourceY = outputPortY(from, portId) + sourceSpread;
     const targetX = to.x;
-    const targetY = to.y + to.height / 2;
+    const targetY = to.y + to.height / 2 + targetSpread;
 
     if (from.id === to.id) {
       return `M ${sourceX} ${sourceY} C ${sourceX + 90} ${
@@ -781,11 +1263,6 @@ export function BehaviorGraphCanvas({
     return `M ${sourceX} ${sourceY} C ${sourceX + control} ${sourceY}, ${
       targetX - control
     } ${targetY}, ${targetX} ${targetY}`;
-  };
-
-  const getPageName = (id: string | undefined) => {
-    if (!id) return t("projects.workspace.behavior.fields.ownerNode");
-    return pagesById.get(id)?.name ?? id;
   };
 
   const getBlockTitle = (block: CanvasBehaviorBlock) => {
@@ -802,60 +1279,30 @@ export function BehaviorGraphCanvas({
         ) ?? BEHAVIOR_CONDITION_SOURCES[0];
       return t(source.labelKey);
     }
+    if (block.type === "switch") {
+      return block.key
+        ? block.key
+        : t("projects.workspace.behavior.blockTypes.switch");
+    }
     if (block.type === "action") {
       return block.action
         ? t(behaviorActionLabelKey(block.action.type))
         : t("projects.workspace.behavior.actions.custom");
     }
+    if (block.type === "reference") {
+      return block.nodeId ?? t("projects.workspace.behavior.dropTarget");
+    }
+    if (block.type === "function") {
+      return (
+        block.text?.trim() ||
+        t("projects.workspace.behavior.blockTypes.function")
+      );
+    }
+    if (block.type === "call") {
+      return t("projects.workspace.behavior.blockTypes.call");
+    }
     const text = block.text?.trim();
     return text || t("projects.workspace.behavior.noteEmpty");
-  };
-
-  const getBlockMeta = (block: CanvasBehaviorBlock) => {
-    if (block.type === "event") {
-      return t("projects.workspace.behavior.eventHint");
-    }
-    if (block.type === "condition") {
-      if (block.conditions?.length) {
-        return [
-          t(
-            block.conditionMode === "any"
-              ? "projects.workspace.behavior.conditionModeAny"
-              : "projects.workspace.behavior.conditionModeAll",
-          ),
-          `${block.conditions.length}`,
-          t("projects.workspace.behavior.conditionsTitle"),
-        ].join(" · ");
-      }
-      if (!block.condition) return "";
-      const condition = block.condition;
-      return [
-        getPageName(condition.targetId),
-        condition.key,
-        `${condition.operator} ${condition.value}`,
-      ]
-        .filter(Boolean)
-        .join(" · ");
-    }
-    if (block.type === "action" && block.action) {
-      const action = block.action;
-      if (action.type === "navigate") {
-        return action.pageId
-          ? getPageName(action.pageId)
-          : t("projects.workspace.behavior.fields.choosePage");
-      }
-      if (action.type === "setState") {
-        return action.value ?? "";
-      }
-      return [
-        getPageName(action.targetId),
-        action.key,
-        action.value,
-      ]
-        .filter(Boolean)
-        .join(" · ");
-    }
-    return "";
   };
 
   const gridSize = 20 * view.zoom;
@@ -880,42 +1327,25 @@ export function BehaviorGraphCanvas({
     : null;
   const connectionPath =
     connection && connectionSource
-      ? `M ${connectionSource.x + connectionSource.width} ${
-          connectionSource.y + connectionSource.height / 2
-        } L ${connection.cursorX} ${connection.cursorY}`
+      ? `M ${connectionSource.x + connectionSource.width} ${outputPortY(
+          connectionSource,
+          connection.port,
+        )} L ${connection.cursorX} ${connection.cursorY}`
       : null;
   const nearbyExit =
     pendingFrom && nodeMap.has(pendingFrom)
       ? nodeMap.get(pendingFrom)
       : null;
 
-  const startNode = nodeMap.get(START_NODE_ID);
-  const blockIds = new Set(blocks.map((block) => block.id));
-  const startEdges =
-    startNode && blocks.length
-      ? blocks
-          .filter(
-            (block) =>
-              block.type !== "note" &&
-              !edges.some(
-                (edge) =>
-                  edge.to === block.id && blockIds.has(edge.from),
-              ),
-          )
-          .map((block) => nodeMap.get(block.id))
-          .filter((node): node is GraphNode => Boolean(node))
-          .map((node) => ({
-            id: `${START_NODE_ID}:${node.id}`,
-            path: getEdgePath(startNode, node),
-          }))
-      : [];
-
   return (
+    <BehaviorTargetDragContext.Provider value={targetDrag}>
     <div
       ref={viewportRef}
       className={styles.viewport}
       style={gridStyle}
+      data-tool={activeTool}
       data-panning={panning ? "true" : undefined}
+      data-marquee={marquee ? "true" : undefined}
       data-space={spaceHeld ? "true" : undefined}
       role="application"
       aria-label={t("projects.workspace.behavior.graphTitle")}
@@ -923,17 +1353,59 @@ export function BehaviorGraphCanvas({
       onMouseDown={(event) => {
         if (event.button === 1) event.preventDefault();
       }}
+      onDragOver={(event) => {
+        const phrase = event.dataTransfer.types.includes(
+          BEHAVIOR_PHRASE_MIME,
+        );
+        const layer = hasLayerDrag(event.dataTransfer);
+        if (phrase && onCreatePhrase) {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "copy";
+          return;
+        }
+        if (!layer || !onCreateReference) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+      }}
+      onDrop={(event) => {
+        const phrase = event.dataTransfer.getData(BEHAVIOR_PHRASE_MIME);
+        const point = clientToWorld(event.clientX, event.clientY);
+        if (phrase && onCreatePhrase) {
+          event.preventDefault();
+          onCreatePhrase(phrase, point.x, point.y);
+          return;
+        }
+        if (!onCreateReference) return;
+        const nodeId = event.dataTransfer.getData(LAYER_DRAG_MIME);
+        if (!nodeId) return;
+        event.preventDefault();
+        onCreateReference(
+          nodeId,
+          point.x - BEHAVIOR_GRAPH_NODE_WIDTH / 2,
+          point.y - BEHAVIOR_GRAPH_NODE_HEIGHT.reference / 2,
+        );
+      }}
       onPointerDown={handleCanvasPointerDown}
       onPointerMove={handleCanvasPointerMove}
-      onPointerUp={endPan}
-      onPointerCancel={endPan}
-      onLostPointerCapture={endPan}
+      onPointerUp={handleCanvasPointerUp}
+      onPointerCancel={handleCanvasPointerUp}
+      onLostPointerCapture={handleCanvasLostPointerCapture}
       onContextMenu={(event) => {
-        onStopEditNode();
         openContextMenu(event);
       }}
     >
-      <div className={styles.world} style={worldStyle}>
+      {marquee ? (
+        <div
+          className={styles.marquee}
+          style={{
+            left: marquee.left,
+            top: marquee.top,
+            width: marquee.width,
+            height: marquee.height,
+          }}
+        />
+      ) : null}
+      <div ref={worldRef} className={styles.world} style={worldStyle}>
         <svg className={styles.edgeLayer} width={20000} height={20000}>
           <defs>
             <marker
@@ -960,29 +1432,21 @@ export function BehaviorGraphCanvas({
               <path d="M 0 0 L 10 5 L 0 10 z" />
             </marker>
           </defs>
-          {startEdges.map((edge) => (
-            <g
-              key={edge.id}
-              className={styles.startEdge}
-              aria-hidden="true"
-            >
-              <path
-                className={styles.startEdgeLine}
-                d={edge.path}
-                markerEnd={`url(#${arrowId})`}
-              />
-            </g>
-          ))}
           {edges.map((edge) => {
             const from = nodeMap.get(edge.from);
             const to = nodeMap.get(edge.to);
             if (!from || !to) return null;
             const selected = edge.id === selectedEdgeId;
-            const path = getEdgePath(from, to);
+            const path = getEdgePath(
+              from,
+              to,
+              edge.label,
+              edgeSpread(edges, edge, "from"),
+              edgeSpread(edges, edge, "to"),
+            );
+            const sourceY = outputPortY(from, edge.label);
             const labelX = (from.x + from.width + to.x) / 2;
-            const labelY =
-              (from.y + from.height / 2 + to.y + to.height / 2) / 2 -
-              8;
+            const labelY = (sourceY + to.y + to.height / 2) / 2 - 8;
             const label =
               edge.label ??
               `${getBlockName(from)} → ${getBlockName(to)}`;
@@ -995,27 +1459,34 @@ export function BehaviorGraphCanvas({
                 role="button"
                 tabIndex={0}
                 aria-label={label}
-                onPointerDown={(event) => event.stopPropagation()}
+                onPointerDown={(event) => {
+                  if (
+                    event.button === 1 ||
+                    spaceRef.current ||
+                    activeTool === "hand"
+                  ) {
+                    return;
+                  }
+                  event.stopPropagation();
+                }}
                 onContextMenu={(event) => {
                   focusViewport();
-                  onStopEditNode();
                   onSelectEdge(edge.id);
-                  onSelectNode(null);
+                  onSelectNodes([]);
                   openContextMenu(event, { edgeId: edge.id });
                 }}
                 onClick={(event) => {
+                  if (activeTool === "hand") return;
                   event.stopPropagation();
                   focusViewport();
-                  onStopEditNode();
                   onSelectEdge(edge.id);
-                  onSelectNode(null);
+                  onSelectNodes([]);
                 }}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
-                    onStopEditNode();
                     onSelectEdge(edge.id);
-                    onSelectNode(null);
+                    onSelectNodes([]);
                   }
                 }}
               >
@@ -1027,14 +1498,25 @@ export function BehaviorGraphCanvas({
                     selected ? selectedArrowId : arrowId
                   })`}
                 />
-                {edge.label ? (
+                {edge.label &&
+                edge.label !== "out" &&
+                edge.label !== "then" ? (
                   <text
                     className={styles.edgeLabel}
                     x={labelX}
                     y={labelY}
                     textAnchor="middle"
                   >
-                    {edge.label}
+                    {edge.label === "else"
+                      ? t("projects.workspace.behavior.ports.else")
+                      : edge.label === "default"
+                        ? t("projects.workspace.behavior.ports.default")
+                        : edge.label.startsWith("case:") &&
+                            from.block?.type === "switch"
+                          ? from.block.cases?.[
+                              Number(edge.label.slice(5))
+                            ] || edge.label
+                          : edge.label}
                   </text>
                 ) : null}
               </g>
@@ -1049,90 +1531,38 @@ export function BehaviorGraphCanvas({
         </svg>
 
         {renderNodes.map((node) => {
-          if (node.kind === "start") {
-            return (
-              <div
-                key={node.id}
-                className={`${styles.node} ${styles.startNode}`}
-                data-kind="start"
-                data-dragging={drag?.id === node.id ? "true" : undefined}
-                role="group"
-                aria-label={`${t(
-                  "projects.workspace.behavior.startNode",
-                )}: ${t(
-                  "projects.workspace.behavior.startNodeHint",
-                )}`}
-                style={{
-                  left: node.x,
-                  top: node.y,
-                  width: node.width,
-                  height: node.height,
-                }}
-                onPointerDown={(event) =>
-                  handleNodePointerDown(event, node)
-                }
-                onPointerMove={handleNodePointerMove}
-                onPointerUp={handleNodePointerUp}
-                onPointerCancel={handleNodePointerUp}
-                onLostPointerCapture={(event) =>
-                  handleNodeLostPointerCapture(event.pointerId)
-                }
-                onContextMenu={(event) => {
-                  focusViewport();
-                  onStopEditNode();
-                  onSelectNode(null);
-                  onSelectEdge(null);
-                  openContextMenu(event);
-                }}
-              >
-                <span className={styles.startGlyph} aria-hidden="true">
-                  ▶
-                </span>
-                <span className={styles.startText}>
-                  <strong>
-                    {t("projects.workspace.behavior.startNode")}
-                  </strong>
-                  <em>
-                    {t("projects.workspace.behavior.startNodeHint")}
-                  </em>
-                </span>
-              </div>
-            );
-          }
-
           const block = node.block;
           if (!block) return null;
-          const selected = node.id === selectedNodeId;
-          const editing = node.id === editingNodeId;
-          const hasPorts = block.type !== "note";
+          const selected = selectedNodeIds.includes(node.id);
+          const hasPorts = isFlowBlock(block.type);
           const inputActive = Boolean(pendingFrom || connection);
           return (
             <div
               key={node.id}
               className={styles.node}
+              data-graph-node={node.id}
               data-type={block.type}
               data-selected={selected ? "true" : undefined}
-              data-editing={editing ? "true" : undefined}
+              data-drop-target={
+                connection?.dragging && connection.hoverId === node.id
+                  ? "true"
+                  : undefined
+              }
               data-dragging={drag?.id === node.id ? "true" : undefined}
+              aria-label={
+                block.type === "reference"
+                  ? undefined
+                  : `${t(
+                      `projects.workspace.behavior.blockTypes.${block.type}`,
+                    )}: ${getBlockTitle(block)}`
+              }
               style={{
                 left: node.x,
                 top: node.y,
-                width: node.width,
-                height: node.height,
-              }}
-              onDoubleClick={(event) => {
-                const target = event.target as HTMLElement | null;
-                if (
-                  target?.closest(
-                    "input, textarea, select, button, [contenteditable='true'], [data-node-editor]",
-                  )
-                ) {
-                  return;
-                }
-                event.stopPropagation();
-                onSelectNode(node.id);
-                onSelectEdge(null);
-                onStartEditNode(node.id);
+                minHeight:
+                  behaviorOutputPorts(block).length > 1
+                    ? behaviorOutputPorts(block).length * 28
+                    : undefined,
               }}
               onPointerDown={(event) =>
                 handleNodePointerDown(event, node)
@@ -1147,14 +1577,14 @@ export function BehaviorGraphCanvas({
                 const target = event.target as HTMLElement | null;
                 if (
                   target?.closest(
-                    "[data-node-editor], input, textarea, select, [contenteditable='true']",
+                    "input, textarea, select, [contenteditable='true']",
                   )
                 ) {
                   event.stopPropagation();
                   return;
                 }
                 focusViewport();
-                onSelectNode(node.id);
+                onSelectNodes([node.id]);
                 onSelectEdge(null);
                 openContextMenu(event, { nodeId: node.id });
               }}
@@ -1174,67 +1604,64 @@ export function BehaviorGraphCanvas({
                   }
                 />
               ) : null}
-              {editing && renderBlockEditor ? (
-                <div
-                  className={styles.inlineEditor}
-                  data-node-editor="true"
-                >
-                  {renderBlockEditor(block)}
-                </div>
-              ) : (
-                <>
-                  <div className={styles.nodeHeader}>
-                    <span className={styles.nodeType}>
-                      {t(
-                        `projects.workspace.behavior.blockTypes.${block.type}`,
-                      )}
-                    </span>
-                    {selected ? (
-                      <button
-                        className={styles.nodeEditButton}
-                        type="button"
-                        aria-label={t(
-                          "projects.workspace.behavior.editNode",
-                        )}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onStartEditNode(node.id);
-                        }}
-                      >
-                        ✎
-                      </button>
-                    ) : null}
-                  </div>
-                  <div className={styles.nodeBody}>
-                    <span className={styles.nodeTitle}>
-                      {getBlockTitle(block)}
-                    </span>
-                    <span className={styles.nodeMeta}>
-                      {getBlockMeta(block) ||
-                        (block.type === "note"
-                          ? null
-                          : t("projects.workspace.behavior.nodeNoConfig"))}
-                    </span>
-                  </div>
-                </>
-              )}
-              {hasPorts ? (
-                <button
-                  className={`${styles.port} ${styles.portOut}`}
-                  type="button"
-                  data-port="out"
-                  data-node-id={node.id}
-                  aria-label={t(
-                    "projects.workspace.behavior.outputPort",
+              <div
+                className={styles.nodeHeader}
+                data-node-drag-handle="true"
+              >
+                <span className={styles.nodeType}>
+                  {t(
+                    `projects.workspace.behavior.blockTypes.${block.type}`,
                   )}
-                  onPointerDown={(event) =>
-                    handleOutputPointerDown(event, node.id)
-                  }
-                  onPointerMove={handleOutputPointerMove}
-                  onPointerUp={handleOutputPointerUp}
-                  onPointerCancel={cancelConnection}
-                />
-              ) : null}
+                </span>
+              </div>
+              <div className={styles.nodeBody} data-node-editor="true">
+                {renderBlockEditor(block)}
+              </div>
+              {hasPorts
+                ? behaviorOutputPorts(block).map((port, index, ports) => {
+                    const top =
+                      ports.length <= 1
+                        ? "50%"
+                        : `${((index + 1) / (ports.length + 1)) * 100}%`;
+                    const portLabel = port.labelKey
+                      ? t(port.labelKey)
+                      : port.label;
+                    return (
+                      <span key={port.id}>
+                        {portLabel ? (
+                          <span
+                            className={styles.portLabel}
+                            style={{ top }}
+                          >
+                            {portLabel}
+                          </span>
+                        ) : null}
+                        <button
+                          className={`${styles.port} ${styles.portOut}`}
+                          type="button"
+                          data-port="out"
+                          data-port-id={port.id}
+                          data-node-id={node.id}
+                          style={{ top }}
+                          aria-label={
+                            portLabel ||
+                            t("projects.workspace.behavior.outputPort")
+                          }
+                          onPointerDown={(event) =>
+                            handleOutputPointerDown(
+                              event,
+                              node.id,
+                              port.id,
+                            )
+                          }
+                          onPointerMove={handleOutputPointerMove}
+                          onPointerUp={handleOutputPointerUp}
+                          onPointerCancel={cancelConnection}
+                        />
+                      </span>
+                    );
+                  })
+                : null}
             </div>
           );
         })}
@@ -1269,7 +1696,7 @@ export function BehaviorGraphCanvas({
                 onClick={onCreateEvent}
               >
                 <span aria-hidden="true">+</span>
-                {t("projects.workspace.behavior.addEvent")}
+                {t("projects.workspace.behavior.phrases.placeSentence")}
               </button>
             ) : null}
           </div>
@@ -1380,11 +1807,11 @@ export function BehaviorGraphCanvas({
         </>
       ) : null}
     </div>
+    </BehaviorTargetDragContext.Provider>
   );
 }
 
 function getBlockName(node: GraphNode) {
-  if (node.kind === "start") return "start";
   const block = node.block;
   if (!block) return node.id;
   if (block.type === "event") return block.event ?? "event";
@@ -1395,5 +1822,6 @@ function getBlockName(node: GraphNode) {
   if (block.type === "action") {
     return block.action?.type ?? "action";
   }
+  if (block.type === "reference") return block.nodeId ?? "reference";
   return block.text ?? "note";
 }

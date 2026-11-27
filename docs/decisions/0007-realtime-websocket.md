@@ -1,6 +1,8 @@
 # ADR 0007：单 WebSocket 实时通道
 
 > 状态：已接受 · 日期：2026-11-26
+>
+> English: [0007-realtime-websocket_en.md](0007-realtime-websocket_en.md)
 
 ## 背景
 

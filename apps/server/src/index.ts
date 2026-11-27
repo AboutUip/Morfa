@@ -5,6 +5,7 @@ import websocket from "@fastify/websocket";
 import Fastify from "fastify";
 
 import { registerAccountComponentRoutes } from "./api/accountComponents.js";
+import { registerAgentRoutes } from "./api/agent.js";
 import { registerAccountRoutes } from "./api/account.js";
 import { registerApiKeyRoutes } from "./api/apiKeys.js";
 import { registerAssetUploadRoutes } from "./api/assets.js";
@@ -85,6 +86,7 @@ registerPreferencesRoutes(app);
 registerApiKeyRoutes(app);
 registerModelProviderRoutes(app);
 registerProjectRoutes(app);
+registerAgentRoutes(app);
 registerMcpRoutes(app, mcpController);
 registerRealtimeRoutes(app);
 registerUploadRoutes(app);

@@ -1,6 +1,8 @@
 # 开发指南
 
-> 状态：草案 · 最后更新：2026-11-25
+> 状态：草案 · 最后更新：2026-11-26
+>
+> English: [development_en.md](development_en.md)
 
 ## 环境要求
 
@@ -15,7 +17,7 @@
 
 ## 当前状态
 
-仓库处于 M1：Web 项目页、3 秒启动加载、账号注册 / 登录与认证 API 已可用；项目创建、编辑器与 Agent 能力仍待接入。
+仓库处于 M1：Web 项目页、开屏动画、账号注册 / 登录、个人面板、模型供应商与测试、API Key / MCP、单 WebSocket 实时通道以及加密导出 / 导入已可用；项目创建、编辑器与 Agent 能力仍待接入。
 
 ### 已可用命令
 
@@ -53,7 +55,7 @@ npm install
 npm run dev
 ```
 
-打开 <http://127.0.0.1:5173>，应看到 3 秒启动加载后进入项目页。API 默认运行在 `127.0.0.1:3001`。
+打开 <http://127.0.0.1:5173>，应看到开屏动画，结束后进入项目页。API 默认运行在 `127.0.0.1:3001`。
 
 - SQLite 数据库位于 `apps/server/data/morfa.sqlite`（不提交），服务启动时自动执行迁移。
 - 头像文件位于 `apps/server/data/uploads/avatars/`，数据库只保存相对路径。
@@ -61,13 +63,14 @@ npm run dev
 
 ## 启动与加载流程
 
-Web 端启动流程位于 `apps/web/src/features/bootstrap/`：
+Web 端启动改为开屏动画，`App` 同时挂载 `ProjectsPage` 与 `SplashScreen`：
 
-- `bootstrap.ts`：定义 `BootstrapTask`，按权重汇总各任务的 `report(0..1)` 进度；当前只有一个 3 秒占位任务。
-- `useBootstrap.ts`：负责 React 生命周期、取消、错误状态与重试。
-- `LoadingScreen.tsx`：显示进度、当前任务文案、百分比与错误界面。
+- `components/SplashScreen.tsx`：Logo 在屏幕中心快速出现，播放金属打击音效；
+- 声音期间 Logo 左移，`|` 与 `Morfa` 字标展开；
+- 动画结束后只淡出开屏层，主页面不再等待加载页切换；
+- 音效文件为 `public/audio/splash-metal.mp3`；开屏会自动开始，若浏览器阻止有声自动播放，动画仍按固定节奏完成。
 
-接入真实网络初始化时，将 `workspaceBootstrapTasks` 替换为会话、项目、设计文档等任务即可，加载界面与汇总逻辑无需修改。当前占位任务固定 3 秒后完成，随后进入项目页。
+`components/LoadingScreen.tsx`、`components/LoadingOverlay.tsx` 与 `lib/loading/` 仍可作为其他异步流程的可复用加载界面与进度订阅源；启动流程不再使用它们。
 
 ## XAIOP SDK
 
@@ -75,9 +78,10 @@ XAIOP 以源码形式放在 `vendor/xaiop/`，通过 npm workspaces 注册为 `@
 
 - 修改或同步 SDK 源码后执行 `npm run xaiop:test` 与 `npm run xaiop:check`。
 - 不要在 `vendor/xaiop` 内提交 `dist/`、`*.tgz` 或 `node_modules/`。
-- 前端 Vite 配置需要挂载 `xaiopSourcePlugin()`；插件会自动检查并编译。
-- 需要临时跳过自动构建时设置 `XAIOP_SKIP_BUILD=1`，仅限已确认 `dist` 存在的场景。
-- 上游信息、同步步骤与安全边界见 [XAIOP 集成](../integrations/xaiop.md)。
+- `apps/web/vite.config.ts` 已挂载 `xaiopSourcePlugin()`；Vite 启动或构建前会自动检查并编译，开发时监听源码变化重编译并整页刷新。
+- 当前只有构建与冒烟验证，业务代码尚未 `import` SDK；应用自身的 `package.json` 也尚未声明 `@bylan280/xaiop`。
+- 需要临时跳过自动构建时设置 `XAIOP_SKIP_BUILD=1`，仅限已确认 `dist` 存在且最新的场景。
+- 上游信息、同步步骤、入口选择与安全边界见 [XAIOP 集成](../integrations/xaiop.md)；英文版见 [XAIOP Integration](../integrations/xaiop_en.md)。
 
 ## 环境变量
 

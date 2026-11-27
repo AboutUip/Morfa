@@ -50,6 +50,7 @@ test("maps design typography styles to widget CSS variables", () => {
       "--mf-runtime-line-height": "1.4",
       "--mf-runtime-letter-spacing": "0.02em",
       "--mf-runtime-text-align": "center",
+      "--mf-runtime-main-align": "center",
       "--mf-runtime-text-shadow": "0 2px 8px rgba(0,0,0,.4)",
       "--mf-runtime-object-fit": "contain",
     },
@@ -297,6 +298,220 @@ test("executes v2 block graphs, data writes, and state edges", () => {
   );
   assert.equal(state.runtimeNodeData.owner?.count, "1");
   assert.equal(state.states.owner, "idle");
+});
+
+test("follows the else edge when a condition fails", () => {
+  const owner = page(
+    "owner",
+    {
+      version: 2,
+      triggers: [],
+      states: [{ id: "default", name: "Default", initial: true }],
+      blocks: [
+        { id: "e1", type: "event", x: 0, y: 0, event: "click" },
+        {
+          id: "c1",
+          type: "condition",
+          x: 0,
+          y: 0,
+          condition: {
+            id: "c1",
+            source: "nodeText",
+            targetId: "owner",
+            operator: "eq",
+            value: "yes",
+          },
+        },
+        {
+          id: "then",
+          type: "action",
+          x: 0,
+          y: 0,
+          action: {
+            id: "then",
+            type: "setText",
+            targetId: "owner",
+            value: "then",
+          },
+        },
+        {
+          id: "else",
+          type: "action",
+          x: 0,
+          y: 0,
+          action: {
+            id: "else",
+            type: "setText",
+            targetId: "owner",
+            value: "else",
+          },
+        },
+      ],
+      edges: [
+        { id: "edge1", from: "e1", to: "c1" },
+        { id: "edge2", from: "c1", to: "then" },
+        { id: "edge3", from: "c1", to: "else", label: "else" },
+      ],
+    },
+    { kind: "text", text: "no" },
+  );
+  const runtimeSnapshot = snapshot([owner]);
+  const state = dispatchRuntimeEvent(
+    runtimeSnapshot,
+    createRuntimeState(runtimeSnapshot),
+    "owner",
+    "click",
+  );
+  assert.equal(state.overrides.owner?.text, "else");
+});
+
+test("switch follows the matching case and otherwise the default", () => {
+  const owner = page(
+    "owner",
+    {
+      version: 2,
+      triggers: [],
+      states: [{ id: "default", name: "Default", initial: true }],
+      blocks: [
+        { id: "e1", type: "event", x: 0, y: 0, event: "click" },
+        {
+          id: "s1",
+          type: "switch",
+          x: 0,
+          y: 0,
+          nodeId: "owner",
+          key: "text",
+          cases: ["no", "yes"],
+        },
+        {
+          id: "matched",
+          type: "action",
+          x: 0,
+          y: 0,
+          action: {
+            id: "matched",
+            type: "setText",
+            targetId: "owner",
+            value: "matched",
+          },
+        },
+        {
+          id: "fallback",
+          type: "action",
+          x: 0,
+          y: 0,
+          action: {
+            id: "fallback",
+            type: "setText",
+            targetId: "owner",
+            value: "fallback",
+          },
+        },
+      ],
+      edges: [
+        { id: "edge1", from: "e1", to: "s1" },
+        { id: "edge2", from: "s1", to: "matched", label: "case:1" },
+        { id: "edge3", from: "s1", to: "fallback", label: "default" },
+      ],
+    },
+    { kind: "text", text: "yes" },
+  );
+  const runtimeSnapshot = snapshot([owner]);
+  let state = dispatchRuntimeEvent(
+    runtimeSnapshot,
+    createRuntimeState(runtimeSnapshot),
+    "owner",
+    "click",
+  );
+  assert.equal(state.overrides.owner?.text, "matched");
+
+  owner.widget = { kind: "text", text: "maybe" };
+  const nextSnapshot = snapshot([owner]);
+  state = dispatchRuntimeEvent(
+    nextSnapshot,
+    createRuntimeState(nextSnapshot),
+    "owner",
+    "click",
+  );
+  assert.equal(state.overrides.owner?.text, "fallback");
+});
+
+test("runs every outgoing branch in one simulation step", () => {
+  const button = page("button", undefined, { kind: "button", text: "Go" });
+  const title = page("title", undefined, { kind: "text", text: "old" });
+  const behavior = {
+    version: 2 as const,
+    triggers: [],
+    states: [{ id: "default", name: "Default", initial: true }],
+    blocks: [
+      {
+        id: "e1",
+        type: "event" as const,
+        x: 0,
+        y: 0,
+        event: "click",
+        nodeId: "button",
+      },
+      {
+        id: "a1",
+        type: "action" as const,
+        x: 0,
+        y: 0,
+        action: {
+          id: "a1",
+          type: "setText" as const,
+          targetId: "title",
+          value: "done",
+        },
+      },
+      {
+        id: "a2",
+        type: "action" as const,
+        x: 0,
+        y: 80,
+        action: {
+          id: "a2",
+          type: "setText" as const,
+          targetId: "button",
+          value: "pressed",
+        },
+      },
+      {
+        id: "a3",
+        type: "action" as const,
+        x: 200,
+        y: 0,
+        action: {
+          id: "a3",
+          type: "setData" as const,
+          targetId: "title",
+          key: "score",
+          value: "4",
+        },
+      },
+    ],
+    edges: [
+      { id: "e-a1", from: "e1", to: "a1" },
+      { id: "e-a2", from: "e1", to: "a2" },
+      { id: "a1-a3", from: "a1", to: "a3" },
+    ],
+  };
+  const runtimeSnapshot = createRuntimeSnapshot(
+    [button, title],
+    [],
+    "button",
+    "button",
+    behavior,
+  );
+  const state = dispatchRuntimeEvent(
+    runtimeSnapshot,
+    createRuntimeState(runtimeSnapshot),
+    "button",
+    "click",
+  );
+  assert.equal(state.overrides.title?.text, "done");
+  assert.equal(state.overrides.button?.text, "pressed");
+  assert.equal(state.runtimeNodeData.title?.score, "4");
 });
 
 test("keeps control instance child overrides isolated by instance scope", () => {

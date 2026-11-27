@@ -1,6 +1,8 @@
 # 品牌规范
 
 > 状态：已建立 · 最后更新：2026-11-25
+>
+> English: [branding_en.md](branding_en.md)
 
 ## 标志构成
 
@@ -55,7 +57,7 @@ Morfa 的标志由两部分组成：
 ## 在项目中使用
 
 - **README / 文档**：使用 `<picture>` 按 `prefers-color-scheme` 切换透明标志与徽标。
-- **Web 应用**：M1 搭建 `apps/web` 时，将 `branding/icons/` 复制到 `public/`，在 `index.html` 中声明 favicon 与 Apple Touch Icon；界面中的标志从 `src/assets` 导入或复制品牌资产。
+- **Web 应用**：`branding/icons/` 已复制到 `apps/web/public/`，`index.html` 已声明 favicon 与 Apple Touch Icon；界面中的标志从 `src/assets` 导入或复制品牌资产。
 - **分享图**：后续基于 `logo-badge.png` 生成 1200 × 630 的 Open Graph 图片，保持深色底与安全留白。
 - **邮件 / 外部页面**：使用徽标版本，不直接引用仓库相对路径。
 

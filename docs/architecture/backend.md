@@ -1,6 +1,8 @@
 # 后端架构
 
-> 状态：M1 认证、VCode、账号、导出、模型供应商、模型测试、API Key 与 MCP API 已实现 · 最后更新：2026-11-26
+> 状态：M1 认证、VCode、账号、导出、模型供应商、模型测试、API Key、MCP 与实时通道已实现 · 最后更新：2026-11-26
+>
+> English: [backend_en.md](backend_en.md)
 
 ## 职责
 
@@ -14,9 +16,9 @@ Node.js 服务负责鉴权、项目与设计文档的持久化、资源管理、
 | 语言 | TypeScript（strict） | 已接入 |
 | HTTP / WS 框架 | Fastify 5 + `@fastify/websocket` | 已接入（认证、模型、MCP 与实时通道） |
 | 校验 | Zod（与共享 schema 复用） | 建议，当前为手写校验 |
-| 数据库 | SQLite（WAL） | 已接入（认证） |
+| 数据库 | SQLite（WAL） | 已接入（认证、VCode、导出、项目、模型供应商、偏好与 API Key） |
 | 数据访问 | `node:sqlite`（原生） | 已接入；ORM 评估中 |
-| Agent 流式协议 | XAIOP Node SDK | 已 vendored，详见 [XAIOP 集成](../integrations/xaiop.md) |
+| Agent 流式协议 | XAIOP Node SDK | 已内置，业务接入待开始，详见 [XAIOP 集成](../integrations/xaiop.md) |
 | 日志 | Pino（结构化 JSON） | 建议 |
 | 测试 | Vitest + Supertest / Fastify inject | 建议 |
 
@@ -46,7 +48,7 @@ apps/server/
 - `db` 封装 SQL 与事务，不依赖 HTTP 类型。
 - `agent` 通过服务接口读写设计文档，不直接拼 SQL。
 
-## 已实现：认证、账号与模型供应商 API
+## 已实现：认证、账号、模型供应商、MCP 与实时 API
 
 - `GET /api/health`：健康检查。
 - `GET /api/auth/me`：读取当前会话用户；未登录返回 `{ user: null }`。会话用户缺少 VCode 或已注销时，服务端删除会话并清除 Cookie。
@@ -115,7 +117,7 @@ apps/server/
 
 - 每个响应携带 `requestId`，日志与错误追踪使用同一 ID。
 - 列表接口使用游标分页；时间统一为 UTC 毫秒时间戳。
-- Agent 流式输出使用 SSE（单向事件流），事件类型包含 `run.started`、`message.delta`、`tool.started`、`tool.finished`、`patch.proposed`、`run.finished`、`run.failed`。增量载荷规划使用 XAIOP 编码，前端通过 browser SDK 解析。
+- Agent 流式输出通过现有单 WebSocket 实时通道推送（见 [实时网络通道](realtime.md)），事件类型规划包含 `run.started`、`message.delta`、`tool.started`、`tool.finished`、`patch.proposed`、`run.finished`、`run.failed`。增量载荷规划使用 XAIOP 编码，服务端通过 Node SDK 生成，前端通过 browser SDK 解析；事件与 XAIOP 载荷的映射尚未实现，详见 [XAIOP 集成](../integrations/xaiop.md)。
 
 ## 模块划分（规划）
 

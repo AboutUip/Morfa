@@ -42,7 +42,7 @@ npm run xaiop:test                # 编译并运行上游完整测试
 npm run xaiop:check               # 编译后校验 Node / browser / core 入口
 ```
 
-Vite 侧使用 [`scripts/vite-plugin-xaiop.mjs`](../../scripts/vite-plugin-xaiop.mjs)：启动开发服务器或生产构建前检查 `dist` 是否缺失或过期，必要时自动编译；开发期间修改 `src` 会触发重新编译与页面刷新。详见 [XAIOP 集成文档](../../docs/integrations/xaiop.md)。
+Vite 侧使用 [`scripts/vite-plugin-xaiop.mjs`](../../scripts/vite-plugin-xaiop.mjs)：启动开发服务器或生产构建前检查 `dist` 是否缺失或过期，必要时自动编译；开发期间修改 `src` 会触发重新编译与页面刷新。插件已挂载到 `apps/web/vite.config.ts`。详见 [XAIOP 集成文档](../../docs/integrations/xaiop.md) 与 [English version](../../docs/integrations/xaiop_en.md)。
 
 ## 同步上游
 
@@ -50,7 +50,7 @@ Vite 侧使用 [`scripts/vite-plugin-xaiop.mjs`](../../scripts/vite-plugin-xaiop
 2. 复制上述目录，**不要**复制 `dist/`、`node_modules/`、`*.tgz`。
 3. 更新本文件的版本、提交与日期。
 4. 运行 `npm install`、`npm run xaiop:test`、`npm run xaiop:check`。
-5. 若上游有破坏性变化，更新 [ADR 0004](../../docs/decisions/0004-xaiop-integration.md) 与集成文档。
+5. 若上游有破坏性变化，更新 [ADR 0004](../../docs/decisions/0004-xaiop-integration.md) 与[集成文档](../../docs/integrations/xaiop.md)（含[英文版](../../docs/integrations/xaiop_en.md)）。
 
 ## 本地修改策略
 

@@ -1,5 +1,7 @@
 import type {
+  CanvasBehavior,
   CanvasBehaviorAction,
+  CanvasBehaviorBlock,
   CanvasBehaviorCondition,
   CanvasBehaviorEdge,
   CanvasBehaviorTrigger,
@@ -11,14 +13,24 @@ import {
   getControlState,
   getControlStateSubtree,
   getEffectivePageData,
+  isControlDefinitionPage,
+  isControlInternalPage,
 } from "./canvasDocument";
-import { getInitialBehaviorState } from "./canvasBehavior";
+import {
+  behaviorEdgeMatches,
+  getInitialBehaviorState,
+} from "./canvasBehavior";
+import {
+  isAttributeId,
+  resolvePropertyId,
+} from "./canvasPropertyIds";
 
 export interface RuntimeSnapshot {
   containerId: string;
   entryPageId: string;
   pages: CanvasPage[];
   links: CanvasLink[];
+  behavior?: CanvasBehavior;
   compiledAt: number;
 }
 
@@ -48,12 +60,14 @@ export function createRuntimeSnapshot(
   links: CanvasLink[],
   containerId: string,
   entryPageId: string,
+  behavior?: CanvasBehavior,
 ): RuntimeSnapshot {
   return {
     containerId,
     entryPageId,
     pages: clone(pages),
     links: clone(links),
+    ...(behavior ? { behavior: clone(behavior) } : {}),
     compiledAt: Date.now(),
   };
 }
@@ -350,8 +364,8 @@ function applyAction(
       return;
     }
     case "setControlState": {
-      if (!action.value) return;
-      const targetId = action.targetId ?? owner.id;
+      if (!action.value || !action.targetId) return;
+      const targetId = action.targetId;
       const instance = snapshot.pages.find(
         (page) => page.id === targetId,
       );
@@ -375,10 +389,10 @@ function applyAction(
       return;
     }
     case "setData": {
-      if (!action.key) return;
+      if (!action.key || !action.targetId) return;
       setNodeDataValue(
         state,
-        action.targetId ?? owner.id,
+        action.targetId,
         action.key,
         action.value ?? "",
         scope,
@@ -386,8 +400,8 @@ function applyAction(
       return;
     }
     case "incrementData": {
-      if (!action.key) return;
-      const targetId = action.targetId ?? owner.id;
+      if (!action.key || !action.targetId) return;
+      const targetId = action.targetId;
       const current = parseNumber(
         getNodeDataValue(
           snapshot,
@@ -408,8 +422,8 @@ function applyAction(
       return;
     }
     case "toggleData": {
-      if (!action.key) return;
-      const targetId = action.targetId ?? owner.id;
+      if (!action.key || !action.targetId) return;
+      const targetId = action.targetId;
       const current = getNodeDataValue(
         snapshot,
         state,
@@ -443,6 +457,9 @@ function getRuntimeNodeValue(
 
   if (source === "nodeStyle") {
     if (!styleKey) return "";
+    if (styleKey === "checked" || isAttributeId(styleKey)) {
+      return readWidgetAttribute(node, overrides, styleKey);
+    }
     return overrides?.styles[styleKey] ?? node.styles[styleKey] ?? "";
   }
 
@@ -474,6 +491,7 @@ export function evaluateBehaviorCondition(
   condition: CanvasBehaviorCondition,
   scope?: string,
 ): boolean {
+  if (condition.source !== "state" && !condition.targetId) return false;
   const targetId = condition.targetId ?? owner.id;
   let actual: string;
   if (condition.source === "nodeData") {
@@ -575,14 +593,146 @@ function getMatchingTriggers(page: CanvasPage, event: string) {
   );
 }
 
+function behaviorForEvent(
+  snapshot: RuntimeSnapshot,
+  page: CanvasPage,
+): CanvasBehavior | undefined {
+  if (
+    isControlDefinitionPage(page) ||
+    isControlInternalPage(snapshot.pages, page)
+  ) {
+    let current: CanvasPage | undefined = page;
+    const seen = new Set<string>();
+    let control: CanvasPage | undefined;
+    while (current && !seen.has(current.id)) {
+      seen.add(current.id);
+      if (isControlDefinitionPage(current)) control = current;
+      current = current.parentId
+        ? snapshot.pages.find((item) => item.id === current?.parentId)
+        : undefined;
+    }
+    return control?.behavior ?? page.behavior;
+  }
+  return snapshot.behavior ?? page.behavior;
+}
+
+function readWidgetAttribute(
+  node: CanvasPage,
+  overrides: RuntimeNodeOverrides | undefined,
+  key: string,
+) {
+  const styled = overrides?.styles[key];
+  if (key === "checked") {
+    if (overrides?.checked !== undefined) {
+      return overrides.checked ? "true" : "false";
+    }
+    return node.widget?.checked ? "true" : "false";
+  }
+  if (styled !== undefined && styled !== "") return styled;
+  const widget = node.widget;
+  if (!widget) return "";
+  switch (key) {
+    case "src":
+      return widget.src ?? "";
+    case "description":
+      return widget.description ?? "";
+    case "variant":
+      return widget.variant ?? "";
+    case "options":
+      return widget.options?.join(" | ") ?? "";
+    case "fit":
+      return widget.fit ?? "";
+    case "disabled":
+      return widget.disabled ? "true" : "false";
+    case "showValue":
+      return widget.showValue === false ? "false" : "true";
+    case "activeIndex":
+      return String(widget.activeIndex ?? 0);
+    case "chartData":
+      return widget.data?.join(", ") ?? "";
+    default:
+      return "";
+  }
+}
+
+function readSwitchCandidates(
+  snapshot: RuntimeSnapshot,
+  state: CanvasRuntimeState,
+  nodeId: string | undefined,
+  propertyId: string,
+  scope?: string,
+) {
+  if (!nodeId || !propertyId.trim()) return [];
+  const node = snapshot.pages.find((item) => item.id === nodeId);
+  if (!node) return [];
+  const dataKeys = getEffectivePageData(
+    snapshot.pages,
+    snapshot.links,
+    node,
+  ).keys();
+  const field = resolvePropertyId(propertyId, dataKeys);
+  if (!field) return [];
+  if (field.kind === "data" && field.key) {
+    return [
+      getNodeDataValue(snapshot, state, nodeId, field.key, scope),
+    ];
+  }
+  if (field.kind === "controlState") {
+    const current =
+      state.controlStates[getControlStateKey(scope, nodeId)] ??
+      node.controlStateId ??
+      "";
+    const named = snapshot.pages.find((item) => item.id === current)?.name;
+    return named && named !== current ? [named, current] : [current];
+  }
+  const source =
+    field.kind === "text"
+      ? "nodeText"
+      : field.kind === "value"
+        ? "nodeValue"
+        : field.kind === "visible"
+          ? "nodeVisible"
+          : "nodeStyle";
+  const key =
+    field.kind === "checked"
+      ? "checked"
+      : field.kind === "style" || field.kind === "attribute"
+        ? field.key
+        : undefined;
+  return [
+    getRuntimeNodeValue(snapshot, state, nodeId, source, key, scope),
+  ];
+}
+
+function followBehaviorEdges(
+  queue: { id: string; visited: Set<string> }[],
+  current: { id: string; visited: Set<string> },
+  outgoing: Map<string, CanvasBehaviorEdge[]>,
+  block: CanvasBehaviorBlock,
+  port: string | null,
+) {
+  // Every edge on the active port is queued. Sibling branches run in the
+  // same simulation step, in edge order, and do not cancel each other.
+  for (const edge of outgoing.get(current.id) ?? []) {
+    if (port !== null && !behaviorEdgeMatches(block, edge.label, port)) {
+      continue;
+    }
+    if (current.visited.has(edge.to)) continue;
+    const visited = new Set(current.visited);
+    visited.add(edge.to);
+    queue.push({ id: edge.to, visited });
+  }
+}
+
 function executeBehaviorGraph(
   snapshot: RuntimeSnapshot,
   state: CanvasRuntimeState,
   owner: CanvasPage,
   event: string,
   scope?: string,
+  behaviorOverride?: CanvasBehavior,
 ) {
-  const behavior = owner.behavior;
+  const behavior = behaviorOverride ?? owner.behavior;
   if (!behavior?.blocks?.length) return false;
   const ownerKey = getRuntimeNodeKey(scope, owner.id);
 
@@ -601,21 +751,28 @@ function executeBehaviorGraph(
 
   const currentState =
     state.states[ownerKey] ?? getInitialBehaviorState(owner);
+  const requireBoundNode =
+    behaviorOverride != null && behaviorOverride !== owner.behavior;
   const starts = behavior.blocks.filter(
     (block) =>
       block.type === "event" &&
       block.event === event &&
+      (requireBoundNode
+        ? block.nodeId === owner.id
+        : !block.nodeId || block.nodeId === owner.id) &&
       (!block.stateId || block.stateId === currentState),
   );
 
   for (const start of starts) {
-    const stack: { id: string; visited: Set<string> }[] = [
+    const queue: { id: string; visited: Set<string> }[] = [
       { id: start.id, visited: new Set([start.id]) },
     ];
+    let cursor = 0;
     let steps = 0;
 
-    while (stack.length && steps < 200) {
-      const current = stack.pop();
+    while (cursor < queue.length && steps < 200) {
+      const current = queue[cursor];
+      cursor += 1;
       if (!current) break;
       steps += 1;
       const block = blocks.get(current.id);
@@ -655,19 +812,44 @@ function executeBehaviorGraph(
                   scope,
                 ),
               );
-        if (!matched) continue;
+        const port = matched ? "then" : "else";
+        followBehaviorEdges(queue, current, outgoing, block, port);
+        continue;
+      } else if (block.type === "switch") {
+        const actual = readSwitchCandidates(
+          snapshot,
+          state,
+          block.nodeId,
+          block.key ?? "",
+          scope,
+        );
+        const cases = block.cases ?? [];
+        const index = cases.findIndex((item) => actual.includes(item));
+        followBehaviorEdges(
+          queue,
+          current,
+          outgoing,
+          block,
+          index >= 0 ? `case:${index}` : "default",
+        );
+        continue;
       } else if (block.type === "action" && block.action) {
         applyAction(snapshot, state, owner, block.action, scope);
-      } else if (block.type === "event") {
-        // Entry block: flow continues through outgoing edges.
+      } else if (block.type === "call") {
+        const fn = block.key ? blocks.get(block.key) : undefined;
+        if (
+          fn?.type === "function" &&
+          !current.visited.has(fn.id)
+        ) {
+          const visited = new Set(current.visited);
+          visited.add(fn.id);
+          queue.push({ id: fn.id, visited });
+        }
+      } else if (block.type === "event" || block.type === "function") {
+        // Entry or function body: flow continues through outgoing edges.
       }
 
-      for (const edge of outgoing.get(current.id) ?? []) {
-        if (current.visited.has(edge.to)) continue;
-        const visited = new Set(current.visited);
-        visited.add(edge.to);
-        stack.push({ id: edge.to, visited });
-      }
+      followBehaviorEdges(queue, current, outgoing, block, null);
     }
   }
 
@@ -703,6 +885,19 @@ export function dispatchRuntimeEvent(
       ]),
     ),
   };
+
+  const sharedBehavior = behaviorForEvent(snapshot, page);
+  if (sharedBehavior?.blocks?.length) {
+    executeBehaviorGraph(
+      snapshot,
+      next,
+      page,
+      event,
+      scope,
+      sharedBehavior,
+    );
+    return next;
+  }
 
   if (page.behavior?.blocks?.length) {
     executeBehaviorGraph(snapshot, next, page, event, scope);
@@ -745,12 +940,46 @@ export function applyWidgetRuntimeOverrides(
   overrides: RuntimeNodeOverrides | undefined,
 ): CanvasWidget | undefined {
   if (!widget || !overrides) return widget;
+  const styles = overrides.styles;
   return {
     ...widget,
     ...(overrides.text !== undefined ? { text: overrides.text } : {}),
     ...(overrides.value !== undefined ? { value: overrides.value } : {}),
     ...(overrides.checked !== undefined
       ? { checked: overrides.checked }
+      : {}),
+    ...(styles.src !== undefined ? { src: styles.src } : {}),
+    ...(styles.description !== undefined
+      ? { description: styles.description }
+      : {}),
+    ...(styles.variant !== undefined ? { variant: styles.variant } : {}),
+    ...(styles.fit === "contain" || styles.fit === "cover"
+      ? { fit: styles.fit }
+      : {}),
+    ...(styles.disabled !== undefined
+      ? { disabled: styles.disabled === "true" }
+      : {}),
+    ...(styles.showValue !== undefined
+      ? { showValue: styles.showValue !== "false" }
+      : {}),
+    ...(styles.activeIndex !== undefined
+      ? { activeIndex: Number.parseInt(styles.activeIndex, 10) || 0 }
+      : {}),
+    ...(styles.options !== undefined
+      ? {
+          options: styles.options
+            .split("|")
+            .map((option) => option.trim())
+            .filter(Boolean),
+        }
+      : {}),
+    ...(styles.chartData !== undefined
+      ? {
+          data: styles.chartData
+            .split(/[,，\s]+/)
+            .map((point) => Number.parseFloat(point))
+            .filter((point) => Number.isFinite(point)),
+        }
       : {}),
   };
 }
@@ -772,8 +1001,18 @@ const STYLE_VARIABLE_MAP: Record<string, string> = {
   "text-shadow": "--mf-runtime-text-shadow",
   "white-space": "--mf-runtime-white-space",
   "word-break": "--mf-runtime-word-break",
+  "text-overflow": "--mf-runtime-text-overflow",
   "object-fit": "--mf-runtime-object-fit",
   "object-position": "--mf-runtime-object-position",
+};
+
+const TEXT_ALIGN_MAIN: Record<string, string> = {
+  left: "flex-start",
+  start: "flex-start",
+  center: "center",
+  right: "flex-end",
+  end: "flex-end",
+  justify: "flex-start",
 };
 
 /**
@@ -804,6 +1043,15 @@ export function styleVariables(
     }
     result[variable] = value;
   }
+  const align = styles["text-align"]?.trim().toLowerCase();
+  if (align && TEXT_ALIGN_MAIN[align]) {
+    result["--mf-runtime-main-align"] = TEXT_ALIGN_MAIN[align];
+  } else if (styles["justify-content"]) {
+    result["--mf-runtime-main-align"] = styles["justify-content"];
+  }
+  if (styles["align-items"]) {
+    result["--mf-runtime-cross-align"] = styles["align-items"];
+  }
   return result;
 }
 
@@ -830,5 +1078,39 @@ export function runtimeStyleVariables(
   }
   if (styles.display) result.display = styles.display;
   if (overrides.visible === false) result.display = "none";
+  const inlineKeys = [
+    "padding",
+    "margin",
+    "gap",
+    "box-shadow",
+    "filter",
+    "border-width",
+    "border-style",
+    "font-size",
+    "font-family",
+    "font-weight",
+    "font-style",
+    "line-height",
+    "letter-spacing",
+    "text-decoration",
+    "text-transform",
+    "white-space",
+    "text-shadow",
+    "word-break",
+    "text-overflow",
+    "object-fit",
+    "object-position",
+    "flex-direction",
+    "flex-wrap",
+    "align-self",
+  ];
+  for (const key of inlineKeys) {
+    const value = styles[key];
+    if (!value) continue;
+    const camel = key.replace(/-([a-z])/g, (_, char: string) =>
+      char.toUpperCase(),
+    );
+    result[camel] = value;
+  }
   return result;
 }

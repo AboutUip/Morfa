@@ -1,6 +1,8 @@
 # ADR 0006：原生 MCP 与 API Key 权限模型
 
 > 状态：已接受 · 日期：2026-11-26
+>
+> English: [0006-native-mcp_en.md](0006-native-mcp_en.md)
 
 ## 背景
 

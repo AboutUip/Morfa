@@ -332,6 +332,7 @@ export function CanvasSimulator({
                   links={snapshot.links}
                   root
                   runtime={runtime}
+                  projectBehavior={snapshot.behavior}
                   onEvent={handleRuntimeEvent}
                   maxDepth={8}
                 />

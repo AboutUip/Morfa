@@ -15,6 +15,7 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import {
+  AgentIcon,
   ChevronDownIcon,
   CloseIcon,
   DatabaseIcon,
@@ -58,6 +59,11 @@ import {
   type LayerDropPosition,
 } from "./canvasHierarchy";
 import { getWidgetStyleFields } from "./widgetStyleSchema";
+import {
+  cssKeyToFieldId,
+  dataBehaviorId,
+} from "./canvasPropertyIds";
+import { CanvasAgentPanel } from "./CanvasAgentPanel";
 import styles from "./CanvasRightSidebar.module.css";
 
 const DEFAULT_PANEL_WIDTH = 320;
@@ -68,19 +74,21 @@ const PANEL_ANIMATION_MS = 200;
 const PANEL_ID = "canvas-inspector-panel";
 const LAYER_DRAG_MIME = "application/x-morfa-layer";
 
-type RightPanel = "layers" | "properties" | "data";
+type RightPanel = "layers" | "properties" | "data" | "agent";
 type PropertyTab = "attributes" | "style" | "behavior";
 
 const PANEL_ITEMS = [
   { id: "layers", Icon: LayersIcon },
   { id: "properties", Icon: SlidersIcon },
   { id: "data", Icon: DatabaseIcon },
+  { id: "agent", Icon: AgentIcon },
 ] as const;
 
 const PANEL_LABEL_KEYS: Record<RightPanel, string> = {
   layers: "projects.workspace.rightPanels.layers",
   properties: "projects.workspace.rightPanels.properties",
   data: "projects.workspace.rightPanels.data",
+  agent: "projects.workspace.rightPanels.agent",
 };
 
 const DATA_TYPE_LABEL_KEYS: Record<CanvasDataType, string> = {
@@ -98,6 +106,7 @@ interface ResizeSession {
 }
 
 interface CanvasRightSidebarProps {
+  projectId: string;
   pages: CanvasPage[];
   links: CanvasLink[];
   selectedId: string | null;
@@ -116,7 +125,6 @@ interface CanvasRightSidebarProps {
   onUpdatePosition: (pageId: string, x: number, y: number) => void;
   onUpdateWidget: (pageId: string, widget: CanvasWidget | null) => void;
   onUpdateData: (pageId: string, data: CanvasDataEntry[]) => void;
-  onOpenBehaviorEditor: (pageId: string) => void;
   onReorder: (
     dragId: string,
     targetId: string,
@@ -244,6 +252,7 @@ function useDraftValue(
 
 function NumberControl({
   label,
+  fieldId,
   value,
   onChange,
   unit = "px",
@@ -253,6 +262,7 @@ function NumberControl({
   disabled = false,
 }: {
   label: string;
+  fieldId?: string;
   value: string | undefined;
   onChange: (value: string) => void;
   unit?: string;
@@ -269,7 +279,7 @@ function NumberControl({
 
   return (
     <div className={styles.controlRow}>
-      <span className={styles.controlLabel}>{label}</span>
+      <FieldLabel label={label} fieldId={fieldId} />
       <span className={styles.inputWrap}>
         <input
           className={styles.controlInput}
@@ -291,12 +301,29 @@ function NumberControl({
   );
 }
 
+function FieldLabel({
+  label,
+  fieldId,
+}: {
+  label: string;
+  fieldId?: string;
+}) {
+  return (
+    <span className={styles.controlLabel}>
+      <span className={styles.controlLabelText}>{label}</span>
+      {fieldId ? <code className={styles.fieldId}>{fieldId}</code> : null}
+    </span>
+  );
+}
+
 function ColorControl({
   label,
+  fieldId,
   value,
   onChange,
 }: {
   label: string;
+  fieldId?: string;
   value: string | undefined;
   onChange: (value: string) => void;
 }) {
@@ -305,7 +332,7 @@ function ColorControl({
 
   return (
     <div className={styles.controlRow}>
-      <span className={styles.controlLabel}>{label}</span>
+      <FieldLabel label={label} fieldId={fieldId} />
       <span className={styles.colorRow}>
         <input
           className={styles.colorInput}
@@ -333,11 +360,13 @@ function ColorControl({
 
 function SelectControl({
   label,
+  fieldId,
   value,
   options,
   onChange,
 }: {
   label: string;
+  fieldId?: string;
   value: string | undefined;
   options: readonly string[];
   onChange: (value: string) => void;
@@ -348,7 +377,7 @@ function SelectControl({
 
   return (
     <div className={styles.controlRow}>
-      <span className={styles.controlLabel}>{label}</span>
+      <FieldLabel label={label} fieldId={fieldId} />
       <input
         className={styles.controlInput}
         list={listId}
@@ -371,12 +400,14 @@ function SelectControl({
 
 function TextControl({
   label,
+  fieldId,
   value,
   onChange,
   placeholder,
   disabled = false,
 }: {
   label: string;
+  fieldId?: string;
   value: string | undefined;
   onChange: (value: string) => void;
   placeholder: string;
@@ -386,7 +417,7 @@ function TextControl({
 
   return (
     <div className={styles.controlRow}>
-      <span className={styles.controlLabel}>{label}</span>
+      <FieldLabel label={label} fieldId={fieldId} />
       <input
         className={styles.controlInput}
         value={draft.value}
@@ -403,16 +434,18 @@ function TextControl({
 
 function BooleanControl({
   label,
+  fieldId,
   value,
   onChange,
 }: {
   label: string;
+  fieldId?: string;
   value: boolean;
   onChange: (value: boolean) => void;
 }) {
   return (
     <div className={styles.controlRow}>
-      <span className={styles.controlLabel}>{label}</span>
+      <FieldLabel label={label} fieldId={fieldId} />
       <button
         className={styles.propertySwitch}
         type="button"
@@ -974,6 +1007,7 @@ function WidgetAttributes({
     >
       {variantOptions ? (
         <SelectControl
+          fieldId="variant"
           label={t(
             "projects.workspace.propertiesPanel.fields.widgetVariant",
           )}
@@ -984,6 +1018,7 @@ function WidgetAttributes({
       ) : null}
       {showText ? (
         <TextControl
+          fieldId="text"
           label={t(textLabelKey)}
           value={widget.text}
           placeholder={t(
@@ -994,6 +1029,7 @@ function WidgetAttributes({
       ) : null}
       {showDescription ? (
         <TextControl
+          fieldId="description"
           label={t(
             "projects.workspace.propertiesPanel.fields.widgetDescription",
           )}
@@ -1006,6 +1042,7 @@ function WidgetAttributes({
       ) : null}
       {showOptions ? (
         <TextControl
+          fieldId="options"
           label={t(
             "projects.workspace.propertiesPanel.fields.widgetOptions",
           )}
@@ -1020,6 +1057,7 @@ function WidgetAttributes({
       ) : null}
       {showActiveIndex ? (
         <NumberControl
+          fieldId="activeIndex"
           label={t(
             "projects.workspace.propertiesPanel.fields.widgetActiveIndex",
           )}
@@ -1040,6 +1078,7 @@ function WidgetAttributes({
       ) : null}
       {showChecked ? (
         <BooleanControl
+          fieldId="checked"
           label={t(
             "projects.workspace.propertiesPanel.fields.widgetChecked",
           )}
@@ -1049,6 +1088,7 @@ function WidgetAttributes({
       ) : null}
       {showValue ? (
         <NumberControl
+          fieldId="value"
           label={t(
             "projects.workspace.propertiesPanel.fields.widgetValue",
           )}
@@ -1068,6 +1108,7 @@ function WidgetAttributes({
       ) : null}
       {showValueSwitch ? (
         <BooleanControl
+          fieldId="showValue"
           label={t(
             "projects.workspace.propertiesPanel.fields.widgetShowValue",
           )}
@@ -1077,6 +1118,7 @@ function WidgetAttributes({
       ) : null}
       {showData ? (
         <TextControl
+          fieldId="chartData"
           label={t(
             "projects.workspace.propertiesPanel.fields.widgetData",
           )}
@@ -1089,6 +1131,7 @@ function WidgetAttributes({
       ) : null}
       {showFit ? (
         <SelectControl
+          fieldId="fit"
           label={t(
             "projects.workspace.propertiesPanel.fields.widgetFit",
           )}
@@ -1101,6 +1144,7 @@ function WidgetAttributes({
       ) : null}
       {showSource ? (
         <TextControl
+          fieldId="src"
           label={t(
             "projects.workspace.propertiesPanel.fields.widgetSource",
           )}
@@ -1113,6 +1157,7 @@ function WidgetAttributes({
       ) : null}
       {showDisabled ? (
         <BooleanControl
+          fieldId="disabled"
           label={t(
             "projects.workspace.propertiesPanel.fields.widgetDisabled",
           )}
@@ -1133,7 +1178,6 @@ function PropertiesPanel({
   onUpdateStyles,
   onUpdatePosition,
   onUpdateWidget,
-  onOpenBehaviorEditor,
 }: {
   pages: CanvasPage[];
   links: CanvasLink[];
@@ -1146,7 +1190,6 @@ function PropertiesPanel({
   ) => void;
   onUpdatePosition: (pageId: string, x: number, y: number) => void;
   onUpdateWidget: (pageId: string, widget: CanvasWidget | null) => void;
-  onOpenBehaviorEditor: (pageId: string) => void;
 }) {
   const { t } = useTranslation();
   const [tab, setTab] = useState<PropertyTab>("attributes");
@@ -1309,6 +1352,7 @@ function PropertiesPanel({
                     onClick={startRename}
                   >
                     {page.name}
+                    <code className={styles.fieldId}>name</code>
                   </button>
                 )}
               </div>
@@ -1394,7 +1438,9 @@ function PropertiesPanel({
 
                     return (
                       <div className={styles.styleTableRow} key={key}>
-                        <code className={styles.styleKey}>{key}</code>
+                        <code className={styles.styleKey} title={key}>
+                          {cssKeyToFieldId(key)}
+                        </code>
                         <StyleTableValue
                           value={value}
                           ariaLabel={key}
@@ -1458,6 +1504,7 @@ function PropertiesPanel({
                     )}
                   >
                     <NumberControl
+                      fieldId="x"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.x",
                       )}
@@ -1471,6 +1518,7 @@ function PropertiesPanel({
                       }}
                     />
                     <NumberControl
+                      fieldId="y"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.y",
                       )}
@@ -1484,6 +1532,7 @@ function PropertiesPanel({
                       }}
                     />
                     <TextControl
+                      fieldId="left"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.left",
                       )}
@@ -1494,6 +1543,7 @@ function PropertiesPanel({
                       onChange={(value) => updateStyle("left", value)}
                     />
                     <TextControl
+                      fieldId="top"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.top",
                       )}
@@ -1504,6 +1554,7 @@ function PropertiesPanel({
                       onChange={(value) => updateStyle("top", value)}
                     />
                     <TextControl
+                      fieldId="right"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.right",
                       )}
@@ -1514,6 +1565,7 @@ function PropertiesPanel({
                       onChange={(value) => updateStyle("right", value)}
                     />
                     <TextControl
+                      fieldId="bottom"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.bottom",
                       )}
@@ -1524,6 +1576,7 @@ function PropertiesPanel({
                       onChange={(value) => updateStyle("bottom", value)}
                     />
                     <TextControl
+                      fieldId="width"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.width",
                       )}
@@ -1535,6 +1588,7 @@ function PropertiesPanel({
                       onChange={(value) => updateStyle("width", value)}
                     />
                     <TextControl
+                      fieldId="height"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.height",
                       )}
@@ -1546,6 +1600,7 @@ function PropertiesPanel({
                       onChange={(value) => updateStyle("height", value)}
                     />
                     <TextControl
+                      fieldId="aspectRatio"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.aspectRatio",
                       )}
@@ -1559,6 +1614,7 @@ function PropertiesPanel({
                       }
                     />
                     <TextControl
+                      fieldId="minWidth"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.minWidth",
                       )}
@@ -1572,6 +1628,7 @@ function PropertiesPanel({
                       }
                     />
                     <TextControl
+                      fieldId="maxWidth"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.maxWidth",
                       )}
@@ -1585,6 +1642,7 @@ function PropertiesPanel({
                       }
                     />
                     <TextControl
+                      fieldId="minHeight"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.minHeight",
                       )}
@@ -1598,6 +1656,7 @@ function PropertiesPanel({
                       }
                     />
                     <TextControl
+                      fieldId="maxHeight"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.maxHeight",
                       )}
@@ -1623,6 +1682,7 @@ function PropertiesPanel({
                       </p>
                     ) : null}
                     <SelectControl
+                      fieldId="display"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.display",
                       )}
@@ -1631,6 +1691,7 @@ function PropertiesPanel({
                       onChange={(value) => updateStyle("display", value)}
                     />
                     <SelectControl
+                      fieldId="visibility"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.visibility",
                       )}
@@ -1641,6 +1702,7 @@ function PropertiesPanel({
                       }
                     />
                     <SelectControl
+                      fieldId="overflow"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.overflow",
                       )}
@@ -1649,6 +1711,7 @@ function PropertiesPanel({
                       onChange={(value) => updateStyle("overflow", value)}
                     />
                     <SelectControl
+                      fieldId="boxSizing"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.boxSizing",
                       )}
@@ -1659,6 +1722,7 @@ function PropertiesPanel({
                       }
                     />
                     <SelectControl
+                      fieldId="position"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.position",
                       )}
@@ -1673,6 +1737,7 @@ function PropertiesPanel({
                       onChange={(value) => updateStyle("position", value)}
                     />
                     <NumberControl
+                      fieldId="zIndex"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.zIndex",
                       )}
@@ -1688,6 +1753,7 @@ function PropertiesPanel({
                     )}
                   >
                     <TextControl
+                      fieldId="padding"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.padding",
                       )}
@@ -1698,6 +1764,7 @@ function PropertiesPanel({
                       onChange={(value) => updateStyle("padding", value)}
                     />
                     <TextControl
+                      fieldId="margin"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.margin",
                       )}
@@ -1708,6 +1775,7 @@ function PropertiesPanel({
                       onChange={(value) => updateStyle("margin", value)}
                     />
                     <TextControl
+                      fieldId="gap"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.gap",
                       )}
@@ -1725,6 +1793,7 @@ function PropertiesPanel({
                     )}
                   >
                     <ColorControl
+                      fieldId="color"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.color",
                       )}
@@ -1732,6 +1801,7 @@ function PropertiesPanel({
                       onChange={(value) => updateStyle("color", value)}
                     />
                     <TextControl
+                      fieldId="fontSize"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.fontSize",
                       )}
@@ -1744,6 +1814,7 @@ function PropertiesPanel({
                       }
                     />
                     <TextControl
+                      fieldId="fontFamily"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.fontFamily",
                       )}
@@ -1756,6 +1827,7 @@ function PropertiesPanel({
                       }
                     />
                     <SelectControl
+                      fieldId="fontWeight"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.fontWeight",
                       )}
@@ -1774,6 +1846,7 @@ function PropertiesPanel({
                       }
                     />
                     <TextControl
+                      fieldId="lineHeight"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.lineHeight",
                       )}
@@ -1786,6 +1859,7 @@ function PropertiesPanel({
                       }
                     />
                     <TextControl
+                      fieldId="letterSpacing"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.letterSpacing",
                       )}
@@ -1798,6 +1872,7 @@ function PropertiesPanel({
                       }
                     />
                     <SelectControl
+                      fieldId="textAlign"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.textAlign",
                       )}
@@ -1808,6 +1883,7 @@ function PropertiesPanel({
                       }
                     />
                     <SelectControl
+                      fieldId="fontStyle"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.fontStyle",
                       )}
@@ -1818,6 +1894,7 @@ function PropertiesPanel({
                       }
                     />
                     <SelectControl
+                      fieldId="textDecoration"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.textDecoration",
                       )}
@@ -1833,6 +1910,7 @@ function PropertiesPanel({
                       }
                     />
                     <SelectControl
+                      fieldId="textTransform"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.textTransform",
                       )}
@@ -1848,6 +1926,7 @@ function PropertiesPanel({
                       }
                     />
                     <SelectControl
+                      fieldId="whiteSpace"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.whiteSpace",
                       )}
@@ -1858,6 +1937,7 @@ function PropertiesPanel({
                       }
                     />
                     <TextControl
+                      fieldId="textShadow"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.textShadow",
                       )}
@@ -1869,6 +1949,33 @@ function PropertiesPanel({
                         updateStyle("text-shadow", value)
                       }
                     />
+                    <SelectControl
+                      fieldId="wordBreak"
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.wordBreak",
+                      )}
+                      value={page.styles["word-break"]}
+                      options={[
+                        "normal",
+                        "break-all",
+                        "keep-all",
+                        "break-word",
+                      ]}
+                      onChange={(value) =>
+                        updateStyle("word-break", value)
+                      }
+                    />
+                    <SelectControl
+                      fieldId="textOverflow"
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.textOverflow",
+                      )}
+                      value={page.styles["text-overflow"]}
+                      options={["clip", "ellipsis"]}
+                      onChange={(value) =>
+                        updateStyle("text-overflow", value)
+                      }
+                    />
                   </ControlSection>
 
                   <ControlSection
@@ -1877,6 +1984,7 @@ function PropertiesPanel({
                     )}
                   >
                     <ColorControl
+                      fieldId="backgroundColor"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.background",
                       )}
@@ -1886,6 +1994,7 @@ function PropertiesPanel({
                       }
                     />
                     <NumberControl
+                      fieldId="opacity"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.opacity",
                       )}
@@ -1897,6 +2006,7 @@ function PropertiesPanel({
                       onChange={(value) => updateStyle("opacity", value)}
                     />
                     <NumberControl
+                      fieldId="borderRadius"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.radius",
                       )}
@@ -1906,6 +2016,7 @@ function PropertiesPanel({
                       }
                     />
                     <SelectControl
+                      fieldId="objectFit"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.objectFit",
                       )}
@@ -1921,6 +2032,17 @@ function PropertiesPanel({
                         updateStyle("object-fit", value)
                       }
                     />
+                    <TextControl
+                      fieldId="objectPosition"
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.objectPosition",
+                      )}
+                      value={page.styles["object-position"]}
+                      placeholder="center center"
+                      onChange={(value) =>
+                        updateStyle("object-position", value)
+                      }
+                    />
                   </ControlSection>
 
                   <ControlSection
@@ -1929,6 +2051,7 @@ function PropertiesPanel({
                     )}
                   >
                     <NumberControl
+                      fieldId="borderWidth"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.borderWidth",
                       )}
@@ -1938,6 +2061,7 @@ function PropertiesPanel({
                       }
                     />
                     <SelectControl
+                      fieldId="borderStyle"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.borderStyle",
                       )}
@@ -1948,6 +2072,7 @@ function PropertiesPanel({
                       }
                     />
                     <ColorControl
+                      fieldId="borderColor"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.borderColor",
                       )}
@@ -1964,6 +2089,7 @@ function PropertiesPanel({
                     )}
                   >
                     <SelectControl
+                      fieldId="flexDirection"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.flexDirection",
                       )}
@@ -1979,6 +2105,7 @@ function PropertiesPanel({
                       }
                     />
                     <SelectControl
+                      fieldId="justifyContent"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.justifyContent",
                       )}
@@ -1996,6 +2123,7 @@ function PropertiesPanel({
                       }
                     />
                     <SelectControl
+                      fieldId="alignItems"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.alignItems",
                       )}
@@ -2012,6 +2140,7 @@ function PropertiesPanel({
                       }
                     />
                     <SelectControl
+                      fieldId="flexWrap"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.flexWrap",
                       )}
@@ -2022,6 +2151,7 @@ function PropertiesPanel({
                       }
                     />
                     <SelectControl
+                      fieldId="alignSelf"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.alignSelf",
                       )}
@@ -2046,6 +2176,7 @@ function PropertiesPanel({
                     )}
                   >
                     <TextControl
+                      fieldId="boxShadow"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.boxShadow",
                       )}
@@ -2056,6 +2187,7 @@ function PropertiesPanel({
                       }
                     />
                     <TextControl
+                      fieldId="filter"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.filter",
                       )}
@@ -2085,6 +2217,7 @@ function PropertiesPanel({
                                 return (
                                   <ColorControl
                                     key={field.key}
+                                    fieldId={cssKeyToFieldId(field.key)}
                                     label={t(field.labelKey)}
                                     value={value}
                                     onChange={onChange}
@@ -2095,6 +2228,7 @@ function PropertiesPanel({
                                 return (
                                   <SelectControl
                                     key={field.key}
+                                    fieldId={cssKeyToFieldId(field.key)}
                                     label={t(field.labelKey)}
                                     value={value}
                                     options={field.options ?? []}
@@ -2105,6 +2239,7 @@ function PropertiesPanel({
                               return (
                                 <TextControl
                                   key={field.key}
+                                  fieldId={cssKeyToFieldId(field.key)}
                                   label={t(field.labelKey)}
                                   value={value}
                                   placeholder={
@@ -2127,26 +2262,27 @@ function PropertiesPanel({
         <div className={styles.propertyBody}>
           {page ? (
             <div className={styles.controlSections}>
-              {page.behavior ? (
-                <p className={styles.styleHint}>
-                  {t("projects.workspace.behavior.summary", {
-                    blocks:
-                      (page.behavior.blocks?.length ??
-                        page.behavior.triggers.length) + 1,
-                  })}
-                </p>
-              ) : (
-                <p className={styles.styleHint}>
-                  {t("projects.workspace.propertiesPanel.behaviorEmpty")}
-                </p>
-              )}
-              <button
-                className={styles.behaviorEditorButton}
-                type="button"
-                onClick={() => onOpenBehaviorEditor(page.id)}
-              >
-                {t("projects.workspace.behavior.openEditor")}
-              </button>
+              <p className={styles.styleHint}>
+                {t("projects.workspace.behavior.behaviorTabHint")}
+              </p>
+              <div className={styles.idList}>
+                {(
+                  [
+                    "text",
+                    "value",
+                    "visible",
+                    "checked",
+                    "controlState",
+                  ] as const
+                ).map((id) => (
+                  <div className={styles.idRow} key={id}>
+                    <code className={styles.fieldId}>{id}</code>
+                    <span>
+                      {t(`projects.workspace.behavior.builtinIds.${id}`)}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           ) : null}
         </div>
@@ -2491,7 +2627,9 @@ function DataPanel({
                 }
               >
                 <div className={styles.dataRowMain}>
-                  <code className={styles.dataKey}>{entry.key}</code>
+                  <code className={styles.dataKey} title={entry.key}>
+                    {dataBehaviorId(entry.key)}
+                  </code>
                   <span className={styles.dataTypeBadge}>
                     {t(DATA_TYPE_LABEL_KEYS[entry.type])}
                   </span>
@@ -2547,7 +2685,9 @@ function DataPanel({
                 title={entry.commit || undefined}
               >
                 <div className={styles.dataRowMain}>
-                  <code className={styles.dataKey}>{entry.key}</code>
+                  <code className={styles.dataKey} title={entry.key}>
+                    {dataBehaviorId(entry.key)}
+                  </code>
                   <span className={styles.dataTypeBadge}>
                     {t(DATA_TYPE_LABEL_KEYS[entry.type])}
                   </span>
@@ -2952,6 +3092,7 @@ function LinkPropertiesPanel({
 }
 
 export function CanvasRightSidebar({
+  projectId,
   pages,
   links,
   selectedId,
@@ -2967,7 +3108,6 @@ export function CanvasRightSidebar({
   onUpdatePosition,
   onUpdateWidget,
   onUpdateData,
-  onOpenBehaviorEditor,
   onReorder,
 }: CanvasRightSidebarProps) {
   const { t } = useTranslation();
@@ -3024,6 +3164,10 @@ export function CanvasRightSidebar({
   };
 
   const handlePanelSelect = (panel: RightPanel) => {
+    const willClose = activePanel === panel && panelExpanded;
+    if (panel === "agent" && !willClose) {
+      setPanelWidth((width) => clampWidth(Math.max(width, 380)));
+    }
     if (activePanel === panel) {
       if (!panelExpanded) {
         clearCloseTimer();
@@ -3139,7 +3283,7 @@ export function CanvasRightSidebar({
             data-panel={activePanel}
             aria-label={t(PANEL_LABEL_KEYS[activePanel])}
           >
-            {activePanel !== "properties" ? (
+            {activePanel !== "properties" && activePanel !== "agent" ? (
               <div className={styles.panelHeader}>
                 {t(PANEL_LABEL_KEYS[activePanel])}
               </div>
@@ -3154,6 +3298,10 @@ export function CanvasRightSidebar({
                 onDelete={onDelete}
                 onReorder={onReorder}
               />
+            ) : activePanel === "agent" ? (
+              <div className={styles.agentHost}>
+                <CanvasAgentPanel projectId={projectId} />
+              </div>
             ) : activePanel === "data" ? (
               selectedLink ? (
                 <div className={styles.dataPanel}>
@@ -3186,7 +3334,6 @@ export function CanvasRightSidebar({
                 onUpdateStyles={onUpdateStyles}
                 onUpdatePosition={onUpdatePosition}
                 onUpdateWidget={onUpdateWidget}
-                onOpenBehaviorEditor={onOpenBehaviorEditor}
               />
             )}
 

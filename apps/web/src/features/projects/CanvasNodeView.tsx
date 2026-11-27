@@ -1,10 +1,16 @@
 import type { CSSProperties } from "react";
 
-import type { CanvasLink, CanvasPage } from "./canvasDocument";
+import type {
+  CanvasBehavior,
+  CanvasLink,
+  CanvasPage,
+} from "./canvasDocument";
+import { pageReceivesBehaviorEvent } from "./canvasBehavior";
 import {
   getControlDisplayState,
   getControlState,
   getPageFrame,
+  overlayRuntimePageData,
   resolveStyleVariables,
 } from "./canvasDocument";
 import { CanvasWidgetView } from "./CanvasWidgetView";
@@ -74,6 +80,8 @@ export interface CanvasNodeViewProps {
     event: string,
     context?: CanvasNodeEventContext,
   ) => void;
+  /** Shared project behavior. Control subtrees use the control graph instead. */
+  projectBehavior?: CanvasBehavior;
   /** Inherited by all state children so runtime can target the instance. */
   controlScope?: string;
   depth?: number;
@@ -93,12 +101,23 @@ export function CanvasNodeView({
   position,
   runtime,
   onEvent,
+  projectBehavior,
   controlScope,
   depth = 0,
   maxDepth = 8,
 }: CanvasNodeViewProps) {
   const frame = getPageFrame(page, pages, links);
-  const resolved = resolveStyleVariables(page.styles, page, pages, links);
+  const pagesForStyle = runtime
+    ? overlayRuntimePageData(pages, runtime.runtimeNodeData, controlScope)
+    : pages;
+  const pageForStyle =
+    pagesForStyle.find((item) => item.id === page.id) ?? page;
+  const resolved = resolveStyleVariables(
+    page.styles,
+    pageForStyle,
+    pagesForStyle,
+    links,
+  );
   const cssStyles: Record<string, string> = {};
   for (const [key, value] of Object.entries(resolved)) {
     if (!FRAME_MANAGED_STYLES.has(key)) cssStyles[key] = value;
@@ -127,6 +146,9 @@ export function CanvasNodeView({
   const controlStateFrame = controlState
     ? getPageFrame(controlState, pages, links)
     : null;
+  const authoredOverflow = Boolean(
+    cssStyles.overflow || cssStyles["overflow-x"] || cssStyles["overflow-y"],
+  );
   const nodeStyle: CSSProperties = {
     ...toReactStyle(cssStyles),
     ...(runtimeStyleVariables(overrides) as CSSProperties),
@@ -135,17 +157,32 @@ export function CanvasNodeView({
     top,
     width: controlStateFrame?.width ?? frame.width,
     height: controlStateFrame?.height ?? frame.height,
-    overflow: "hidden",
+    ...(authoredOverflow ? {} : { overflow: "hidden" }),
   };
   const children =
     depth < maxDepth
       ? pages.filter((item) => item.parentId === page.id)
       : [];
+  const scrolls = ["overflow", "overflow-x", "overflow-y"].some((key) => {
+    const value = cssStyles[key];
+    return value === "auto" || value === "scroll";
+  });
+  let scrollExtent: { width: number; height: number } | null = null;
+  if (scrolls && children.length > 0) {
+    let width = 0;
+    let height = 0;
+    for (const child of children) {
+      const childFrame = getPageFrame(child, pages, links);
+      width = Math.max(width, childFrame.localX + childFrame.width);
+      height = Math.max(height, childFrame.localY + childFrame.height);
+    }
+    scrollExtent = { width, height };
+  }
   const widget = applyWidgetRuntimeOverrides(page.widget, overrides);
-  const hoverable =
+  const listens = (event: string) =>
     Boolean(onEvent) &&
-    (hasBehaviorTrigger(page, "hoverEnter") ||
-      hasBehaviorTrigger(page, "hoverLeave"));
+    pageReceivesBehaviorEvent(pages, projectBehavior, page, event);
+  const hoverable = listens("hoverEnter") || listens("hoverLeave");
   const owningControl =
     page.nodeKind === "control-instance" && page.controlId
       ? pages.find(
@@ -165,11 +202,8 @@ export function CanvasNodeView({
       ? { controlScope: eventScope, controlDefinitionId }
       : undefined;
   const clickable =
-    Boolean(onEvent) &&
-    (hasBehaviorTrigger(page, "click") ||
-      Boolean(
-        owningControl && hasBehaviorTrigger(owningControl, "click"),
-      ));
+    listens("click") ||
+    Boolean(onEvent && owningControl && hasBehaviorTrigger(owningControl, "click"));
   return (
     <div
       className={styles.node}
@@ -227,6 +261,17 @@ export function CanvasNodeView({
           : undefined
       }
     >
+      {scrollExtent ? (
+        <span
+          aria-hidden="true"
+          style={{
+            display: "block",
+            width: scrollExtent.width,
+            height: scrollExtent.height,
+            pointerEvents: "none",
+          }}
+        />
+      ) : null}
       {page.nodeKind === "control-instance" ? (
         controlState ? (
           <CanvasNodeView
@@ -237,6 +282,7 @@ export function CanvasNodeView({
             position={{ left: 0, top: 0 }}
             runtime={runtime}
             onEvent={onEvent}
+            projectBehavior={projectBehavior}
             controlScope={instanceScope}
             depth={depth + 1}
             maxDepth={maxDepth}
@@ -262,6 +308,7 @@ export function CanvasNodeView({
           links={links}
           runtime={runtime}
           onEvent={onEvent}
+          projectBehavior={projectBehavior}
           controlScope={controlScope}
           depth={depth + 1}
           maxDepth={maxDepth}

@@ -426,32 +426,170 @@
   color: var(--mf-text-primary);
 }
 
-.inspector {
+.nodeFields {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 10px;
+  gap: 8px;
+  padding: 8px 10px 10px;
 }
 
-.inspectorHeader {
+.sentence {
   display: flex;
-  height: 26px;
+  flex-wrap: nowrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--mf-border);
+  gap: 4px 5px;
+  width: max-content;
+  margin: 0;
+  color: var(--mf-text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: nowrap;
 }
 
-.inspectorKind {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--mf-accent);
-  font-size: 9px;
+.sentence .fieldSelect,
+.sentence .fieldInput {
+  width: auto;
+  min-width: 4ch;
+  max-width: none;
+  height: 22px;
+  flex: 0 1 auto;
+  padding: 0 6px;
+  font-size: 12px;
+  field-sizing: content;
+}
+
+.sentence .targetSlot {
+  display: inline-flex;
+  width: auto;
+  max-width: none;
+  min-height: 22px;
+  flex: 0 1 auto;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.sentenceToggle {
+  height: 20px;
+  flex: none;
+  padding: 0 6px;
+  border: 1px dashed var(--mf-border-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--mf-text-tertiary);
+  font-size: 10px;
+  line-height: 1;
+}
+
+.sentenceToggle[data-on="true"] {
+  border-style: solid;
+  border-color: var(--mf-warning, #d39120);
+  color: var(--mf-warning, #d39120);
   font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+}
+
+.addPhrase {
+  align-self: flex-start;
+  padding: 0;
+  color: var(--mf-text-tertiary);
+  font-size: 11px;
+  text-align: left;
+}
+
+.addPhrase:hover {
+  color: var(--mf-accent);
+}
+
+.phraseList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.phraseButton {
+  width: max-content;
+  min-width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--mf-border);
+  border-left: 3px solid var(--mf-accent);
+  border-radius: 8px;
+  background: var(--mf-bg-surface);
+  color: var(--mf-text-primary);
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.phraseButton[data-kind="condition"] {
+  border-left-color: var(--mf-warning, #d39120);
+}
+
+.phraseButton[data-kind="navigate"] {
+  border-left-color: #3d9a6a;
+}
+
+.phraseButton[data-kind="action"] {
+  border-left-color: #46a575;
+}
+
+.phraseButton[data-kind="data"] {
+  border-left-color: #2b8a9a;
+}
+
+.phraseButton[data-kind="function"] {
+  border-left-color: #2b8a9a;
+}
+
+.phraseButton[data-kind="call"] {
+  border-left-color: #3d7a4a;
+}
+
+.phraseButton[data-kind="switch"] {
+  border-left-color: #7a6ae6;
+  cursor: grab;
+}
+
+.phraseButton {
+  cursor: grab;
+}
+
+.caseList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.caseRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.phraseButton:hover {
+  border-color: var(--mf-accent);
+  background: var(--mf-bg-hover);
+}
+
+.nodeFields .fieldRow {
+  grid-template-columns: 68px minmax(0, 1fr);
+  gap: 6px;
+}
+
+.nodeFields .fieldInput,
+.nodeFields .fieldSelect {
+  height: 24px;
+  padding: 0 6px;
+  font-size: 10px;
+}
+
+.nodeFields .fieldTextArea {
+  min-height: 72px;
+  resize: none;
+}
+
+.nodeFields .dropHint {
+  font-size: 9px;
 }
 
 .inspectorFields,
@@ -513,8 +651,88 @@
 }
 
 .fieldRow > .fieldInput,
-.fieldRow > .fieldSelect {
+.fieldRow > .fieldSelect,
+.fieldRow > .targetSlot {
   grid-column: 2;
+}
+
+.targetSlot {
+  display: flex;
+  height: 22px;
+  min-height: 22px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 0 4px 0 8px;
+  border: 1px dashed var(--mf-border-strong);
+  border-radius: 8px;
+  background: var(--mf-bg-app);
+}
+
+.targetSlot[data-empty="true"] .targetSlotName {
+  color: var(--mf-text-tertiary);
+  font-weight: 500;
+}
+
+.targetSlot[data-missing="true"] .targetSlotName {
+  color: var(--mf-danger);
+}
+
+.targetSlot[data-drop-active="true"] {
+  border-color: var(--mf-accent);
+}
+
+.targetSlot[data-drop-over="true"] {
+  border-style: solid;
+  background: var(--mf-accent-soft);
+}
+
+.targetSlotName {
+  overflow: hidden;
+  min-width: 0;
+  color: var(--mf-text-primary);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.targetSlotClear {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  place-items: center;
+  border-radius: 4px;
+  color: var(--mf-text-tertiary);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.targetSlotClear:hover {
+  background: var(--mf-bg-hover);
+  color: var(--mf-text-primary);
+}
+
+.referenceBody {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px 10px;
+}
+
+.referenceBody strong {
+  overflow: hidden;
+  color: var(--mf-text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.referenceBody span {
+  color: var(--mf-text-tertiary);
+  font-size: 9px;
+  line-height: 1.4;
 }
 
 .dropSurface {

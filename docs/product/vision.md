@@ -1,6 +1,8 @@
 # 产品愿景
 
 > 状态：草案 · 最后更新：2026-11-25
+>
+> English: [vision_en.md](vision_en.md)
 
 ## 一句话定位
 

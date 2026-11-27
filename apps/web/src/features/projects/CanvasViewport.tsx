@@ -37,6 +37,7 @@ import {
   getMarketItem,
 } from "./componentMarket";
 import { CONTROL_DRAG_MIME } from "./canvasControls";
+import { topSelectedIds } from "./canvasHierarchy";
 import { styleVariables } from "./canvasRuntime";
 import { CanvasNodeView } from "./CanvasNodeView";
 import { CanvasWidgetView } from "./CanvasWidgetView";
@@ -83,6 +84,12 @@ interface MarqueeSession {
   currentY: number;
 }
 
+interface MoveOrigin {
+  id: string;
+  x: number;
+  y: number;
+}
+
 interface MoveSession {
   pointerId: number;
   pageId: string;
@@ -93,6 +100,7 @@ interface MoveSession {
   startClientX: number;
   startClientY: number;
   started: boolean;
+  origins: MoveOrigin[];
 }
 
 type ResizeCorner = "tl" | "tr" | "bl" | "br";
@@ -194,9 +202,11 @@ interface CanvasViewportProps {
     toAnchor: CanvasLinkAnchor,
   ) => void;
   onDeleteLink: (linkId: string) => void;
-  onMovePage: (pageId: string, x: number, y: number) => void;
+  onMovePages: (
+    moves: { pageId: string; worldX: number; worldY: number }[],
+  ) => void;
   onMovePageStart: () => void;
-  onMovePageEnd: (pageId: string, moved: boolean) => void;
+  onMovePageEnd: (pageIds: string[], moved: boolean) => void;
   onResizePage: (
     pageId: string,
     x: number,
@@ -770,7 +780,7 @@ export function CanvasViewport({
   onCreateControlInstance,
   onCreateLink,
   onDeleteLink,
-  onMovePage,
+  onMovePages,
   onMovePageStart,
   onMovePageEnd,
   onResizePage,
@@ -1088,6 +1098,9 @@ export function CanvasViewport({
   const handlePointerDown = (event: ReactPointerEvent<HTMLElement>) => {
     // 画布会阻止 pointerdown 的默认行为，需要主动让属性输入框失焦并提交。
     blurActiveEditableElement();
+    if (!isEditableElement(event.target)) {
+      event.currentTarget.focus({ preventScroll: true });
+    }
 
     if (event.button === 0 && activeTool === "select") {
       const rect = event.currentTarget.getBoundingClientRect();
@@ -1163,9 +1176,22 @@ export function CanvasViewport({
         return;
       }
 
-      const frame = layout.get(hit.id);
+      const groupIds = selectedIds.includes(hit.id)
+        ? topSelectedIds(pages, selectedIds)
+        : [hit.id];
+      const origins = groupIds.map((id) => {
+        const item = pages.find((page) => page.id === id);
+        const itemFrame = layout.get(id);
+        return {
+          id,
+          x: itemFrame?.worldX ?? item?.x ?? 0,
+          y: itemFrame?.worldY ?? item?.y ?? 0,
+        };
+      });
+      const anchor =
+        origins.find((origin) => origin.id === hit.id) ?? origins[0];
       event.currentTarget.setPointerCapture(event.pointerId);
-      onSelectPage(hit.id);
+      if (!selectedIds.includes(hit.id)) onSelectPage(hit.id);
       setMoveTargetId(hit.id);
       setHoveringPage(true);
       setSnapGuides(null);
@@ -1174,11 +1200,12 @@ export function CanvasViewport({
         pageId: hit.id,
         startWorldX: worldX,
         startWorldY: worldY,
-        startX: frame?.worldX ?? hit.x,
-        startY: frame?.worldY ?? hit.y,
+        startX: anchor?.x ?? hit.x,
+        startY: anchor?.y ?? hit.y,
         startClientX: event.clientX,
         startClientY: event.clientY,
         started: false,
+        origins,
       };
       onMovePageStart();
       return;
@@ -1292,9 +1319,18 @@ export function CanvasViewport({
       const rawX = move.startX + (worldX - move.startWorldX);
       const rawY = move.startY + (worldY - move.startWorldY);
       const movingFrame = layout.get(move.pageId);
+      const applyDelta = (dx: number, dy: number) => {
+        onMovePages(
+          move.origins.map((origin) => ({
+            pageId: origin.id,
+            worldX: origin.x + dx,
+            worldY: origin.y + dy,
+          })),
+        );
+      };
 
       if (!movingFrame) {
-        onMovePage(move.pageId, rawX, rawY);
+        applyDelta(rawX - move.startX, rawY - move.startY);
         setSnapGuides(null);
         return;
       }
@@ -1313,7 +1349,7 @@ export function CanvasViewport({
         settings: snapSettings,
       });
 
-      onMovePage(move.pageId, resolution.x, resolution.y);
+      applyDelta(resolution.x - move.startX, resolution.y - move.startY);
       setSnapGuides(resolution.guides);
       return;
     }
@@ -1416,10 +1452,10 @@ export function CanvasViewport({
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-    const pageId = move.pageId;
+    const pageIds = move.origins.map((origin) => origin.id);
     const moved = move.started;
     moveRef.current = null;
-    onMovePageEnd(pageId, moved);
+    onMovePageEnd(pageIds.length ? pageIds : [move.pageId], moved);
     setMovingPage(false);
     setSnapGuides(null);
   };
@@ -1498,8 +1534,9 @@ export function CanvasViewport({
 
     if (moveRef.current?.pointerId === event.pointerId) {
       const move = moveRef.current;
+      const pageIds = move.origins.map((origin) => origin.id);
       moveRef.current = null;
-      onMovePageEnd(move.pageId, move.started);
+      onMovePageEnd(pageIds.length ? pageIds : [move.pageId], move.started);
       setMovingPage(false);
       setSnapGuides(null);
     }
@@ -2016,7 +2053,12 @@ export function CanvasViewport({
           ]) {
             delete surfaceStyles[key];
           }
-          const seeThrough = isPageSeeThrough(page);
+          const fill = resolvedStyles["background-color"]?.trim().toLowerCase() ?? "";
+          const seeThrough =
+            isPageSeeThrough(page) ||
+            fill === "" ||
+            fill === "transparent" ||
+            fill === "none";
           const surface = (
             <div
               className={styles.pageSurface}

@@ -8,6 +8,21 @@
   background: var(--mf-bg-app);
 }
 
+.workspace {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.mainColumn {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
 .body {
   display: flex;
   flex: 1;
@@ -27,13 +42,18 @@
   flex: none;
   height: var(--mf-statusbar-height);
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 8px;
   padding: 0 8px;
   background: var(--mf-statusbar-bg);
   color: var(--mf-statusbar-text);
 }
 
+.statusBarSpacer {
+  flex: 1;
+}
+
+.behaviorStatusButton,
 .lintStatusButton {
   display: flex;
   height: 20px;
@@ -51,6 +71,8 @@
     background var(--mf-transition);
 }
 
+.behaviorStatusButton:hover,
+.behaviorStatusButton[data-active="true"],
 .lintStatusButton:hover,
 .lintStatusButton[data-active="true"] {
   background: rgba(255, 255, 255, 0.22);

@@ -7,7 +7,7 @@
   overflow: hidden;
   background: var(--mf-bg-app);
   opacity: 1;
-  transition: opacity 460ms var(--mf-ease);
+  transition: opacity 340ms var(--mf-ease);
 }
 
 .splash[data-finishing="true"] {

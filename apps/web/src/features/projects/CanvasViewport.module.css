@@ -132,6 +132,7 @@
 
 .pageSurface[data-see-through="true"] {
   background-color: transparent !important;
+  border-color: transparent;
   box-shadow: none;
 }
 

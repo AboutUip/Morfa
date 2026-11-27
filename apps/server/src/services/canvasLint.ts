@@ -68,6 +68,7 @@ const TARGET_ACTION_TYPES = new Set<string>([
   "setVisible",
   "setValue",
   "setChecked",
+  "setControlState",
 ]);
 
 const DATA_ACTION_TYPES = new Set<string>([
@@ -221,8 +222,24 @@ export function lintCanvas(
     }
   }
 
-  // 3. Behavior graph validation.
-  for (const page of document.pages) {
+  // 3. Behavior graph validation. The shared project graph is checked
+  // with the page graphs; it does not belong to one layer.
+  const behaviorHosts: CanvasPageDto[] = [
+    ...document.pages,
+    ...(document.behavior
+      ? [
+          {
+            id: "__project__",
+            name: "项目",
+            x: 0,
+            y: 0,
+            styles: {},
+            behavior: document.behavior,
+          },
+        ]
+      : []),
+  ];
+  for (const page of behaviorHosts) {
     const behavior = page.behavior;
     if (!behavior) continue;
 
@@ -278,9 +295,6 @@ export function lintCanvas(
     const blocks = behavior.blocks ?? [];
     const edges = behavior.edges ?? [];
     if (blocks.length > 0 || edges.length > 0) {
-      const supportedEvents = new Set(
-        getSupportedCanvasEvents(page.widget?.kind),
-      );
       const graphIds = new Set(states);
       const blockIds = new Set<string>();
       for (const block of blocks) {
@@ -305,17 +319,32 @@ export function lintCanvas(
         }
         blockIds.add(block.id);
         graphIds.add(block.id);
-        if (
-          block.type === "event" &&
-          (!block.event || !supportedEvents.has(block.event))
-        ) {
-          push({
-            severity: "error",
-            code: "BEHAVIOR_EVENT_UNSUPPORTED",
-            pageId: page.id,
-            pageName: page.name,
-            message: `当前组件不支持事件 ${block.event ?? ""}`,
-          });
+        if (block.type === "event") {
+          const bound = block.nodeId
+            ? pagesById.get(block.nodeId)
+            : undefined;
+          if (!block.nodeId || !bound) {
+            push({
+              severity: "error",
+              code: "BEHAVIOR_TARGET_MISSING",
+              pageId: page.id,
+              pageName: page.name,
+              message: `行为图「${page.name}」的事件块 ${block.id} 没有有效节点`,
+            });
+          } else if (
+            !block.event ||
+            !getSupportedCanvasEvents(bound.widget?.kind).includes(
+              block.event,
+            )
+          ) {
+            push({
+              severity: "error",
+              code: "BEHAVIOR_EVENT_UNSUPPORTED",
+              pageId: page.id,
+              pageName: page.name,
+              message: `${bound.name} 不支持事件 ${block.event ?? ""}`,
+            });
+          }
         }
         if (block.stateId && !states.has(block.stateId)) {
           push({
@@ -325,6 +354,37 @@ export function lintCanvas(
             pageName: page.name,
             message: `事件块 ${block.id} 引用了不存在的状态 ${block.stateId}`,
           });
+        }
+        if (block.type === "switch") {
+          if (!block.nodeId || !pagesById.has(block.nodeId)) {
+            push({
+              severity: "error",
+              code: "BEHAVIOR_TARGET_MISSING",
+              pageId: page.id,
+              pageName: page.name,
+              message: `页面「${page.name}」的分支块 ${block.id} 没有有效节点`,
+            });
+          }
+          if (!block.key?.trim()) {
+            push({
+              severity: "error",
+              code: "BEHAVIOR_STYLE_KEY_MISSING",
+              pageId: page.id,
+              pageName: page.name,
+              message: `分支块 ${block.id} 没有属性 ID`,
+            });
+          }
+        }
+        if (block.type === "reference") {
+          if (!block.nodeId || !pagesById.has(block.nodeId)) {
+            push({
+              severity: "error",
+              code: "BEHAVIOR_REFERENCE_MISSING",
+              pageId: page.id,
+              pageName: page.name,
+              message: `页面「${page.name}」的节点块 ${block.id} 引用了不存在的图层`,
+            });
+          }
         }
         if (block.type === "action" && block.action) {
           validateAction({
@@ -343,10 +403,23 @@ export function lintCanvas(
                 ? [block.condition]
                 : [];
           for (const condition of conditions) {
-            if (condition.source !== "nodeData") continue;
-            const target = condition.targetId
-              ? pagesById.get(condition.targetId)
-              : page;
+            if (
+              condition.source !== "state" &&
+              condition.source !== "variable" &&
+              !condition.targetId
+            ) {
+              push({
+                severity: "error",
+                code: "BEHAVIOR_TARGET_MISSING",
+                pageId: page.id,
+                pageName: page.name,
+                message: `行为图「${page.name}」的条件 ${condition.id} 没有目标节点`,
+              });
+            }
+            if (condition.source !== "nodeData" || !condition.targetId) {
+              continue;
+            }
+            const target = pagesById.get(condition.targetId);
             if (
               !target ||
               !condition.key ||
@@ -476,9 +549,18 @@ function validateAction(input: {
   }
 
   if (DATA_ACTION_TYPES.has(actionType)) {
-    const target = action.targetId
-      ? pagesById.get(action.targetId)
-      : page;
+    if (!action.targetId) {
+      push({
+        severity: "error",
+        code: "BEHAVIOR_TARGET_MISSING",
+        pageId: page.id,
+        pageName: page.name,
+        message: `页面「${page.name}」的动作 ${action.id} 没有目标节点`,
+        actionId: action.id,
+      });
+      return;
+    }
+    const target = pagesById.get(action.targetId);
     const entry = target?.data?.find(
       (item) => item.key === action.key,
     );

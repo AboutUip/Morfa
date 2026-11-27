@@ -1,6 +1,8 @@
 # 实时网络通道
 
 > 状态：基础层已实现 · 最后更新：2026-11-26
+>
+> English: [realtime_en.md](realtime_en.md)
 
 Morfa 使用一条 WebSocket 连接承载高频请求、订阅与服务器推送。它不是一个“巨型请求”，而是**单连接上的多路复用协议**。
 
@@ -24,6 +26,8 @@ Morfa 使用一条 WebSocket 连接承载高频请求、订阅与服务器推送
 | 密码、VCode、API Key 等敏感一次操作 | HTTP |
 
 WebSocket 是内部 Web 客户端的实时通道，**不是公开 MCP 协议的一部分**。外部 MCP 客户端继续使用 `POST /mcp` 的标准 HTTP JSON-RPC。
+
+Agent 流式事件（后续）复用本通道，结构化增量载荷规划使用 XAIOP 编码；XAIOP 只负责载荷，不改变本页定义的信封与操作模型。详见 [XAIOP 集成](../integrations/xaiop.md)。
 
 ## 端点
 

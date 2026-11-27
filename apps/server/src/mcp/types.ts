@@ -33,14 +33,24 @@ export interface McpKeyPermissions {
   allowPassword: boolean;
 }
 
+export interface McpObjectSchema {
+  type: "object";
+  properties: Record<string, McpPropertySchema>;
+  required?: readonly string[];
+  additionalProperties?: false;
+}
+
 export interface McpPropertySchema {
-  type: "string" | "boolean" | "number";
+  type: "string" | "boolean" | "number" | "array";
   description: string;
   enum?: readonly string[];
   minLength?: number;
   maxLength?: number;
   minimum?: number;
   maximum?: number;
+  minItems?: number;
+  maxItems?: number;
+  items?: McpObjectSchema;
   default?: string | boolean | number;
 }
 

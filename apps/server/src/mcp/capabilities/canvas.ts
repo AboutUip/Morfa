@@ -117,7 +117,7 @@ const WIDGET_SCHEMA = {
 const BEHAVIOR_SCHEMA = {
   type: "string" as const,
   description:
-    'JSON object for node behaviors: {"triggers":[...],"states":[...],"variables":[...]}. Use "null" to clear the behavior graph.',
+    'JSON behavior graph with blocks and edges. Events need nodeId; judgments and modifications need targetId. Use "null" to clear. This field on a page is that page\'s own graph; the shared project graph is written with update_behavior.',
   maxLength: 500000,
 };
 
@@ -678,9 +678,9 @@ export function canvasCapabilities(): McpCapability[] {
       },
       description: {
         "zh-CN":
-          "读取项目的完整画布文档，包括全部页面、关联线和画布更新时间。",
+          "读取项目的完整画布文档，包括全部页面、关联线、项目共享行为图和画布更新时间。",
         "en-US":
-          "Read the complete canvas document for a project: all pages, links, and updatedAt.",
+          "Read the complete canvas document for a project: all pages, links, the shared behavior graph, and updatedAt.",
       },
       usage: {
         "zh-CN":
@@ -690,9 +690,9 @@ export function canvasCapabilities(): McpCapability[] {
       },
       returns: {
         "zh-CN":
-          "projectId、updatedAt、pages、links 以及页面和关联线数量。",
+          "projectId、updatedAt、pages、links、behavior 以及页面和关联线数量。",
         "en-US":
-          "projectId, updatedAt, pages, links, and page/link counts.",
+          "projectId, updatedAt, pages, links, behavior, and page/link counts.",
       },
       category: "canvas",
       requirements: REQUIRE_NONE,
@@ -714,6 +714,7 @@ export function canvasCapabilities(): McpCapability[] {
           updatedAt: document.updatedAt,
           pages: document.pages,
           links: document.links,
+          behavior: document.behavior ?? null,
           counts: {
             pages: document.pages.length,
             links: document.links.length,
@@ -989,11 +990,13 @@ export function canvasCapabilities(): McpCapability[] {
           },
           x: {
             type: "number",
-            description: "New canvas X coordinate.",
+            description:
+              "Offset from the parent in px. On a root node this is the world X.",
           },
           y: {
             type: "number",
-            description: "New canvas Y coordinate.",
+            description:
+              "Offset from the parent in px. On a root node this is the world Y.",
           },
           styles: STYLES_SCHEMA,
           frame: FRAME_SCHEMA,

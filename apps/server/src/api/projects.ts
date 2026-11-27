@@ -110,6 +110,9 @@ export function registerProjectRoutes(app: FastifyInstance) {
         projectId,
         body.pages,
         body.links,
+        Object.prototype.hasOwnProperty.call(body, "behavior")
+          ? body.behavior
+          : undefined,
       );
     },
   );

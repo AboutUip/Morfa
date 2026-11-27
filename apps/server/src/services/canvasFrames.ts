@@ -210,6 +210,21 @@ export function resolvePageFrames(
   return resolveCanvasLayout(toCanvasLayoutNodes(pages, links));
 }
 
+/** 把世界坐标写成节点自己的 x/y。有父节点时这是相对父节点的偏移。 */
+export function localFromWorld(
+  worldX: number,
+  worldY: number,
+  parentId: string | undefined,
+  frames: Map<string, CanvasResolvedFrame>,
+) {
+  const parent = parentId ? frames.get(parentId) : undefined;
+  if (!parent) return { x: worldX, y: worldY };
+  return {
+    x: worldX - parent.worldX,
+    y: worldY - parent.worldY,
+  };
+}
+
 export function collectLayoutIssues(
   frames: Map<string, CanvasResolvedFrame>,
 ): CanvasLayoutIssue[] {

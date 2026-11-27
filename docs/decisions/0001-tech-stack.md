@@ -1,5 +1,7 @@
 # ADR 0001：技术栈选择
 
+> English: [0001-tech-stack_en.md](0001-tech-stack_en.md)
+
 - 状态：已接受
 - 日期：2026-11-25
 - 决策者：项目维护者

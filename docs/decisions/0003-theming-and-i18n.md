@@ -1,5 +1,7 @@
 # ADR 0003：主题与国际化作为一等能力
 
+> English: [0003-theming-and-i18n_en.md](0003-theming-and-i18n_en.md)
+
 - 状态：已接受
 - 日期：2026-11-25
 - 决策者：项目维护者

@@ -1,8 +1,10 @@
 # MCP 集成
 
-> 状态：已实现 · 最后更新：2026-11-26
+> 状态：已实现 · 最后更新：2026-11-27
+>
+> English: [mcp_en.md](mcp_en.md)
 
-Morfa 原生提供 Model Context Protocol（MCP）服务端，把账号、外观、数据导出与模型供应商能力安全地开放给 MCP 客户端或内部模块。
+Morfa 原生提供 Model Context Protocol（MCP）服务端，把账号、项目画布、行为图、控件、预览和模型供应商能力安全地开放给 MCP 客户端或内部模块。完整参数以 `GET /llms.txt` 为准。
 
 ## 端点与传输
 
@@ -34,7 +36,19 @@ apps/server/src/mcp/
    ├─ profile.ts       # 昵称、头像
    ├─ security.ts      # 改密、注销
    ├─ data.ts          # 导出
-   └─ models.ts        # 模型供应商及子能力
+   ├─ models.ts        # 模型供应商及子能力
+   ├─ projects.ts      # 项目
+   ├─ canvas.ts        # 页面、组件、关联线
+   ├─ canvasNavigation.ts
+   ├─ layout.ts        # 布局
+   ├─ behavior.ts      # 项目共享行为图与控件行为图
+   ├─ controls.ts      # 控件与实例
+   ├─ accountComponents.ts
+   ├─ runtime.ts       # 预览编译
+   ├─ screenshots.ts
+   ├─ assets.ts
+   ├─ lint.ts
+   └─ batch.ts         # 批量画布写操作
 ```
 
 新模块接入只需从 `runtime.ts` 导入共享总控并注册一个能力：
@@ -121,6 +135,43 @@ API Key 在个人面板的「API」Tab 中创建，明文只在创建成功时�
 | `test_model` | 真实调用模型验证可用性 | 无 |
 | `reveal_model_provider_key` | 查看供应商明文 API Key | VCode |
 | `delete_model_provider` | 删除供应商 | 无 |
+
+### 项目与画布
+
+| 能力 | 说明 |
+| --- | --- |
+| `list_projects` / `get_project` / `get_project_context` / `create_project` / `update_project` / `delete_project` | 项目列表、读取、创建、改名和删除 |
+| `get_canvas` | 完整画布，包含页面、关联线和项目共享行为图 |
+| `get_page` / `create_page` / `update_page` / `delete_page` / `duplicate_page` | 页面增删改 |
+| `update_page_styles` / `update_page_widget` / `update_page_data` | 样式、组件和节点数据 |
+| `create_link` / `update_link` / `delete_link` / `list_links` | 页面关联线 |
+| `get_node_context` / `move_page` / `resize_page` / `set_page_parent` / `reorder_layers` | 图层位置、尺寸、父子和顺序 |
+| `resolve_layout` / `set_layout` / `batch_update_layout` | 布局求解与写入 |
+| `upload_asset` / `list_assets` / `delete_asset` | 项目资源 |
+
+### 行为
+
+项目里普通页面共用 `CanvasDocument.behavior`。控件定义页仍保存自己的行为图。事件块用 `nodeId`，判断和修改用 `targetId`；空着不会作用到被点击的节点。旧的 `triggers` 仍可读取，不再作为新建行为的写法。`setVariable` / `incrementVariable` / `toggleVariable` 只保留给旧数据迁移。
+
+| 能力 | 说明 |
+| --- | --- |
+| `get_behavior` | 不传 `pageId` 读项目共享图；传页面 id 读该页自己的图 |
+| `update_behavior` | 不传 `pageId` 或传 `__project__` 写共享图；传页面 id 只改该页 |
+| `validate_behavior` | 校验共享图和页面图，也可先校验未保存草稿 |
+| `list_supported_events` / `list_actions` / `list_conditions` | 当前事件、动作和判断词表 |
+| `get_lint` / `validate_project` | 布局、关联线和行为图检查 |
+
+### 控件、预览与截图
+
+| 能力 | 说明 |
+| --- | --- |
+| `list_controls` / `get_control` / `create_control` / `update_control` / `delete_control` / `duplicate_control` | 控件定义 |
+| `add_control_state` / `update_control_state` / `delete_control_state` | 控件状态 |
+| `compile_control` / `list_compiled_components` / `create_control_instance` / `set_control_instance_state` | 编译、实例和切换状态 |
+| `list_account_components` / `publish_account_component` / `import_account_component` / `delete_account_component` | 账号组件库 |
+| `get_runtime_screens` / `compile_preview` / `get_preview_status` / `capture_simulator` | 运行预览 |
+| `capture_page` / `capture_canvas` / `capture_node` / `list_screenshot_audits` | 截图 |
+| `batch_apply` | 按顺序执行最多 200 个画布、布局或行为写操作 |
 
 ## 发现与调用 API
 

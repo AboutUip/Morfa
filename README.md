@@ -9,11 +9,13 @@
 
 **AI 驱动的在线 UI 设计平台 · 跨平台 · Agent 驱动**
 
+> 中文 · [English](README_en.md)
+
 Morfa 是一个 AI 原生的在线 UI 设计工具。它把自然语言意图与结构化、可编辑的设计文档连接起来：Agent 负责理解与执行，用户始终拥有预览、应用与撤销的控制权。
 
 > 仓库：<https://github.com/AboutUip/Morfa> · XAIOP 上游：<https://github.com/AboutUip/XAIOP>
 >
-> 当前阶段：**M1 进行中**。已可启动 Web + API：3 秒启动加载（进度接口可扩展）、项目主页、账号注册 / 登录、VCode 验证、个人资料编辑、AI 模型供应商配置与模型测试、原生 MCP 服务与 API Key、单 WebSocket 实时通道、加密数据导出与注册时导入、深色 / 浅色主题与中英文切换。编辑器与项目创建能力待后续里程碑接入。
+> 当前阶段：**M1 进行中**。已可启动 Web + API：开屏动画与可复用加载界面、项目主页、账号注册 / 登录、VCode 验证、个人资料编辑、AI 模型供应商配置与模型测试、原生 MCP 服务与 API Key、单 WebSocket 实时通道、加密数据导出与注册时导入、深色 / 浅色主题与中英文切换。编辑器与项目创建能力待后续里程碑接入。
 
 ## 核心方向
 
@@ -27,7 +29,7 @@ Morfa 是一个 AI 原生的在线 UI 设计工具。它把自然语言意图与
 
 ## 当前实现
 
-- **启动加载**：固定 3 秒占位，进度由可组合的 bootstrap 任务驱动；后续替换为网络初始化任务即可展示真实进度。
+- **开屏动画**：进入页面后 Logo 快速在屏幕中心出现，播放金属打击音效，Logo 在声音中左移，右侧以遮罩动画出现 `|` 与 `Morfa` 字标，随后开屏淡出。主页面先渲染在开屏背后，淡出时只移除遮罩，不等待新的页面切换。可复用的 `LoadingScreen` / `LoadingOverlay` 继续保留给后续异步流程使用。
 - **项目主页**：顶栏 `logo | Morfa` 与「项目 | 组件 | 设置」切换 Tab；移动端折叠为左上角 Logo 下拉菜单，箭头提示展开状态；项目区域默认空状态，右上角提供登录入口。组件与设置暂为占位页。
 - **账号系统**：登录 / 注册弹窗（仅关闭按钮退出，点击蒙版不关闭），支持头像、昵称、登录账号、密码、确认密码与必选 6 位 VCode；注册时可选择导入原账号数据包，成功后自动登录。
 - **VCode 验证**：独立 3×4 数字键盘弹窗，输入 6 位自动确认；用于数据导出、注销账号、忘记密码与查看模型 API Key；已有用户缺少 VCode 时自动登出，登录后引导设置。
@@ -35,7 +37,7 @@ Morfa 是一个 AI 原生的在线 UI 设计工具。它把自然语言意图与
 - **原生 MCP**：`POST /mcp` 提供 JSON-RPC 2.0 能力，支持修改语言 / 主题 / 头像 / 昵称 / 密码、创建导出包、注销账号，以及模型供应商添加、刷新、能力配置、真实测试、查看 Key 与删除。MCP 总控统一注册能力、校验 API Key 权限并生成 `llms.txt`；敏感能力要求调用时传入 VCode / 密码，同时需要两项的能力要求 Key 同时开启两项权限。
 - **实时通道**：每个页面一条 WebSocket，统一信封区分模块与操作；高频请求、订阅与服务器推送走实时通道，一次性、文件、敏感操作和公开 MCP 继续走 HTTP。语言 / 主题通过 `preferences.changed` 推送，MCP 能力目录也优先通过实时通道读取。
 - **数据导出 / 导入**：服务端使用 AES-256-GCM 加密并 gzip 压缩项目数据；同一用户仅保留一个有效导出包，新导出覆盖旧包；导入仅在注册时提供，要求原账号已注销、数据包未消费，服务端解密导入后吊销数据包。
-- **存储与安全**：SQLite 保存用户、会话、VCode 哈希、导出与项目数据；登录账号唯一且大小写不敏感；密码与 VCode 均使用 scrypt 哈希；导出主密钥保存在服务器；头像文件写入磁盘，数据库只保存相对路径。
+- **存储与安全**：SQLite 保存用户、会话、VCode 哈希、导出、项目、模型供应商、偏好与 API Key 数据；登录账号唯一且大小写不敏感；密码与 VCode 均使用 scrypt 哈希；导出主密钥保存在服务器；头像文件写入磁盘，数据库只保存相对路径。
 - **移动端 / 桌面端**：同一套 React 应用响应式适配；安全区、`100dvh`、移动端底部抽屉、16px 表单输入与 44px 触控目标；提供 PWA manifest 与图标。
 - **字体**：Maple Mono CN，等宽、中英文覆盖、无衬线、圆角柔和；使用 GB2312 一级字与 UI 字符子集，附带 OFL 许可证。
 - **键盘无障碍**：跳过链接、Tab 方向键、语言菜单键盘操作、弹窗焦点陷阱与关闭后焦点恢复。
@@ -50,8 +52,8 @@ Morfa 是一个 AI 原生的在线 UI 设计工具。它把自然语言意图与
 | 前端构建 | Vite | 已接入 |
 | 后端 | Node.js + TypeScript + Fastify | 已搭建（认证、模型、MCP 与实时通道） |
 | 实时通道 | WebSocket + `@fastify/websocket` | 已接入基础层 |
-| 数据库 | SQLite（WAL 模式，node:sqlite） | 已接入（认证、模型、API Key） |
-| Agent 流式协议 | XAIOP SDK `0.16.0`（vendored 源码） | 已集成 |
+| 数据库 | SQLite（WAL 模式，node:sqlite） | 已接入（认证、VCode、导出、项目、模型供应商、偏好与 API Key） |
+| Agent 流式协议 | XAIOP SDK `0.16.0`（vendored 源码） | 已内置，业务接入待开始 |
 | 仓库组织 | npm workspaces（monorepo） | 已采用 |
 | 测试 | Vitest + Playwright | 建议方案 |
 
@@ -69,17 +71,17 @@ Morfa/
 ├─ branding/               # 标志、徽标与 favicon / app icons
 ├─ vendor/
 │  └─ xaiop/               # XAIOP SDK 源码（Node / 浏览器），dist 不入库
-├─ docs/                   # 文档中心（中文为主，英文为辅）
+├─ docs/                   # 文档中心（中文原文 + 同目录 _en.md 英文版）
 │  ├─ product/             # 产品愿景与路线图
 │  ├─ architecture/        # 架构、前端、后端、数据库
 │  ├─ design/              # 主题与国际化规范
 │  ├─ agent/               # Agent 能力与运行机制
 │  ├─ integrations/        # MCP 与第三方依赖集成
 │  ├─ guides/              # 开发指南
-│  ├─ decisions/           # 架构决策记录（ADR）
-│  └─ en/                  # 英文文档
+│  └─ decisions/           # 架构决策记录（ADR）
 ├─ scripts/                # 开发脚本与 Vite 集成插件
 ├─ README.md
+├─ README_en.md
 └─ LICENSE
 ```
 
@@ -116,9 +118,11 @@ npm run xaiop:check  # 校验 XAIOP Node / browser / core 入口
 | [键盘与可访问性](docs/design/accessibility.md) | 焦点顺序、键盘操作与弹窗焦点管理 |
 | [Agent 设计](docs/agent/overview.md) | Agent 运行机制、工具与安全边界 |
 | [MCP 集成](docs/integrations/mcp.md) | 原生 MCP 服务、API Key 权限、能力清单与调用方式 |
-| [XAIOP 集成](docs/integrations/xaiop.md) | SDK 来源、编译方式与 Vite 按需构建 |
+| [XAIOP 集成](docs/integrations/xaiop.md) | SDK 来源、构建、接入方式与验证 |
 | [开发指南](docs/guides/development.md) | 环境、命令、分支与提交规范 |
 | [架构决策](docs/decisions/) | ADR 记录与背景 |
+
+> 每篇文档都有同目录英文版 `name_en.md`；英文文档中心：[docs/README_en.md](docs/README_en.md)。
 
 ## 语言策略
 
@@ -127,7 +131,7 @@ npm run xaiop:check  # 校验 XAIOP Node / browser / core 入口
 - 面向团队与用户的文档、提交信息、讨论默认使用中文。
 - 代码标识符、API 字段与行业术语保留英文，首次出现时给出中文解释。
 - 界面文案全部进入 i18n 资源文件，不在组件中硬编码。
-- 英文文档位于 [`docs/en/`](docs/en/README.md)，关键文档提供英文摘要；如中英文冲突，以中文版本为准。
+- 每篇主题文档都有同目录英文版本：`name.md` 为中文原文，`name_en.md` 为英文版本；英文文档中心位于 [`docs/README_en.md`](docs/README_en.md)，根 README 的英文版为 [`README_en.md`](README_en.md)。如中英文冲突，以中文版本为准。
 
 ## 开发约定
 
@@ -148,17 +152,3 @@ XAIOP 的源码与许可证保留在 `vendor/xaiop/`，编译产物不提交。�
 ## 许可证
 
 [MIT](LICENSE) © 2026 小萱baibai
-
----
-
-## English
-
-Morfa is an AI-powered, cross-platform online UI design platform. Agents operate on structured, editable design documents, while users keep full control through preview, apply, and undo.
-
-**Status:** project initialization. This repository currently contains the directory layout, architecture decisions, and documentation skeleton; application code will follow.
-
-**Stack:** React + TypeScript (web), Node.js + TypeScript (server), SQLite (database), npm workspaces (monorepo).
-
-**XAIOP:** the [XAIOP](https://github.com/AboutUip/XAIOP) SDK (upstream commit `83dea5a`, MIT) is vendored under `vendor/xaiop/` for structured streaming between the Agent and the editor. Only source is committed; `dist` is compiled on demand by a Vite plugin. See [`docs/integrations/xaiop.md`](docs/integrations/xaiop.md).
-
-Chinese is the primary language of this project. English documentation is available in [`docs/en/`](docs/en/README.md); when the two differ, the Chinese version is authoritative.

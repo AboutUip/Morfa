@@ -256,6 +256,16 @@ export function TerminalIcon(props: IconProps) {
   );
 }
 
+export function AgentIcon(props: IconProps) {
+  return (
+    <svg {...iconProps(props)}>
+      <path d="M6 16.5 4.8 19.2a1 1 0 0 0 1.3 1.3L9 19.2" />
+      <path d="M8 17.5h8.2A4.8 4.8 0 0 0 18 8.2 5.5 5.5 0 0 0 8.1 6.4 4.2 4.2 0 0 0 8 17.5Z" />
+      <path d="M12 9.2v2.2M12 14.2h.01" />
+    </svg>
+  );
+}
+
 export function DatabaseIcon(props: IconProps) {
   return (
     <svg {...iconProps(props)}>

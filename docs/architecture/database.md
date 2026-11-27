@@ -1,6 +1,8 @@
 # 数据库设计
 
-> 状态：M1 认证、VCode、导出、项目与模型供应商表已实现 · 最后更新：2026-11-26
+> 状态：M1 认证、VCode、导出、项目、模型供应商、偏好与 API Key 表已实现 · 最后更新：2026-11-26
+>
+> English: [database_en.md](database_en.md)
 
 ## 为什么选择 SQLite
 
@@ -40,7 +42,7 @@ PRAGMA synchronous = NORMAL;
 - 部署前先备份数据库；迁移脚本需在接近生产的数据量上验证耗时。
 - 迁移与代码同时提交，CI 中执行「空库迁移 + 冒烟查询」。
 
-## 已实现表（认证、VCode、导出、模型供应商）
+## 已实现表（认证、VCode、导出、项目、模型供应商、偏好与 API Key）
 
 迁移文件：`apps/server/migrations/0001_auth.sql`、`apps/server/migrations/0002_vcode_account.sql`、`apps/server/migrations/0003_model_providers.sql`、`apps/server/migrations/0004_model_capabilities.sql`、`apps/server/migrations/0005_mcp_api_keys.sql`。
 
@@ -242,7 +244,7 @@ Agent 记录用于审计、回放与成本统计，应设置保留策略；删�
 
 ## 索引建议
 
-- `projects(owner_id, updated_at DESC)`
+- `projects(user_id, updated_at DESC)`
 - `designs(project_id, updated_at DESC)`
 - `design_versions(design_id, version DESC)`
 - `sessions(token_hash)`、`sessions(expires_at)`

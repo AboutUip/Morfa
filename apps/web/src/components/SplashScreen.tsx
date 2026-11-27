@@ -10,10 +10,11 @@ import { BrandMark } from "./BrandMark";
 import styles from "./SplashScreen.module.css";
 
 const AUDIO_SRC = "/audio/splash-metal.mp3";
-const LOGO_APPEAR_MS = 180;
+// 延迟播放音效；play() 成功后再触发 Logo 展开，保证音效与展开卡点一致。
+const LOGO_APPEAR_MS = 300;
 const MOTION_MS = 900;
-const HOLD_MS = 160;
-const FADE_MS = 420;
+const HOLD_MS = 120;
+const FADE_MS = 340;
 
 interface SplashScreenProps {
   onComplete: () => void;

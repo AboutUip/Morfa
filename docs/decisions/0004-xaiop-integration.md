@@ -1,5 +1,7 @@
 # ADR 0004：以 vendored 源码集成 XAIOP
 
+> English: [0004-xaiop-integration_en.md](0004-xaiop-integration_en.md)
+
 - 状态：已接受
 - 日期：2026-11-25
 - 决策者：项目维护者
@@ -62,3 +64,9 @@ Morfa 的 Agent 需要流式输出结构化设计变更。XAIOP 提供行式游�
 - M1 创建 `apps/web` 时挂载 `xaiopSourcePlugin()`，并在依赖中声明 `@bylan280/xaiop`。
 - 当 Agent 事件流落地时，补充「XAIOP 事件映射」文档与端到端测试。
 - 升级 XAIOP 后记录新的提交号与测试结果。
+
+## 落地状态（2026-11-26）
+
+- 已完成：vendored 源码、根 workspaces 注册、`apps/web/vite.config.ts` 挂载插件、`npm run xaiop:test`（901 passed / 0 failed）与 `npm run xaiop:check`。
+- 待完成：`apps/web` / `apps/server` 的 `package.json` 尚未声明 `@bylan280/xaiop`；业务代码尚未导入 SDK；Agent 事件映射与端到端测试待 M3。
+- 当前集成细节与验证命令见 [XAIOP 集成](../integrations/xaiop.md)。

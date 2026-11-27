@@ -11,7 +11,6 @@ interface BrandMarkProps {
 
 export function BrandMark({ size = 28, className, alt = "" }: BrandMarkProps) {
   const { resolved } = useTheme();
-  const image = resolved === "dark" ? logoMark : logoBadge;
 
   return (
     <span
@@ -20,8 +19,20 @@ export function BrandMark({ size = 28, className, alt = "" }: BrandMarkProps) {
       style={{ width: size, height: size }}
     >
       <img
-        src={image}
-        alt={alt}
+        src={logoBadge}
+        alt={resolved === "light" ? alt : ""}
+        aria-hidden={resolved === "light" ? undefined : true}
+        data-active={resolved === "light"}
+        width={size}
+        height={size}
+        draggable={false}
+        decoding="async"
+      />
+      <img
+        src={logoMark}
+        alt={resolved === "dark" ? alt : ""}
+        aria-hidden={resolved === "dark" ? undefined : true}
+        data-active={resolved === "dark"}
         width={size}
         height={size}
         draggable={false}

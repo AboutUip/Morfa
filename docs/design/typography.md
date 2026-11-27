@@ -1,6 +1,8 @@
 # 字体与排版
 
 > 状态：已接入 · 最后更新：2026-11-25
+>
+> English: [typography_en.md](typography_en.md)
 
 ## 当前字体
 
@@ -50,7 +52,7 @@ apps/web/src/assets/fonts/maple-mono/
 ## 性能
 
 - 使用 WOFF2，`font-display: swap`。
-- 两个文件合计约 2 MB；启动加载阶段会提前触发字体请求，进入项目页时通常已完成。
+- 两个文件合计约 2 MB；应用启动阶段会提前触发字体请求，进入项目页时通常已完成。
 - 不从第三方 CDN 加载，避免运行时外部依赖与隐私问题。
 - 后续可根据实际字符覆盖情况拆分 `unicode-range` 或提供完整字体下载。
 

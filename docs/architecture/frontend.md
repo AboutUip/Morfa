@@ -1,6 +1,8 @@
 # 前端架构
 
-> 状态：M1 账号、VCode 与个人面板已实现 · 最后更新：2026-11-26
+> 状态：M1 账号、VCode、个人面板、实时通道与可复用加载界面已实现 · 最后更新：2026-11-26
+>
+> English: [frontend_en.md](frontend_en.md)
 
 ## 技术选型
 
@@ -14,10 +16,10 @@
 | 样式 | CSS Modules + CSS Variables（设计令牌） | 已采用 |
 | 测试 | Vitest + Testing Library；Playwright 负责 E2E | 建议 |
 | i18n | i18next + react-i18next | 已接入，详见 [i18n 规范](../design/i18n.md) |
-| 启动加载 | 自研 bootstrap 任务与进度汇总 | 已实现（3 秒占位） |
-| Agent 流式协议 | XAIOP browser SDK | 已 vendored，详见 [XAIOP 集成](../integrations/xaiop.md) |
+| 开屏动画 | SplashScreen + 本地金属打击音效 + 淡出 | 已实现 |
+| Agent 流式协议 | XAIOP browser SDK | 已内置，业务接入待开始，详见 [XAIOP 集成](../integrations/xaiop.md) |
 
-依赖在 M1 搭建时锁定版本，并在 `apps/web/package.json` 中固定。
+依赖在 M1 搭建时锁定版本，并写入 `apps/web/package.json`；XAIOP 例外地通过根 workspace 注册为 `@bylan280/xaiop`，当前尚未在应用包中声明，业务代码首次 `import` 前需补上版本声明。
 
 ## 目录约定
 
@@ -39,7 +41,6 @@ apps/web/
 
 ```text
 features/
-├─ bootstrap/              # 启动任务、加载界面、进度汇总（已实现）
 ├─ auth/                   # AuthProvider、登录 / 注册与 VCode 设置门（已实现）
 ├─ profile/                # 个人面板、资料编辑、模型供应商、模型测试、API Key / MCP、导出与注销（已实现）
 ├─ projects/               # 项目主页与顶栏（已实现）
@@ -48,9 +49,11 @@ features/
 └─ settings/               # 主题、语言、账户设置（规划）
 ```
 
-当前 `App` 在启动加载结束后渲染 `projects/ProjectsPage`；账号状态由 `auth/AuthProvider` 在应用启动时通过 `/api/auth/me` 恢复。跨功能复用的 `components/VCodeModal` 提供 3×4 数字键盘、6 位自动确认、物理键盘输入、焦点陷阱与焦点恢复；`components/PasswordModal` 提供当前密码验证、串行操作与同样的焦点管理；`components/ModelTestModal` 与 `components/ModelEditModal` 分别承载模型真实调用测试与能力配置，沿用相同的进入 / 退出动画和焦点管理。个人面板通过 `features/profile` 组织资料、导出与注销流程；`features/profile/ApiTab.tsx` 负责 MCP API Key、权限开关、llms.txt 链接与能力目录。
+当前 `App` 同时渲染 `projects/ProjectsPage` 与开屏层 `SplashScreen`；账号状态由 `auth/AuthProvider` 在应用启动时通过 `/api/auth/me` 恢复。跨功能复用的 `components/VCodeModal` 提供 3×4 数字键盘、6 位自动确认、物理键盘输入、焦点陷阱与焦点恢复；`components/PasswordModal` 提供当前密码验证、串行操作与同样的焦点管理；`components/ModelTestModal` 与 `components/ModelEditModal` 分别承载模型真实调用测试与能力配置，沿用相同的进入 / 退出动画和焦点管理。个人面板通过 `features/profile` 组织资料、导出与注销流程；`features/profile/ApiTab.tsx` 负责 MCP API Key、权限开关、llms.txt 链接与能力目录。
 
 实时通道由 `lib/realtime/client.ts` 单例管理，每个 Tab 一条 WebSocket，负责请求 / 响应、订阅、心跳与指数退避重连。`AuthProvider` 登录后获取一次偏好快照，并订阅 `preferences.changed`；MCP、HTTP PATCH 或其他 Tab 修改偏好后，服务端直接推送到在线页面，不再使用 focus 节流或定时轮询。顶栏切换主题或语言时优先通过 WebSocket 提交，连接不可用时回退到一次性 HTTP。详见 [实时网络通道](realtime.md)。
+
+Agent 流式载荷（规划）由 XAIOP browser SDK 解析。XAIOP 是结构化数据的编码 / 检查点层，后续复用单 WebSocket 实时通道而不是另建 SSE；事件映射与端点尚未实现，详见 [XAIOP 集成](../integrations/xaiop.md)。
 
 规则：
 
@@ -61,14 +64,14 @@ features/
 
 ## 启动与加载
 
-入口为 `src/main.tsx`，在渲染前初始化 i18n 与主题 Provider。`App` 通过 `useBootstrap` 维护启动状态：
+入口为 `src/main.tsx`，在渲染前初始化 i18n 与主题 Provider。`App` 会同时渲染 `ProjectsPage` 与开屏层：
 
-- `BootstrapTask` 提供 `labelKey`、`weight` 与 `run({ report, signal })`；
-- `runBootstrap` 按权重汇总各任务的真实进度，并保证总体进度单调递增；
-- 当前 `workspaceBootstrapTasks` 只有一个固定 3 秒的占位任务；
-- 加载界面显示任务文案、百分比与错误重试，不感知具体初始化内容。
+- `components/SplashScreen.tsx`：进入页面后让 Logo 快速在屏幕中心出现；
+- 播放 `public/audio/splash-metal.mp3` 的金属音效；
+- 声音开始时 Logo 向左移动，右侧 `|` 与 `Morfa` 字标通过遮罩 / 位移展开；
+- 完成后只让开屏层淡出，主页面始终在其背后保持已挂载状态，不发生页面切换。
 
-后续接入会话、项目与设计文档请求时，只需替换任务数组，在请求前后调用 `report(0..1)`。加载界面与状态机保持不变。
+`LoadingScreen`、`LoadingOverlay` 与 `lib/loading/` 仍然保留，作为其他异步流程的可复用加载界面与进度订阅源；它们不再参与启动流程。
 
 ## 状态管理
 

@@ -1,15 +1,21 @@
 import {
+  useContext,
   useEffect,
   useMemo,
   useRef,
   useState,
-  type DragEvent as ReactDragEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 
+import {
+  propertyFieldId,
+  resolvePropertyId,
+} from "./canvasPropertyIds";
+import type { CanvasTool } from "./canvasTools";
+import { BEHAVIOR_PHRASE_MIME } from "./BehaviorGraphCanvas";
 import type {
   CanvasBehavior,
   CanvasBehaviorAction,
@@ -19,33 +25,136 @@ import type {
   CanvasBehaviorConditionOperator,
   CanvasBehaviorConditionSource,
   CanvasBehaviorEdge,
+  CanvasLink,
   CanvasPage,
 } from "./canvasDocument";
+import { getEffectivePageData } from "./canvasDocument";
 import {
   BEHAVIOR_ACTION_DEFINITIONS,
   BEHAVIOR_CONDITION_OPERATORS,
   BEHAVIOR_CONDITION_SOURCES,
   BEHAVIOR_STYLE_KEYS,
-  behaviorActionLabelKey,
+  actionField,
+  applyActionField,
+  applyConditionField,
   behaviorEventLabelKey,
-  collectBehaviorLint,
+  collectSharedBehaviorLint,
+  conditionField,
   createBehaviorAction,
+  createDefaultBehavior,
   createBehaviorBlock,
   createBehaviorCondition,
   createBehaviorEdge,
-  getPageBehavior,
+  createReferenceBlock,
   getSupportedEvents,
   materializeBehaviorGraph,
+  type BehaviorField,
 } from "./canvasBehavior";
 import {
+  BEHAVIOR_GRAPH_NODE_HEIGHT,
   BEHAVIOR_GRAPH_NODE_WIDTH,
-  BEHAVIOR_START_NODE_ID,
   BehaviorGraphCanvas,
+  BehaviorTargetDragContext,
   type BehaviorGraphCanvasApi,
 } from "./BehaviorGraphCanvas";
 import styles from "./CanvasBehaviorEditor.module.css";
 
-const LAYER_DRAG_MIME = "application/x-morfa-layer";
+function TargetSlot({
+  blockId,
+  kind,
+  index,
+  targetId,
+  pages,
+  onClear,
+}: {
+  blockId: string;
+  kind: "action" | "condition" | "event" | "switch";
+  index?: number;
+  targetId?: string;
+  ownerId: string;
+  pages: CanvasPage[];
+  onClear: () => void;
+}) {
+  const { t } = useTranslation();
+  const drag = useContext(BehaviorTargetDragContext);
+  const filled = Boolean(targetId);
+  const target = filled
+    ? pages.find((page) => page.id === targetId) ?? null
+    : null;
+  const hoverKey = `${blockId}\0${kind}\0${index ?? ""}`;
+  return (
+    <div
+      className={styles.targetSlot}
+      data-target-slot="true"
+      data-target-block={blockId}
+      data-target-kind={kind}
+      data-target-index={index ?? ""}
+      data-empty={filled ? undefined : "true"}
+      data-missing={filled && !target ? "true" : undefined}
+      data-drop-active={drag.sourceBlockId ? "true" : undefined}
+      data-drop-over={drag.hoverKey === hoverKey ? "true" : undefined}
+    >
+      <span className={styles.targetSlotName}>
+        {filled
+          ? target?.name ?? targetId
+          : t("projects.workspace.behavior.dropTarget")}
+      </span>
+      {filled ? (
+        <button
+          className={styles.targetSlotClear}
+          type="button"
+          aria-label={t("projects.workspace.behavior.clearTarget")}
+          onClick={onClear}
+        >
+          ×
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+const MODIFY_ACTION_TYPES = new Set([
+  "setStyle",
+  "setText",
+  "setVisible",
+  "setValue",
+  "setChecked",
+  "setData",
+  "setControlState",
+]);
+
+function PropertyIdInput({
+  page,
+  pages,
+  links,
+  value,
+  onChange,
+}: {
+  page: CanvasPage | null;
+  pages: CanvasPage[];
+  links: CanvasLink[];
+  value: BehaviorField;
+  onChange: (field: BehaviorField) => void;
+}) {
+  const { t } = useTranslation();
+  const dataKeys = page
+    ? getEffectivePageData(pages, links, page).keys()
+    : [];
+  return (
+    <DraftInput
+      value={propertyFieldId(value)}
+      ariaLabel={t("projects.workspace.behavior.fields.propertyId")}
+      placeholder={t(
+        "projects.workspace.behavior.propertyIdPlaceholder",
+      )}
+      onCommit={(id) => {
+        const field = resolvePropertyId(id, dataKeys);
+        if (field) onChange(field);
+      }}
+    />
+  );
+}
+
 const MIN_LEFT_PANEL_WIDTH = 150;
 const MAX_LEFT_PANEL_WIDTH = 360;
 const MIN_RIGHT_PANEL_WIDTH = 200;
@@ -187,50 +296,21 @@ function SelectField({
   );
 }
 
-function TargetDropSurface({
-  enabled,
-  pages,
-  onTargetId,
-  children,
-}: {
-  enabled: boolean;
-  pages: CanvasPage[];
-  onTargetId: (id: string) => void;
-  children: ReactNode;
-}) {
-  const handleDrop = (event: ReactDragEvent<HTMLDivElement>) => {
-    if (!enabled) return;
-    const nodeId = event.dataTransfer.getData(LAYER_DRAG_MIME);
-    if (!nodeId || !pages.some((page) => page.id === nodeId)) return;
-    event.preventDefault();
-    event.stopPropagation();
-    onTargetId(nodeId);
-  };
-
-  return (
-    <div
-      className={styles.dropSurface}
-      onDragOver={(event) => {
-        if (!enabled) return;
-        event.preventDefault();
-        event.dataTransfer.dropEffect = "copy";
-      }}
-      onDrop={handleDrop}
-    >
-      {children}
-    </div>
-  );
-}
-
 function ConditionFields({
   condition,
   ownerId,
   pages,
+  links,
+  blockId,
+  index,
   onChange,
 }: {
   condition: CanvasBehaviorCondition;
   ownerId: string;
   pages: CanvasPage[];
+  links: CanvasLink[];
+  blockId: string;
+  index?: number;
   onChange: (condition: CanvasBehaviorCondition) => void;
 }) {
   const { t } = useTranslation();
@@ -238,12 +318,10 @@ function ConditionFields({
     BEHAVIOR_CONDITION_SOURCES.find(
       (item) => item.source === condition.source,
     ) ?? BEHAVIOR_CONDITION_SOURCES[0];
-  const sourceDefinitions = BEHAVIOR_CONDITION_SOURCES.filter(
-    (item) => item.source !== "state" || condition.source === "state",
-  );
-  const needsTarget = sourceDefinition.needsTarget;
-  const targetId = condition.targetId ?? ownerId;
-  const target = pages.find((page) => page.id === targetId) ?? null;
+  const needsTarget = sourceDefinition.needsTarget && condition.source !== "state";
+  const target = condition.targetId
+    ? pages.find((page) => page.id === condition.targetId) ?? null
+    : null;
   const targetStates = target?.behavior?.states ?? [];
   const dataEntry = target?.data?.find(
     (entry) => entry.key === condition.key,
@@ -263,58 +341,83 @@ function ConditionFields({
       : true,
   );
 
-  const replaceSource = (source: CanvasBehaviorConditionSource) => {
-    const next = createBehaviorCondition(source);
-    onChange({ ...next, id: condition.id, negate: condition.negate });
-  };
+  const sentenceKey =
+    condition.source === "nodeText" ||
+    condition.source === "nodeValue" ||
+    condition.source === "nodeVisible" ||
+    condition.source === "nodeStyle" ||
+    condition.source === "controlState" ||
+    condition.source === "state"
+      ? condition.source
+      : "nodeData";
+  const clearTarget = () =>
+    onChange({
+      ...condition,
+      targetId: undefined,
+      ...(condition.source === "state" ||
+      condition.source === "controlState"
+        ? { value: "" }
+        : {}),
+    });
 
   return (
-    <TargetDropSurface
-      enabled={needsTarget}
-      pages={pages}
-      onTargetId={(id) => onChange({ ...condition, targetId: id })}
-    >
-      <label className={styles.fieldRow}>
-        <span>{t("projects.workspace.behavior.fields.conditionSource")}</span>
-        <SelectField
-          value={condition.source}
-          ariaLabel={t("projects.workspace.behavior.fields.conditionSource")}
-          onChange={(value) =>
-            replaceSource(value as CanvasBehaviorConditionSource)
-          }
-        >
-          {sourceDefinitions.map((item) => (
-            <option value={item.source} key={item.source}>
-              {t(item.labelKey)}
-            </option>
-          ))}
-        </SelectField>
-      </label>
-
-      <label className={styles.checkboxRow}>
-        <input
-          type="checkbox"
-          checked={Boolean(condition.negate)}
-          onChange={(event) =>
-            onChange({
-              ...condition,
-              negate: event.target.checked || undefined,
-            })
-          }
-        />
-        {t("projects.workspace.behavior.fields.negate")}
-      </label>
-
-      {condition.source === "nodeData" ||
-      condition.source === "nodeStyle" ? (
-        <label className={styles.fieldRow}>
-          <span>
-            {condition.source === "nodeStyle"
-              ? t("projects.workspace.behavior.fields.styleKey")
-              : t("projects.workspace.behavior.fields.dataKey")}
-          </span>
+    <Trans
+      parent="div"
+      className={styles.sentence}
+      i18nKey={
+        condition.source === "state"
+          ? `projects.workspace.behavior.sentences.${sentenceKey}`
+          : "projects.workspace.behavior.sentences.judge"
+      }
+      components={{
+        not: (
+          <button
+            className={styles.sentenceToggle}
+            type="button"
+            data-on={condition.negate ? "true" : undefined}
+            aria-pressed={Boolean(condition.negate)}
+            onClick={() =>
+              onChange({
+                ...condition,
+                negate: condition.negate ? undefined : true,
+              })
+            }
+          >
+            {t("projects.workspace.behavior.phrases.not")}
+          </button>
+        ),
+        slot: needsTarget ? (
+          <TargetSlot
+            blockId={blockId}
+            kind="condition"
+            index={index}
+            targetId={condition.targetId}
+            ownerId={ownerId}
+            pages={pages}
+            onClear={clearTarget}
+          />
+        ) : (
+          <span />
+        ),
+        prop: (
+          <PropertyIdInput
+            page={target}
+            pages={pages}
+            links={links}
+            value={conditionField(condition)}
+            onChange={(field) =>
+              onChange(applyConditionField(condition, field))
+            }
+          />
+        ),
+        key: (
           <select
             className={styles.fieldSelect}
+            aria-label={
+              condition.source === "nodeStyle"
+                ? t("projects.workspace.behavior.fields.styleKey")
+                : t("projects.workspace.behavior.fields.dataKey")
+            }
             value={condition.key ?? ""}
             onChange={(event) =>
               onChange({
@@ -336,142 +439,137 @@ function ConditionFields({
                 ))
               : (target?.data ?? []).map((item) => (
                   <option value={item.key} key={item.key}>
-                    {item.key} ({item.type})
+                    {item.key}
                   </option>
                 ))}
           </select>
-        </label>
-      ) : null}
-
-      {needsTarget ? (
-        <label className={styles.fieldRow}>
-          <span>{t("projects.workspace.behavior.fields.targetNode")}</span>
+        ),
+        op: (
           <select
             className={styles.fieldSelect}
-            value={condition.targetId ?? ""}
+            aria-label={t("projects.workspace.behavior.fields.operator")}
+            value={condition.operator}
             onChange={(event) =>
               onChange({
                 ...condition,
-                targetId: event.target.value || undefined,
-                ...(condition.source === "state" ||
-                condition.source === "controlState"
-                  ? { value: "" }
-                  : {}),
+                operator: event.target
+                  .value as CanvasBehaviorConditionOperator,
               })
             }
           >
-            <option value="">
-              {t("projects.workspace.behavior.fields.ownerNode")}
-            </option>
-            {pages.map((page) => (
-              <option value={page.id} key={page.id}>
-                {page.name}
+            {operatorOptions.map((item) => (
+              <option value={item.operator} key={item.operator}>
+                {t(
+                  `projects.workspace.behavior.phrases.operators.${item.operator}`,
+                )}
               </option>
             ))}
           </select>
-        </label>
-      ) : null}
-
-      <label className={styles.fieldRow}>
-        <span>{t("projects.workspace.behavior.fields.operator")}</span>
-        <select
-          className={styles.fieldSelect}
-          value={condition.operator}
-          onChange={(event) =>
-            onChange({
-              ...condition,
-              operator: event.target
-                .value as CanvasBehaviorConditionOperator,
-            })
-          }
-        >
-          {operatorOptions.map((item) => (
-            <option value={item.operator} key={item.operator}>
-              {item.symbol}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label className={styles.fieldRow}>
-        <span>{t("projects.workspace.behavior.fields.compareValue")}</span>
-        {condition.source === "state" ? (
-          <select
-            className={styles.fieldSelect}
-            value={condition.value}
-            onChange={(event) =>
-              onChange({ ...condition, value: event.target.value })
-            }
-          >
-            <option value="">
-              {t("projects.workspace.behavior.chooseState")}
-            </option>
-            {targetStates.map((state) => (
-              <option value={state.id} key={state.id}>
-                {state.name}
+        ),
+        value:
+          condition.source === "state" ? (
+            <select
+              className={styles.fieldSelect}
+              aria-label={t("projects.workspace.behavior.fields.state")}
+              value={condition.value}
+              onChange={(event) =>
+                onChange({ ...condition, value: event.target.value })
+              }
+            >
+              <option value="">
+                {t("projects.workspace.behavior.chooseState")}
               </option>
-            ))}
-          </select>
-        ) : condition.source === "controlState" ? (
-          <select
-            className={styles.fieldSelect}
-            value={condition.value}
-            onChange={(event) =>
-              onChange({ ...condition, value: event.target.value })
-            }
-          >
-            <option value="">
-              {t("projects.workspace.behavior.chooseControlState")}
-            </option>
-            {controlStates.map((state) => (
-              <option value={state.id} key={state.id}>
-                {state.name}
+              {targetStates.map((state) => (
+                <option value={state.id} key={state.id}>
+                  {state.name}
+                </option>
+              ))}
+            </select>
+          ) : condition.source === "controlState" ? (
+            <select
+              className={styles.fieldSelect}
+              aria-label={t(
+                "projects.workspace.behavior.fields.controlState",
+              )}
+              value={condition.value}
+              onChange={(event) =>
+                onChange({ ...condition, value: event.target.value })
+              }
+            >
+              <option value="">
+                {t("projects.workspace.behavior.chooseControlState")}
               </option>
-            ))}
-          </select>
-        ) : condition.source === "nodeVisible" ||
-          dataEntry?.type === "boolean" ? (
-          <select
-            className={styles.fieldSelect}
-            value={condition.value}
-            onChange={(event) =>
-              onChange({ ...condition, value: event.target.value })
-            }
-          >
-            <option value="true">true</option>
-            <option value="false">false</option>
-          </select>
-        ) : (
-          <DraftInput
-            value={condition.value}
-            ariaLabel={t(
-              "projects.workspace.behavior.fields.compareValue",
-            )}
-            onCommit={(value) => onChange({ ...condition, value })}
-          />
-        )}
-      </label>
-
-      {needsTarget ? (
-        <p className={styles.dropHint}>
-          {t("projects.workspace.behavior.dropConditionHint")}
-        </p>
-      ) : null}
-    </TargetDropSurface>
+              {controlStates.map((state) => (
+                <option value={state.id} key={state.id}>
+                  {state.name}
+                </option>
+              ))}
+            </select>
+          ) : condition.source === "nodeVisible" ? (
+            <select
+              className={styles.fieldSelect}
+              aria-label={t(
+                "projects.workspace.behavior.fields.compareValue",
+              )}
+              value={condition.value === "false" ? "false" : "true"}
+              onChange={(event) =>
+                onChange({ ...condition, value: event.target.value })
+              }
+            >
+              <option value="true">
+                {t("projects.workspace.behavior.phrases.visible")}
+              </option>
+              <option value="false">
+                {t("projects.workspace.behavior.phrases.hidden")}
+              </option>
+            </select>
+          ) : dataEntry?.type === "boolean" ? (
+            <select
+              className={styles.fieldSelect}
+              aria-label={t(
+                "projects.workspace.behavior.fields.compareValue",
+              )}
+              value={condition.value === "false" ? "false" : "true"}
+              onChange={(event) =>
+                onChange({ ...condition, value: event.target.value })
+              }
+            >
+              <option value="true">
+                {t("projects.workspace.behavior.phrases.yes")}
+              </option>
+              <option value="false">
+                {t("projects.workspace.behavior.phrases.no")}
+              </option>
+            </select>
+          ) : (
+            <DraftInput
+              value={condition.value}
+              ariaLabel={t(
+                "projects.workspace.behavior.fields.compareValue",
+              )}
+              onCommit={(value) => onChange({ ...condition, value })}
+            />
+          ),
+      }}
+    />
   );
 }
 
 function ActionFields({
   action,
   pages,
+  links,
   behavior,
   ownerId,
+  blockId,
   onChange,
 }: {
   action: CanvasBehaviorAction;
   pages: CanvasPage[];
+  links: CanvasLink[];
   behavior: CanvasBehavior;
   ownerId: string;
+  blockId: string;
   onChange: (patch: Partial<CanvasBehaviorAction>) => void;
 }) {
   const { t } = useTranslation();
@@ -479,10 +577,10 @@ function ActionFields({
     (item) => item.type === action.type,
   );
   const needsTarget = definition?.needsTarget ?? false;
-  const needsValue = definition?.needsValue ?? false;
-  const target = pages.find(
-    (page) => page.id === (action.targetId ?? ownerId),
-  );
+  const modify = MODIFY_ACTION_TYPES.has(action.type);
+  const target = action.targetId
+    ? pages.find((page) => page.id === action.targetId) ?? null
+    : null;
   const targetData = target?.data ?? [];
   const controlStates = target?.controlId
     ? pages.filter(
@@ -492,17 +590,100 @@ function ActionFields({
       )
     : [];
 
-  return (
-    <TargetDropSurface
-      enabled={needsTarget}
-      pages={pages}
-      onTargetId={(id) => onChange({ targetId: id })}
+  const sentenceKey = [
+    "navigate",
+    "setStyle",
+    "setText",
+    "setVisible",
+    "setValue",
+    "setChecked",
+    "setState",
+    "setControlState",
+    "setData",
+    "incrementData",
+    "toggleData",
+  ].includes(action.type)
+    ? action.type
+    : "setText";
+  const dataKeySelect = (
+    <select
+      className={styles.fieldSelect}
+      aria-label={t("projects.workspace.behavior.fields.dataKey")}
+      value={action.key ?? ""}
+      onChange={(event) => onChange({ key: event.target.value })}
     >
-      {action.type === "navigate" ? (
-        <label className={styles.fieldRow}>
-          <span>{t("projects.workspace.behavior.fields.targetPage")}</span>
+      <option value="">
+        {t("projects.workspace.behavior.chooseDataKey")}
+      </option>
+      {targetData.map((entry) => (
+        <option value={entry.key} key={entry.key}>
+          {entry.key}
+        </option>
+      ))}
+    </select>
+  );
+
+  return (
+    <Trans
+      parent="div"
+      className={styles.sentence}
+      i18nKey={
+        action.type === "setData" ||
+        action.type === "incrementData" ||
+        action.type === "toggleData"
+          ? `projects.workspace.behavior.sentences.${action.type}`
+          : modify
+            ? "projects.workspace.behavior.sentences.modify"
+            : `projects.workspace.behavior.sentences.${sentenceKey}`
+      }
+      components={{
+        slot: needsTarget ? (
+          <TargetSlot
+            blockId={blockId}
+            kind="action"
+            targetId={action.targetId}
+            ownerId={ownerId}
+            pages={pages}
+            onClear={() => {
+              const patch: Partial<CanvasBehaviorAction> = {
+                targetId: undefined,
+              };
+              if (action.type === "setControlState") patch.value = "";
+              onChange(patch);
+            }}
+          />
+        ) : (
+          <span />
+        ),
+        prop: (
+          <PropertyIdInput
+            page={target}
+            pages={pages}
+            links={links}
+            value={actionField(action)}
+            onChange={(field) => onChange(applyActionField(action, field))}
+          />
+        ),
+        key:
+          action.type === "setStyle" ? (
+            <SelectField
+              value={action.key ?? "background-color"}
+              ariaLabel={t("projects.workspace.behavior.fields.styleKey")}
+              onChange={(value) => onChange({ key: value })}
+            >
+              {BEHAVIOR_STYLE_KEYS.map((key) => (
+                <option value={key} key={key}>
+                  {key}
+                </option>
+              ))}
+            </SelectField>
+          ) : (
+            dataKeySelect
+          ),
+        page: (
           <select
             className={styles.fieldSelect}
+            aria-label={t("projects.workspace.behavior.fields.targetPage")}
             value={action.pageId ?? ""}
             onChange={(event) =>
               onChange({ pageId: event.target.value || undefined })
@@ -517,229 +698,174 @@ function ActionFields({
               </option>
             ))}
           </select>
-        </label>
-      ) : null}
-
-      {needsTarget ? (
-        <label className={styles.fieldRow}>
-          <span>{t("projects.workspace.behavior.fields.targetNode")}</span>
-          <select
-            className={styles.fieldSelect}
-            value={action.targetId ?? ""}
-            onChange={(event) =>
-              onChange({ targetId: event.target.value || undefined })
-            }
-          >
-            <option value="">
-              {t("projects.workspace.behavior.fields.chooseNode")}
-            </option>
-            {pages.map((page) => (
-              <option value={page.id} key={page.id}>
-                {page.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : null}
-
-      {action.type === "setStyle" ? (
-        <label className={styles.fieldRow}>
-          <span>{t("projects.workspace.behavior.fields.styleKey")}</span>
-          <SelectField
-            value={action.key ?? "background-color"}
-            onChange={(value) => onChange({ key: value })}
-          >
-            {BEHAVIOR_STYLE_KEYS.map((key) => (
-              <option value={key} key={key}>
-                {key}
-              </option>
-            ))}
-          </SelectField>
-        </label>
-      ) : null}
-
-      {action.type === "setState" ? (
-        <label className={styles.fieldRow}>
-          <span>{t("projects.workspace.behavior.fields.state")}</span>
-          <SelectField
-            value={action.value ?? ""}
-            onChange={(value) => onChange({ value })}
-          >
-            <option value="">
-              {t("projects.workspace.behavior.fields.chooseState")}
-            </option>
-            {behavior.states.map((state) => (
-              <option value={state.id} key={state.id}>
-                {state.name}
-              </option>
-            ))}
-          </SelectField>
-        </label>
-      ) : null}
-
-      {action.type === "setData" ||
-      action.type === "incrementData" ||
-      action.type === "toggleData" ? (
-        <label className={styles.fieldRow}>
-          <span>{t("projects.workspace.behavior.fields.dataKey")}</span>
-          <SelectField
-            value={action.key ?? ""}
-            onChange={(value) => onChange({ key: value })}
-          >
-            <option value="">
-              {t("projects.workspace.behavior.chooseDataKey")}
-            </option>
-            {targetData.map((entry) => (
-              <option value={entry.key} key={entry.key}>
-                {entry.key} ({entry.type})
-              </option>
-            ))}
-          </SelectField>
-        </label>
-      ) : null}
-
-      {action.type === "setControlState" ? (
-        <label className={styles.fieldRow}>
-          <span>{t("projects.workspace.behavior.fields.controlState")}</span>
-          <SelectField
-            value={action.value ?? ""}
-            onChange={(value) => onChange({ value })}
-          >
-            <option value="">
-              {t("projects.workspace.behavior.chooseControlState")}
-            </option>
-            {controlStates.map((state) => (
-              <option value={state.id} key={state.id}>
-                {state.name}
-              </option>
-            ))}
-          </SelectField>
-        </label>
-      ) : null}
-
-      {needsValue &&
-      action.type !== "setState" &&
-      action.type !== "setControlState" ? (
-        <label className={styles.fieldRow}>
-          <span>{t("projects.workspace.behavior.fields.value")}</span>
-          <DraftInput
-            value={action.value ?? ""}
-            ariaLabel={t("projects.workspace.behavior.fields.value")}
-            onCommit={(value) => onChange({ value })}
-          />
-        </label>
-      ) : null}
-
-      {needsTarget ? (
-        <p className={styles.dropHint}>
-          {t("projects.workspace.behavior.dropNodeHint")}
-        </p>
-      ) : null}
-    </TargetDropSurface>
-  );
-}
-
-function BlockInspector({
-  block,
-  page,
-  pages,
-  behavior,
-  supportedEvents,
-  onChange,
-  onDelete,
-}: {
-  block: CanvasBehaviorBlock;
-  page: CanvasPage;
-  pages: CanvasPage[];
-  behavior: CanvasBehavior;
-  supportedEvents: readonly string[];
-  onChange: (patch: Partial<CanvasBehaviorBlock>) => void;
-  onDelete: () => void;
-}) {
-  const { t } = useTranslation();
-  const eventValue = block.event ?? supportedEvents[0] ?? "click";
-  const eventOptions = supportedEvents.includes(eventValue)
-    ? [...supportedEvents]
-    : [eventValue, ...supportedEvents];
-  const action = block.action;
-  const actionDefinitions = BEHAVIOR_ACTION_DEFINITIONS.filter(
-    (definition) =>
-      definition.type !== "setState" || action?.type === "setState",
-  );
-
-  const replaceActionType = (type: CanvasBehaviorActionType) => {
-    const definition = BEHAVIOR_ACTION_DEFINITIONS.find(
-      (item) => item.type === type,
-    );
-    const next = createBehaviorAction(type);
-    if (action) next.id = action.id;
-    if (definition?.needsTarget) {
-      next.targetId = action?.targetId ?? page.id;
-    }
-    onChange({ action: next });
-  };
-
-  return (
-    <div className={styles.inspector}>
-      <div
-        className={styles.inspectorHeader}
-        data-node-drag-handle="true"
-      >
-        <span className={styles.inspectorKind}>
-          {t(`projects.workspace.behavior.blockTypes.${block.type}`)}
-        </span>
-        <button
-          className={styles.iconButton}
-          type="button"
-          aria-label={t("projects.workspace.behavior.deleteBlock")}
-          onClick={onDelete}
-        >
-          ×
-        </button>
-      </div>
-
-      {block.type === "event" ? (
-        <div className={styles.inspectorFields}>
-          <label className={styles.fieldRow}>
-            <span>{t("projects.workspace.behavior.fields.event")}</span>
+        ),
+        value:
+          action.type === "setState" ? (
             <SelectField
-              value={eventValue}
-              onChange={(value) => onChange({ event: value })}
+              value={action.value ?? ""}
+              ariaLabel={t("projects.workspace.behavior.fields.state")}
+              onChange={(value) => onChange({ value })}
             >
-              {eventOptions.map((event) => (
-                <option value={event} key={event}>
-                  {t(behaviorEventLabelKey(event))}
+              <option value="">
+                {t("projects.workspace.behavior.fields.chooseState")}
+              </option>
+              {behavior.states.map((state) => (
+                <option value={state.id} key={state.id}>
+                  {state.name}
                 </option>
               ))}
             </SelectField>
-          </label>
-          <p className={styles.dropHint}>
-            {t("projects.workspace.behavior.eventEditorHint")}
-          </p>
-        </div>
+          ) : action.type === "setControlState" ? (
+            <SelectField
+              value={action.value ?? ""}
+              ariaLabel={t(
+                "projects.workspace.behavior.fields.controlState",
+              )}
+              onChange={(value) => onChange({ value })}
+            >
+              <option value="">
+                {t("projects.workspace.behavior.chooseControlState")}
+              </option>
+              {controlStates.map((state) => (
+                <option value={state.id} key={state.id}>
+                  {state.name}
+                </option>
+              ))}
+            </SelectField>
+          ) : action.type === "setVisible" ? (
+            <SelectField
+              value={action.value === "false" ? "false" : "true"}
+              ariaLabel={t("projects.workspace.behavior.fields.value")}
+              onChange={(value) => onChange({ value })}
+            >
+              <option value="true">
+                {t("projects.workspace.behavior.phrases.visible")}
+              </option>
+              <option value="false">
+                {t("projects.workspace.behavior.phrases.hidden")}
+              </option>
+            </SelectField>
+          ) : action.type === "setChecked" ? (
+            <SelectField
+              value={action.value === "false" ? "false" : "true"}
+              ariaLabel={t("projects.workspace.behavior.fields.value")}
+              onChange={(value) => onChange({ value })}
+            >
+              <option value="true">
+                {t("projects.workspace.behavior.phrases.checkedOn")}
+              </option>
+              <option value="false">
+                {t("projects.workspace.behavior.phrases.checkedOff")}
+              </option>
+            </SelectField>
+          ) : (
+            <DraftInput
+              value={action.value ?? ""}
+              ariaLabel={t("projects.workspace.behavior.fields.value")}
+              onCommit={(value) => onChange({ value })}
+            />
+          ),
+      }}
+    />
+  );
+}
+
+const SHARED_OWNER_ID = "";
+
+function BlockInspector({
+  block,
+  pages,
+  links,
+  behavior,
+  onChange,
+  onRewrite,
+}: {
+  block: CanvasBehaviorBlock;
+  pages: CanvasPage[];
+  links: CanvasLink[];
+  behavior: CanvasBehavior;
+  onChange: (patch: Partial<CanvasBehaviorBlock>) => void;
+  onRewrite: (
+    patch: Partial<CanvasBehaviorBlock>,
+    edges: CanvasBehaviorEdge[],
+  ) => void;
+}) {
+  const { t } = useTranslation();
+  const boundPage = block.nodeId
+    ? pages.find((page) => page.id === block.nodeId) ?? null
+    : null;
+  const nodeEvents = boundPage ? getSupportedEvents(boundPage) : ["click"];
+  const eventValue = block.event ?? nodeEvents[0] ?? "click";
+  const eventOptions = nodeEvents.includes(eventValue)
+    ? [...nodeEvents]
+    : [eventValue, ...nodeEvents];
+  const action = block.action;
+
+  return (
+    <div className={styles.nodeFields}>
+      {block.type === "event" ? (
+        <Trans
+          parent="div"
+          className={styles.sentence}
+          i18nKey="projects.workspace.behavior.sentences.event"
+          components={{
+            slot: (
+              <TargetSlot
+                blockId={block.id}
+                kind="event"
+                targetId={block.nodeId}
+                ownerId={SHARED_OWNER_ID}
+                pages={pages}
+                onClear={() => onChange({ nodeId: undefined })}
+              />
+            ),
+            event: (
+              <SelectField
+                value={eventValue}
+                ariaLabel={t("projects.workspace.behavior.fields.event")}
+                onChange={(value) => onChange({ event: value })}
+              >
+                {eventOptions.map((event) => (
+                  <option value={event} key={event}>
+                    {t(behaviorEventLabelKey(event))}
+                  </option>
+                ))}
+              </SelectField>
+            ),
+          }}
+        />
       ) : null}
 
       {block.type === "condition" ? (
         block.conditions?.length ? (
           <div className={styles.inspectorFields}>
-            <label className={styles.fieldRow}>
-              <span>
-                {t("projects.workspace.behavior.fields.conditionMode")}
-              </span>
-              <SelectField
-                value={block.conditionMode ?? "all"}
-                onChange={(value) =>
-                  onChange({ conditionMode: value as "all" | "any" })
-                }
-              >
-                <option value="all">
-                  {t("projects.workspace.behavior.conditionModeAll")}
-                </option>
-                <option value="any">
-                  {t("projects.workspace.behavior.conditionModeAny")}
-                </option>
-              </SelectField>
-            </label>
+            <Trans
+              parent="div"
+              className={styles.sentence}
+              i18nKey="projects.workspace.behavior.sentences.group"
+              components={{
+                mode: (
+                  <SelectField
+                    value={block.conditionMode ?? "all"}
+                    ariaLabel={t(
+                      "projects.workspace.behavior.fields.conditionMode",
+                    )}
+                    onChange={(value) =>
+                      onChange({
+                        conditionMode: value as "all" | "any",
+                      })
+                    }
+                  >
+                    <option value="all">
+                      {t("projects.workspace.behavior.conditionModeAll")}
+                    </option>
+                    <option value="any">
+                      {t("projects.workspace.behavior.conditionModeAny")}
+                    </option>
+                  </SelectField>
+                ),
+              }}
+            />
             {block.conditions.map((condition, index) => (
               <div
                 className={styles.groupCondition}
@@ -769,8 +895,11 @@ function BlockInspector({
                 </div>
                 <ConditionFields
                   condition={condition}
-                  ownerId={page.id}
+                  ownerId={SHARED_OWNER_ID}
                   pages={pages}
+                  links={links}
+                  blockId={block.id}
+                  index={index}
                   onChange={(next) =>
                     onChange({
                       conditions: block.conditions?.map(
@@ -783,34 +912,33 @@ function BlockInspector({
               </div>
             ))}
             <button
-              className={styles.paletteButton}
+              className={styles.addPhrase}
               type="button"
               onClick={() => {
                 const next = createBehaviorCondition("nodeData");
-                next.targetId = page.id;
                 onChange({
                   conditions: [...(block.conditions ?? []), next],
                 });
               }}
             >
-              <span className={styles.paletteMark}>+</span>
-              {t("projects.workspace.behavior.conditionsTitle")}
+              {t("projects.workspace.behavior.phrases.addJudgment")}
             </button>
           </div>
         ) : block.condition ? (
           <div className={styles.inspectorFields}>
             <ConditionFields
               condition={block.condition}
-              ownerId={page.id}
+              ownerId={SHARED_OWNER_ID}
               pages={pages}
+              links={links}
+              blockId={block.id}
               onChange={(condition) => onChange({ condition })}
             />
             <button
-              className={styles.paletteButton}
+              className={styles.addPhrase}
               type="button"
               onClick={() => {
                 const next = createBehaviorCondition("nodeData");
-                next.targetId = page.id;
                 onChange({
                   condition: undefined,
                   conditionMode: "all",
@@ -818,8 +946,7 @@ function BlockInspector({
                 });
               }}
             >
-              <span className={styles.paletteMark}>+</span>
-              {t("projects.workspace.behavior.addCondition")}
+              {t("projects.workspace.behavior.phrases.addJudgment")}
             </button>
           </div>
         ) : (
@@ -832,26 +959,13 @@ function BlockInspector({
       {block.type === "action" ? (
         action ? (
           <div className={styles.inspectorFields}>
-            <label className={styles.fieldRow}>
-              <span>{t("projects.workspace.behavior.fields.actionType")}</span>
-              <SelectField
-                value={action.type}
-                onChange={(value) =>
-                  replaceActionType(value as CanvasBehaviorActionType)
-                }
-              >
-                {actionDefinitions.map((definition) => (
-                  <option value={definition.type} key={definition.type}>
-                    {t(behaviorActionLabelKey(definition.type))}
-                  </option>
-                ))}
-              </SelectField>
-            </label>
             <ActionFields
               action={action}
               pages={pages}
+              links={links}
               behavior={behavior}
-              ownerId={page.id}
+              ownerId={SHARED_OWNER_ID}
+              blockId={block.id}
               onChange={(patch) =>
                 onChange({ action: { ...action, ...patch } })
               }
@@ -862,6 +976,186 @@ function BlockInspector({
             {t("projects.workspace.behavior.lint.blockActionMissing")}
           </p>
         )
+      ) : null}
+
+      {block.type === "switch" ? (
+        <div className={styles.inspectorFields}>
+          <Trans
+            parent="div"
+            className={styles.sentence}
+            i18nKey="projects.workspace.behavior.sentences.switch"
+            components={{
+              slot: (
+                <TargetSlot
+                  blockId={block.id}
+                  kind="switch"
+                  targetId={block.nodeId}
+                  ownerId={SHARED_OWNER_ID}
+                  pages={pages}
+                  onClear={() => onChange({ nodeId: undefined })}
+                />
+              ),
+              prop: (
+                <PropertyIdInput
+                  page={boundPage}
+                  pages={pages}
+                  links={links}
+                  value={
+                    resolvePropertyId(
+                      block.key ?? "",
+                      boundPage
+                        ? getEffectivePageData(
+                            pages,
+                            links,
+                            boundPage,
+                          ).keys()
+                        : [],
+                    ) ?? { kind: "style", key: block.key ?? "" }
+                  }
+                  onChange={(field) =>
+                    onChange({ key: propertyFieldId(field) })
+                  }
+                />
+              ),
+            }}
+          />
+          <div className={styles.caseList}>
+            {(block.cases?.length ? block.cases : [""]).map(
+              (item, index) => (
+                <div className={styles.caseRow} key={index}>
+                  <DraftInput
+                    value={item}
+                    ariaLabel={t(
+                      "projects.workspace.behavior.fields.caseValue",
+                    )}
+                    placeholder={t(
+                      "projects.workspace.behavior.casePlaceholder",
+                    )}
+                    onCommit={(value) => {
+                      const cases = [
+                        ...(block.cases?.length ? block.cases : [""]),
+                      ];
+                      cases[index] = value;
+                      onChange({ cases });
+                    }}
+                  />
+                  <button
+                    className={styles.iconButton}
+                    type="button"
+                    aria-label={t(
+                      "projects.workspace.behavior.removeCase",
+                    )}
+                    onClick={() => {
+                      const cases = (
+                        block.cases?.length ? block.cases : [""]
+                      ).filter((_, itemIndex) => itemIndex !== index);
+                      onRewrite(
+                        { cases },
+                        (behavior.edges ?? [])
+                          .filter(
+                            (edge) =>
+                              edge.from !== block.id ||
+                              edge.label !== `case:${index}`,
+                          )
+                          .map((edge) => {
+                            if (
+                              edge.from !== block.id ||
+                              !edge.label?.startsWith("case:")
+                            ) {
+                              return edge;
+                            }
+                            const caseIndex = Number(
+                              edge.label.slice(5),
+                            );
+                            if (caseIndex > index) {
+                              return {
+                                ...edge,
+                                label: `case:${caseIndex - 1}`,
+                              };
+                            }
+                            return edge;
+                          }),
+                      );
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ),
+            )}
+            <button
+              className={styles.addPhrase}
+              type="button"
+              onClick={() =>
+                onChange({
+                  cases: [...(block.cases ?? []), ""],
+                })
+              }
+            >
+              {t("projects.workspace.behavior.phrases.addCase")}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {block.type === "reference" ? (
+        <div className={styles.referenceBody}>
+          <strong>
+            {pages.find((item) => item.id === block.nodeId)?.name ??
+              t("projects.workspace.behavior.lint.referenceMissing")}
+          </strong>
+          <span>{t("projects.workspace.behavior.referenceHint")}</span>
+        </div>
+      ) : null}
+
+      {block.type === "function" ? (
+        <div className={styles.inspectorFields}>
+          <label className={styles.fieldRow}>
+            <span>{t("projects.workspace.behavior.fields.functionName")}</span>
+          </label>
+          <DraftInput
+            value={block.text ?? ""}
+            ariaLabel={t("projects.workspace.behavior.fields.functionName")}
+            placeholder={t("projects.workspace.behavior.functionPlaceholder")}
+            onCommit={(text) => onChange({ text })}
+          />
+          <p className={styles.mutedText}>
+            {t("projects.workspace.behavior.functionHint")}
+          </p>
+        </div>
+      ) : null}
+
+      {block.type === "call" ? (
+        <div className={styles.inspectorFields}>
+          <label className={styles.fieldRow}>
+            <span>{t("projects.workspace.behavior.fields.callFunction")}</span>
+            <select
+              className={styles.fieldSelect}
+              value={block.key ?? ""}
+              aria-label={t("projects.workspace.behavior.fields.callFunction")}
+              onChange={(event) =>
+                onChange({
+                  key: event.target.value || undefined,
+                })
+              }
+            >
+              <option value="">
+                {t("projects.workspace.behavior.chooseFunction")}
+              </option>
+              {behavior.blocks
+                ?.filter((item) => item.type === "function")
+                .map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.text?.trim() ||
+                      t("projects.workspace.behavior.blockTypes.function")}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <p className={styles.mutedText}>
+            {t("projects.workspace.behavior.callHint")}
+          </p>
+        </div>
       ) : null}
 
       {block.type === "note" ? (
@@ -883,135 +1177,119 @@ function BlockInspector({
   );
 }
 
-function PaletteSection({
-  title,
-  open,
-  onToggle,
-  children,
-}: {
-  title: string;
-  open: boolean;
-  onToggle: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <section className={styles.panelSection}>
-      <button
-        className={styles.sectionToggle}
-        type="button"
-        aria-expanded={open}
-        onClick={onToggle}
-      >
-        <span className={styles.chevron} data-open={open ? "true" : undefined}>
-          ▸
-        </span>
-        {title}
-      </button>
-      {open ? <div className={styles.paletteBody}>{children}</div> : null}
-    </section>
-  );
-}
-
 type NewBehaviorBlock = Partial<CanvasBehaviorBlock> & {
   type: CanvasBehaviorBlock["type"];
 };
 
+function PhraseButton({
+  kind,
+  label,
+  onAdd,
+}: {
+  kind: string;
+  label: string;
+  onAdd: () => void;
+}) {
+  const dragged = useRef(false);
+  return (
+    <button
+      className={styles.phraseButton}
+      type="button"
+      data-kind={kind}
+      draggable
+      onDragStart={(event) => {
+        dragged.current = true;
+        event.dataTransfer.setData(BEHAVIOR_PHRASE_MIME, kind);
+        event.dataTransfer.effectAllowed = "copy";
+      }}
+      onClick={() => {
+        if (dragged.current) {
+          dragged.current = false;
+          return;
+        }
+        onAdd();
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
 export function CanvasBehaviorEditor({
   pages,
-  pageId,
+  links,
+  behavior: sourceBehavior,
+  scopeId,
+  scopeName,
+  activeTool,
   height,
   onHeightChange,
   onClose,
   onUpdateBehavior,
 }: {
   pages: CanvasPage[];
-  pageId: string | null;
+  links: CanvasLink[];
+  behavior: CanvasBehavior | null;
+  scopeId: string;
+  scopeName: string;
+  activeTool: CanvasTool;
   height: number;
   onHeightChange: (height: number) => void;
   onClose: () => void;
-  onUpdateBehavior: (pageId: string, behavior: CanvasBehavior) => void;
+  onUpdateBehavior: (behavior: CanvasBehavior) => void;
 }) {
   const { t } = useTranslation();
-  const page = pages.find((item) => item.id === pageId) ?? null;
-  const behavior = page ? getPageBehavior(page) : null;
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+  const behavior = sourceBehavior ?? createDefaultBehavior();
+  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [leftPanelWidth, setLeftPanelWidth] = useState(230);
   const [rightPanelWidth, setRightPanelWidth] = useState(270);
   const [convertedPageId, setConvertedPageId] = useState<string | null>(
     null,
   );
-  const [openPalettes, setOpenPalettes] = useState<Record<string, boolean>>({
-    blocks: true,
-    events: false,
-    conditions: false,
-    actions: false,
-  });
   const graphApiRef = useRef<BehaviorGraphCanvasApi | null>(null);
   const panelRef = useRef<HTMLElement | null>(null);
   const materializedRef = useRef<string | null>(null);
 
   const blocks = behavior?.blocks ?? [];
   const edges = behavior?.edges ?? [];
-  const initialBehaviorState =
-    behavior?.states.find((state) => state.initial) ??
-    behavior?.states[0] ??
-    null;
-  const startPosition =
-    initialBehaviorState &&
-    typeof initialBehaviorState.x === "number" &&
-    typeof initialBehaviorState.y === "number"
-      ? { x: initialBehaviorState.x, y: initialBehaviorState.y }
-      : null;
-  const supportedEvents = page
-    ? getSupportedEvents(page)
-    : ["click", "load"];
-  const lintItems = useMemo(() => collectBehaviorLint(pages), [pages]);
-  const currentLint = page
-    ? lintItems.filter(
-        (item) =>
-          item.pageId === page.id &&
-          !HIDDEN_STATE_LINT_KEYS.has(item.messageKey),
-      )
-    : [];
+  const currentLint = useMemo(
+    () =>
+      collectSharedBehaviorLint(pages, behavior, {
+        id: scopeId,
+        name: scopeName,
+      }).filter((item) => !HIDDEN_STATE_LINT_KEYS.has(item.messageKey)),
+    [pages, behavior, scopeId, scopeName],
+  );
   useEffect(() => {
-    if (!page || !behavior) return;
-    const signature = `${page.id}:${JSON.stringify(behavior)}`;
+    const signature = `${scopeId}:${JSON.stringify(behavior)}`;
     if (materializedRef.current === signature) return;
     materializedRef.current = signature;
     const result = materializeBehaviorGraph(behavior);
     if (!result.changed) return;
-    onUpdateBehavior(page.id, result.behavior);
-    if (result.converted) setConvertedPageId(page.id);
-  }, [page, behavior, onUpdateBehavior]);
+    onUpdateBehavior(result.behavior);
+    if (result.converted) setConvertedPageId(scopeId);
+  }, [scopeId, behavior, onUpdateBehavior]);
 
   useEffect(() => {
-    setSelectedNodeId(null);
-    setEditingNodeId(null);
+    setSelectedNodeIds([]);
     setSelectedEdgeId(null);
-  }, [pageId]);
+  }, [scopeId]);
 
   useEffect(() => {
-    if (convertedPageId && convertedPageId === page?.id) {
+    if (convertedPageId && convertedPageId === scopeId) {
       graphApiRef.current?.fitView();
     }
-  }, [convertedPageId, page?.id]);
+  }, [convertedPageId, scopeId]);
 
   useEffect(() => {
-    if (
-      selectedNodeId &&
-      !blocks.some((block) => block.id === selectedNodeId)
-    ) {
-      setSelectedNodeId(null);
-    }
-    if (
-      editingNodeId &&
-      !blocks.some((block) => block.id === editingNodeId)
-    ) {
-      setEditingNodeId(null);
-    }
-  }, [blocks, editingNodeId, selectedNodeId]);
+    setSelectedNodeIds((current) => {
+      const next = current.filter((id) =>
+        blocks.some((block) => block.id === id),
+      );
+      return next.length === current.length ? current : next;
+    });
+  }, [blocks]);
 
   useEffect(() => {
     if (
@@ -1023,7 +1301,7 @@ export function CanvasBehaviorEditor({
   }, [edges, selectedEdgeId]);
 
   const updateBehavior = (next: CanvasBehavior) => {
-    if (page) onUpdateBehavior(page.id, next);
+    onUpdateBehavior(next);
   };
 
   const updateGraph = ({
@@ -1064,7 +1342,7 @@ export function CanvasBehaviorEditor({
         x: block.x,
         y: block.y,
         width: BEHAVIOR_GRAPH_NODE_WIDTH,
-        height: 100,
+        height: BEHAVIOR_GRAPH_NODE_HEIGHT[block.type],
       })),
     ];
     const overlaps = (x: number, y: number) =>
@@ -1086,37 +1364,179 @@ export function CanvasBehaviorEditor({
     return { x: Math.round(x), y: Math.round(y) };
   };
 
-  const addBlock = (partial: NewBehaviorBlock) => {
-    if (!behavior || !page) return;
+  const addBlock = (
+    partial: NewBehaviorBlock,
+    point?: { x: number; y: number },
+  ) => {
+    if (!behavior) return;
     const center = graphApiRef.current?.getViewportCenter() ?? {
       x: 240,
       y: 180,
     };
-    const position = findFreePosition(
-      BEHAVIOR_GRAPH_NODE_WIDTH,
-      100,
-      center,
-    );
+    const position = point
+      ? { x: Math.round(point.x), y: Math.round(point.y) }
+      : findFreePosition(
+          BEHAVIOR_GRAPH_NODE_WIDTH,
+          BEHAVIOR_GRAPH_NODE_HEIGHT[partial.type],
+          center,
+        );
     const created = createBehaviorBlock(
       partial.type,
       position.x,
       position.y,
     );
     const block: CanvasBehaviorBlock = { ...created, ...partial };
-    if (block.type === "condition" && block.condition && !block.condition.targetId) {
-      block.condition = { ...block.condition, targetId: page.id };
+    updateGraph({ blocks: [...blocks, block] });
+    setSelectedNodeIds([block.id]);
+    setSelectedEdgeId(null);
+  };
+
+  const createPhrase = (phrase: string, x: number, y: number) => {
+    const point = { x, y };
+    if (phrase === "event") {
+      addBlock({ type: "event", event: "click" }, point);
+      return;
     }
-    if (block.type === "action" && block.action) {
-      const definition = BEHAVIOR_ACTION_DEFINITIONS.find(
-        (item) => item.type === block.action?.type,
+    if (phrase === "condition") {
+      addBlock(
+        {
+          type: "condition",
+          condition: createBehaviorCondition("nodeText"),
+        },
+        point,
       );
-      if (definition?.needsTarget && !block.action.targetId) {
-        block.action = { ...block.action, targetId: page.id };
+      return;
+    }
+    if (phrase === "navigate") {
+      addBlock(
+        { type: "action", action: createBehaviorAction("navigate") },
+        point,
+      );
+      return;
+    }
+    if (phrase === "switch") {
+      addBlock({ type: "switch" }, point);
+      return;
+    }
+    if (phrase === "function") {
+      addBlock({ type: "function", text: "函数" }, point);
+      return;
+    }
+    if (phrase === "call") {
+      addBlock({ type: "call" }, point);
+      return;
+    }
+    if (phrase === "data") {
+      addBlock(
+        { type: "action", action: createBehaviorAction("setData") },
+        point,
+      );
+      return;
+    }
+    if (phrase === "action") {
+      addBlock(
+        { type: "action", action: createBehaviorAction("setText") },
+        point,
+      );
+    }
+  };
+
+  const createReference = (nodeId: string, x: number, y: number) => {
+    if (!behavior || !pages.some((item) => item.id === nodeId)) return;
+    const existing = blocks.find(
+      (block) => block.type === "reference" && block.nodeId === nodeId,
+    );
+    if (existing) {
+      setSelectedNodeIds([existing.id]);
+      setSelectedEdgeId(null);
+      return;
+    }
+    const block = createReferenceBlock(
+      nodeId,
+      Math.round(x),
+      Math.round(y),
+    );
+    updateGraph({ blocks: [...blocks, block] });
+    setSelectedNodeIds([block.id]);
+    setSelectedEdgeId(null);
+  };
+
+  const assignReference = (
+    referenceBlockId: string,
+    target: {
+      blockId: string;
+      kind: "action" | "condition" | "event" | "switch";
+      index: number | null;
+    },
+  ) => {
+    const reference = blocks.find((block) => block.id === referenceBlockId);
+    if (
+      !reference ||
+      reference.type !== "reference" ||
+      !reference.nodeId
+    ) {
+      return;
+    }
+    const block = blocks.find((item) => item.id === target.blockId);
+    if (!block) return;
+    const targetId = reference.nodeId;
+    let patch: Partial<CanvasBehaviorBlock> | null = null;
+    if (target.kind === "event" || target.kind === "switch") {
+      const bound = pages.find((page) => page.id === targetId);
+      const events = bound ? getSupportedEvents(bound) : [];
+      const event =
+        target.kind === "event"
+          ? events.includes(block.event ?? "")
+            ? block.event
+            : events[0] ?? block.event
+          : block.event;
+      patch = {
+        nodeId: targetId,
+        ...(target.kind === "event" ? { event } : {}),
+      };
+    } else if (target.kind === "action" && block.action) {
+      const next = { ...block.action, targetId };
+      if (
+        block.action.targetId !== targetId &&
+        next.type === "setControlState"
+      ) {
+        next.value = "";
+      }
+      patch = { action: next };
+    } else if (target.kind === "condition") {
+      const apply = (condition: CanvasBehaviorCondition) => {
+        const next = { ...condition, targetId };
+        if (
+          condition.targetId !== targetId &&
+          (next.source === "state" || next.source === "controlState")
+        ) {
+          next.value = "";
+        }
+        return next;
+      };
+      if (target.index === null && block.condition) {
+        patch = { condition: apply(block.condition) };
+      } else if (target.index !== null && block.conditions) {
+        patch = {
+          conditions: block.conditions.map((item, itemIndex) =>
+            itemIndex === target.index ? apply(item) : item,
+          ),
+        };
       }
     }
-    updateGraph({ blocks: [...blocks, block] });
-    setSelectedNodeId(block.id);
-    setEditingNodeId(null);
+    if (!patch) return;
+    updateGraph({
+      blocks: blocks
+        .filter((item) => item.id !== referenceBlockId)
+        .map((item) =>
+          item.id === block.id ? { ...item, ...patch } : item,
+        ),
+      edges: edges.filter(
+        (edge) =>
+          edge.from !== referenceBlockId && edge.to !== referenceBlockId,
+      ),
+    });
+    setSelectedNodeIds([block.id]);
     setSelectedEdgeId(null);
   };
 
@@ -1134,8 +1554,9 @@ export function CanvasBehaviorEditor({
       blocks: blocks.filter((block) => block.id !== id),
       edges: edges.filter((edge) => edge.from !== id && edge.to !== id),
     });
-    if (selectedNodeId === id) setSelectedNodeId(null);
-    if (editingNodeId === id) setEditingNodeId(null);
+    setSelectedNodeIds((current) =>
+      current.filter((selectedId) => selectedId !== id),
+    );
     setSelectedEdgeId(null);
   };
 
@@ -1150,59 +1571,38 @@ export function CanvasBehaviorEditor({
     }
   };
 
-  const addEdge = (from: string, to: string) => {
+  const addEdge = (from: string, to: string, label?: string) => {
     if (!behavior) return;
     const knownIds = new Set(blocks.map((block) => block.id));
     if (!knownIds.has(from) || !knownIds.has(to)) return;
+    const port = !label || label === "out" ? undefined : label;
     const existing = edges.find(
-      (edge) => edge.from === from && edge.to === to,
+      (edge) => edge.from === from && edge.to === to && edge.label === port,
     );
     if (existing) {
       setSelectedEdgeId(existing.id);
-      setSelectedNodeId(null);
-      setEditingNodeId(null);
+      setSelectedNodeIds([]);
       return;
     }
-    const edge = createBehaviorEdge(from, to);
+    const edge = createBehaviorEdge(from, to, port);
     updateGraph({ edges: [...edges, edge] });
     setSelectedEdgeId(edge.id);
-    setSelectedNodeId(null);
-    setEditingNodeId(null);
+    setSelectedNodeIds([]);
+  };
+
+  const moveNodes = (moves: { id: string; x: number; y: number }[]) => {
+    if (!moves.length) return;
+    const byId = new Map(moves.map((move) => [move.id, move]));
+    updateGraph({
+      blocks: blocks.map((block) => {
+        const move = byId.get(block.id);
+        return move ? { ...block, x: move.x, y: move.y } : block;
+      }),
+    });
   };
 
   const moveNode = (id: string, x: number, y: number) => {
-    if (id === BEHAVIOR_START_NODE_ID) {
-      if (!behavior) return;
-      const behaviorStates = behavior.states.length
-        ? behavior.states
-        : [
-            {
-              id: "default",
-              name: t("projects.workspace.behavior.stateDefaultName", {
-                index: 1,
-              }),
-              initial: true,
-            },
-          ];
-      const initial =
-        behaviorStates.find((state) => state.initial) ??
-        behaviorStates[0];
-      updateBehavior({
-        ...behavior,
-        version: 2,
-        triggers: [],
-        states: behaviorStates.map((state) =>
-          state.id === initial.id ? { ...state, x, y } : state,
-        ),
-      });
-      return;
-    }
-    if (!blocks.some((block) => block.id === id)) return;
-    updateGraph({
-      blocks: blocks.map((block) =>
-        block.id === id ? { ...block, x, y } : block,
-      ),
-    });
+    moveNodes([{ id, x, y }]);
   };
 
   useEffect(() => {
@@ -1223,8 +1623,16 @@ export function CanvasBehaviorEditor({
         deleteEdge(selectedEdgeId);
         return;
       }
-      if (selectedNodeId) {
-        deleteNode(selectedNodeId);
+      if (selectedNodeIds.length) {
+        const idSet = new Set(selectedNodeIds);
+        updateGraph({
+          blocks: blocks.filter((block) => !idSet.has(block.id)),
+          edges: edges.filter(
+            (edge) => !idSet.has(edge.from) && !idSet.has(edge.to),
+          ),
+        });
+        setSelectedNodeIds([]);
+        setSelectedEdgeId(null);
       }
     };
 
@@ -1373,11 +1781,11 @@ export function CanvasBehaviorEditor({
   const focusLintIssue = (issue: (typeof currentLint)[number]) => {
     if (issue.edgeId) {
       setSelectedEdgeId(issue.edgeId);
-      setSelectedNodeId(null);
+      setSelectedNodeIds([]);
       return;
     }
     if (issue.blockId) {
-      setSelectedNodeId(issue.blockId);
+      setSelectedNodeIds([issue.blockId]);
       setSelectedEdgeId(null);
     }
   };
@@ -1387,6 +1795,7 @@ export function CanvasBehaviorEditor({
       ref={panelRef}
       className={styles.panel}
       style={{ height }}
+      data-behavior-editor="true"
       aria-label={t("projects.workspace.behavior.title")}
     >
       <div
@@ -1406,7 +1815,7 @@ export function CanvasBehaviorEditor({
             {t("projects.workspace.behavior.graphBadge")}
           </span>
           <span className={styles.headerPageName}>
-            {page ? page.name : t("projects.workspace.behavior.noSelection")}
+            {scopeName}
           </span>
         </div>
         <div className={styles.headerActions}>
@@ -1433,12 +1842,7 @@ export function CanvasBehaviorEditor({
         </div>
       </header>
 
-      {!page || !behavior ? (
-        <div className={styles.emptyState}>
-          {t("projects.workspace.behavior.noSelection")}
-        </div>
-      ) : (
-        <div className={styles.body}>
+      <div className={styles.body}>
           <aside
             className={styles.leftPanel}
             style={{ width: leftPanelWidth }}
@@ -1504,7 +1908,7 @@ export function CanvasBehaviorEditor({
           />
 
           <main className={styles.graphStage}>
-            {convertedPageId === page.id ? (
+            {convertedPageId === scopeId ? (
               <div className={styles.notice} role="status">
                 <span>
                   {t("projects.workspace.behavior.convertedNotice")}
@@ -1522,51 +1926,52 @@ export function CanvasBehaviorEditor({
               </div>
             ) : null}
             <BehaviorGraphCanvas
-              pages={pages}
               blocks={blocks}
               edges={edges}
-              selectedNodeId={selectedNodeId}
-              editingNodeId={editingNodeId}
+              activeTool={activeTool}
+              selectedNodeIds={selectedNodeIds}
               selectedEdgeId={selectedEdgeId}
-              startPosition={startPosition}
-              fitKey={page.id}
+              fitKey={scopeId}
               apiRef={graphApiRef}
-              onSelectNode={(id) => {
-                setSelectedNodeId(id);
-                if (id) setSelectedEdgeId(null);
+              onSelectNodes={(ids) => {
+                setSelectedNodeIds(ids);
+                if (ids.length) setSelectedEdgeId(null);
               }}
               onSelectEdge={(id) => {
                 setSelectedEdgeId(id);
-                if (id) {
-                  setSelectedNodeId(null);
-                  setEditingNodeId(null);
-                }
+                if (id) setSelectedNodeIds([]);
               }}
-              onStartEditNode={(id) => {
-                setSelectedNodeId(id);
-                setSelectedEdgeId(null);
-                setEditingNodeId(id);
-              }}
-              onStopEditNode={() => setEditingNodeId(null)}
               onMoveNode={moveNode}
+              onMoveNodes={moveNodes}
               onCreateEdge={addEdge}
               onDeleteEdge={deleteEdge}
               onDeleteNode={deleteNode}
               onCreateEvent={() =>
                 addBlock({
                   type: "event",
-                  event: supportedEvents[0] ?? "click",
+                  event: "click",
                 })
               }
+              onCreateReference={createReference}
+              onCreatePhrase={createPhrase}
+              onAssignReference={assignReference}
               renderBlockEditor={(block) => (
                 <BlockInspector
                   block={block}
-                  page={page}
                   pages={pages}
+                  links={links}
                   behavior={behavior}
-                  supportedEvents={supportedEvents}
                   onChange={(patch) => patchBlock(block.id, patch)}
-                  onDelete={() => deleteBlock(block.id)}
+                  onRewrite={(patch, nextEdges) =>
+                    updateGraph({
+                      blocks: blocks.map((item) =>
+                        item.id === block.id
+                          ? { ...item, ...patch }
+                          : item,
+                      ),
+                      edges: nextEdges,
+                    })
+                  }
                 />
               )}
             />
@@ -1598,138 +2003,50 @@ export function CanvasBehaviorEditor({
             className={styles.rightPanel}
             style={{ width: rightPanelWidth }}
           >
-            <PaletteSection
-              title={t("projects.workspace.behavior.blockPaletteTitle")}
-              open={Boolean(openPalettes.blocks)}
-              onToggle={() =>
-                setOpenPalettes((current) => ({
-                  ...current,
-                  blocks: !current.blocks,
-                }))
-              }
-            >
-              <div className={styles.palette}>
-                <button
-                  className={styles.paletteButton}
-                  type="button"
-                  onClick={() =>
-                    addBlock({
-                      type: "event",
-                      event: supportedEvents[0] ?? "click",
-                    })
-                  }
-                >
-                  <span className={styles.paletteMark}>+</span>
-                  {t("projects.workspace.behavior.blockTypes.event")}
-                </button>
-                <button
-                  className={styles.paletteButton}
-                  type="button"
-                  onClick={() => addConditionBlock("nodeData")}
-                >
-                  <span className={styles.paletteMark}>+</span>
-                  {t("projects.workspace.behavior.blockTypes.condition")}
-                </button>
-                <button
-                  className={styles.paletteButton}
-                  type="button"
-                  onClick={() => addActionBlock("setStyle")}
-                >
-                  <span className={styles.paletteMark}>+</span>
-                  {t("projects.workspace.behavior.blockTypes.action")}
-                </button>
-                <button
-                  className={styles.paletteButton}
-                  type="button"
-                  onClick={() => addBlock({ type: "note", text: "" })}
-                >
-                  <span className={styles.paletteMark}>+</span>
-                  {t("projects.workspace.behavior.blockTypes.note")}
-                </button>
-              </div>
-            </PaletteSection>
-
-            <PaletteSection
-              title={t("projects.workspace.behavior.eventsTitle")}
-              open={Boolean(openPalettes.events)}
-              onToggle={() =>
-                setOpenPalettes((current) => ({
-                  ...current,
-                  events: !current.events,
-                }))
-              }
-            >
-              <div className={styles.palette}>
-                {supportedEvents.map((event) => (
-                  <button
-                    className={styles.paletteButton}
-                    type="button"
-                    key={event}
-                    onClick={() => addBlock({ type: "event", event })}
-                  >
-                    <span className={styles.paletteMark}>+</span>
-                    {t(behaviorEventLabelKey(event))}
-                  </button>
-                ))}
-              </div>
-            </PaletteSection>
-
-            <PaletteSection
-              title={t("projects.workspace.behavior.conditionsTitle")}
-              open={Boolean(openPalettes.conditions)}
-              onToggle={() =>
-                setOpenPalettes((current) => ({
-                  ...current,
-                  conditions: !current.conditions,
-                }))
-              }
-            >
-              <div className={styles.palette}>
-                {BEHAVIOR_CONDITION_SOURCES.filter(
-                  (definition) => definition.source !== "state",
-                ).map((definition) => (
-                  <button
-                    className={styles.paletteButton}
-                    type="button"
-                    key={definition.source}
-                    onClick={() => addConditionBlock(definition.source)}
-                  >
-                    <span className={styles.paletteMark}>+</span>
-                    {t(definition.labelKey)}
-                  </button>
-                ))}
-              </div>
-            </PaletteSection>
-
-            <PaletteSection
-              title={t("projects.workspace.behavior.actionsTitle")}
-              open={Boolean(openPalettes.actions)}
-              onToggle={() =>
-                setOpenPalettes((current) => ({
-                  ...current,
-                  actions: !current.actions,
-                }))
-              }
-            >
-              <div className={styles.palette}>
-                {BEHAVIOR_ACTION_DEFINITIONS.filter(
-                  (definition) => definition.type !== "setState",
-                ).map((definition) => (
-                  <button
-                    className={styles.paletteButton}
-                    type="button"
-                    key={definition.type}
-                    onClick={() => addActionBlock(definition.type)}
-                  >
-                    <span className={styles.paletteMark}>+</span>
-                    {t(definition.labelKey)}
-                  </button>
-                ))}
-              </div>
-            </PaletteSection>
+            <div className={styles.phraseList}>
+              <PhraseButton
+                kind="event"
+                label={t("projects.workspace.behavior.phrases.eventGeneric")}
+                onAdd={() => addBlock({ type: "event", event: "click" })}
+              />
+              <PhraseButton
+                kind="condition"
+                label={t("projects.workspace.behavior.phrases.judge")}
+                onAdd={() => addConditionBlock("nodeText")}
+              />
+              <PhraseButton
+                kind="action"
+                label={t("projects.workspace.behavior.phrases.modify")}
+                onAdd={() => addActionBlock("setText")}
+              />
+              <PhraseButton
+                kind="data"
+                label={t("projects.workspace.behavior.phrases.modifyData")}
+                onAdd={() => addActionBlock("setData")}
+              />
+              <PhraseButton
+                kind="switch"
+                label={t("projects.workspace.behavior.phrases.switch")}
+                onAdd={() => addBlock({ type: "switch" })}
+              />
+              <PhraseButton
+                kind="function"
+                label={t("projects.workspace.behavior.phrases.function")}
+                onAdd={() => addBlock({ type: "function", text: "函数" })}
+              />
+              <PhraseButton
+                kind="call"
+                label={t("projects.workspace.behavior.phrases.call")}
+                onAdd={() => addBlock({ type: "call" })}
+              />
+              <PhraseButton
+                kind="navigate"
+                label={t("projects.workspace.behavior.phrases.navigate")}
+                onAdd={() => addActionBlock("navigate")}
+              />
+            </div>
           </aside>
         </div>
-      )}
     </section>
   );
 }

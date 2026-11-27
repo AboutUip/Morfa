@@ -1,3 +1,5 @@
+import { convertStoredWorldPositions } from "@morfa/shared/canvas-layout";
+
 import {
   findProjectDataForUser,
   updateProjectData,
@@ -168,7 +170,11 @@ export type CanvasBehaviorBlockType =
   | "event"
   | "condition"
   | "action"
-  | "note";
+  | "note"
+  | "reference"
+  | "switch"
+  | "function"
+  | "call";
 
 export interface CanvasBehaviorBlockDto {
   id: string;
@@ -182,6 +188,12 @@ export interface CanvasBehaviorBlockDto {
   conditionMode?: "all" | "any";
   action?: CanvasBehaviorActionDto;
   text?: string;
+  /** Canvas page represented by a reference block, event, or switch. */
+  nodeId?: string;
+  /** CamelCase property id read by a switch block. */
+  key?: string;
+  /** Switch case values. Output port `case:n` follows `cases[n]`. */
+  cases?: string[];
 }
 
 export interface CanvasBehaviorEdgeDto {
@@ -266,6 +278,7 @@ export interface CanvasLinkDto {
 export interface CanvasDocumentDto {
   pages: CanvasPageDto[];
   links: CanvasLinkDto[];
+  behavior?: CanvasBehaviorDto;
   updatedAt: number;
 }
 
@@ -557,6 +570,10 @@ const BEHAVIOR_BLOCK_TYPES = new Set<CanvasBehaviorBlockType>([
   "condition",
   "action",
   "note",
+  "reference",
+  "switch",
+  "function",
+  "call",
 ]);
 
 function normalizeBehaviorAction(
@@ -684,6 +701,8 @@ function normalizeBehaviorBlock(
   if (textValue.length > 2000) invalidDocument();
 
   if (type === "event") {
+    const nodeIdValue =
+      typeof block.nodeId === "string" ? block.nodeId.trim() : "";
     return {
       id,
       type: "event",
@@ -695,6 +714,7 @@ function normalizeBehaviorBlock(
         true,
       ),
       ...(stateId ? { stateId } : {}),
+      ...(nodeIdValue ? { nodeId: readPageId(nodeIdValue) } : {}),
     };
   }
   if (type === "condition") {
@@ -734,6 +754,66 @@ function normalizeBehaviorBlock(
       x,
       y,
       action: normalizeBehaviorAction(block.action),
+    };
+  }
+  if (type === "switch") {
+    const nodeIdValue =
+      typeof block.nodeId === "string" ? block.nodeId.trim() : "";
+    const keyValue =
+      typeof block.key === "string" ? block.key.trim() : "";
+    if (keyValue.length > 120) invalidDocument();
+    const cases =
+      block.cases === undefined
+        ? []
+        : Array.isArray(block.cases) && block.cases.length <= 24
+          ? block.cases.map((item) => {
+              if (typeof item !== "string") invalidDocument();
+              const value = item.trim();
+              if (value.length > 200) invalidDocument();
+              return value;
+            })
+          : invalidDocument();
+    return {
+      id,
+      type: "switch",
+      x,
+      y,
+      ...(nodeIdValue ? { nodeId: readPageId(nodeIdValue) } : {}),
+      ...(keyValue ? { key: keyValue } : {}),
+      ...(cases.length ? { cases } : {}),
+    };
+  }
+  if (type === "function") {
+    return {
+      id,
+      type: "function",
+      x,
+      y,
+      ...(textValue ? { text: textValue } : {}),
+    };
+  }
+  if (type === "call") {
+    const keyValue =
+      typeof block.key === "string" ? block.key.trim() : "";
+    if (keyValue.length > MAX_BEHAVIOR_ID_LENGTH) invalidDocument();
+    return {
+      id,
+      type: "call",
+      x,
+      y,
+      ...(keyValue ? { key: keyValue } : {}),
+    };
+  }
+  if (type === "reference") {
+    const nodeIdValue =
+      typeof block.nodeId === "string" ? block.nodeId.trim() : "";
+    if (!nodeIdValue) invalidDocument();
+    return {
+      id,
+      type: "reference",
+      x,
+      y,
+      nodeId: readPageId(nodeIdValue),
     };
   }
   return {
@@ -1384,24 +1464,44 @@ function normalizeLinks(
 function parseStoredDocument(data: string): {
   pages: CanvasPageDto[];
   links: CanvasLinkDto[];
+  behavior?: CanvasBehaviorDto;
+  migrated: boolean;
 } {
-  if (!data) return { pages: [], links: [] };
+  if (!data) return { pages: [], links: [], migrated: false };
 
   try {
     const parsed = JSON.parse(data) as unknown;
     if (!parsed || typeof parsed !== "object") {
-      return { pages: [], links: [] };
+      return { pages: [], links: [], migrated: false };
     }
-    const pages = (parsed as { pages?: unknown }).pages;
-    if (!Array.isArray(pages)) return { pages: [], links: [] };
+    const record = parsed as {
+      version?: unknown;
+      pages?: unknown;
+      links?: unknown;
+      behavior?: unknown;
+    };
+    const pages = record.pages;
+    if (!Array.isArray(pages)) {
+      return { pages: [], links: [], migrated: false };
+    }
     const normalizedPages = normalizePages(pages);
-    const links = normalizeLinks(
-      (parsed as { links?: unknown }).links,
-      normalizedPages,
-    );
-    return { pages: normalizedPages, links };
+    const version = typeof record.version === "number" ? record.version : 1;
+    const migrated = version < 5;
+    if (migrated) convertStoredWorldPositions(normalizedPages);
+    const links = normalizeLinks(record.links, normalizedPages);
+    const rawBehavior = record.behavior;
+    const behavior =
+      rawBehavior === undefined
+        ? undefined
+        : normalizeBehavior(rawBehavior);
+    return {
+      pages: normalizedPages,
+      links,
+      migrated,
+      ...(behavior ? { behavior } : {}),
+    };
   } catch {
-    return { pages: [], links: [] };
+    return { pages: [], links: [], migrated: false };
   }
 }
 
@@ -1415,10 +1515,25 @@ export function getProjectCanvas(
   }
 
   const document = parseStoredDocument(row.data);
+  let updatedAt = row.updated_at;
+  if (document.migrated) {
+    updatedAt = Date.now();
+    updateProjectData(
+      projectId,
+      JSON.stringify({
+        version: 5,
+        pages: document.pages,
+        links: document.links,
+        ...(document.behavior ? { behavior: document.behavior } : {}),
+      }),
+      updatedAt,
+    );
+  }
   return {
     pages: document.pages,
     links: document.links,
-    updatedAt: row.updated_at,
+    ...(document.behavior ? { behavior: document.behavior } : {}),
+    updatedAt,
   };
 }
 
@@ -1427,6 +1542,7 @@ export function saveProjectCanvas(
   projectId: string,
   rawPages: unknown,
   rawLinks: unknown,
+  rawBehavior?: unknown,
 ): CanvasDocumentDto {
   const row = findProjectDataForUser(userId, projectId);
   if (!row) {
@@ -1435,7 +1551,18 @@ export function saveProjectCanvas(
 
   const pages = normalizePages(rawPages);
   const links = normalizeLinks(rawLinks, pages);
-  const data = JSON.stringify({ version: 4, pages, links });
+  const behavior =
+    rawBehavior === undefined
+      ? parseStoredDocument(row.data).behavior
+      : rawBehavior === null
+        ? undefined
+        : normalizeBehavior(rawBehavior);
+  const data = JSON.stringify({
+    version: 5,
+    pages,
+    links,
+    ...(behavior ? { behavior } : {}),
+  });
   if (data.length > MAX_CANVAS_JSON_LENGTH) {
     throw new ApiError(
       413,
@@ -1447,5 +1574,10 @@ export function saveProjectCanvas(
   const updatedAt = Date.now();
   updateProjectData(projectId, data, updatedAt);
 
-  return { pages, links, updatedAt };
+  return {
+    pages,
+    links,
+    ...(behavior ? { behavior } : {}),
+    updatedAt,
+  };
 }

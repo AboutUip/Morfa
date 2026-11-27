@@ -42,12 +42,26 @@ const PAGE_ID_SCHEMA = {
   maxLength: 120,
 };
 
+const SHARED_BEHAVIOR_ID = "__project__";
+
 const BEHAVIOR_SCHEMA = {
   type: "string" as const,
   description:
-    'JSON object with triggers, states and variables, for example {"triggers":[{"id":"t1","event":"click","actions":[{"id":"a1","type":"navigate","pageId":"home"}]}],"states":[{"id":"default","name":"Default","initial":true}],"variables":[]}. Use "null" to clear the behavior.',
+    'JSON behavior graph. Blocks are event, condition, action, switch, function, call, note, and reference. A function block uses its outgoing edges as the body. A call block sets key to that function block id and runs the body without copying the nodes. Condition edges use label "else" for the failing branch; unlabeled edges are the succeeding branch. Switch blocks read a camelCase property id in "key" and branch through edge labels "case:0" and "default". Example: {"version":2,"triggers":[],"states":[{"id":"default","name":"Default","initial":true}],"blocks":[{"id":"e1","type":"event","x":40,"y":40,"event":"click","nodeId":"button"},{"id":"a1","type":"action","x":280,"y":40,"action":{"id":"a1","type":"setStyle","targetId":"button","key":"text-align","value":"center"}}],"edges":[{"id":"edge","from":"e1","to":"a1"}]}. Every event, judgment, modification, and switch needs an explicit node id. Use "null" to clear. Legacy triggers are still accepted.',
   maxLength: 500000,
 };
+
+const TARGET_ACTION_TYPES = new Set<CanvasBehaviorActionType>([
+  "setStyle",
+  "setText",
+  "setVisible",
+  "setValue",
+  "setChecked",
+  "setControlState",
+  "setData",
+  "incrementData",
+  "toggleData",
+]);
 
 const TEXT_KINDS = new Set([
   "button",
@@ -387,11 +401,24 @@ function validateBehavior(
     }
     blockIds.add(block.id);
     if (block.type === "event") {
-      if (!block.event || !supportedEvents.has(block.event)) {
+      const bound = block.nodeId
+        ? pagesById.get(block.nodeId)
+        : undefined;
+      if (!block.nodeId || !bound) {
+        issues.push({
+          severity: "error",
+          code: "TARGET_MISSING",
+          message: "事件块必须拖入一个存在的节点",
+          pageId: page.id,
+        });
+      } else if (
+        !block.event ||
+        !getSupportedCanvasEvents(bound.widget?.kind).includes(block.event)
+      ) {
         issues.push({
           severity: "error",
           code: "EVENT_UNSUPPORTED",
-          message: `当前组件不支持事件 ${block.event ?? ""}`,
+          message: `${bound.name} 不支持事件 ${block.event ?? ""}`,
           pageId: page.id,
         });
       }
@@ -400,6 +427,34 @@ function validateBehavior(
           severity: "error",
           code: "STATE_MISSING",
           message: `事件块引用了不存在的状态 ${block.stateId}`,
+          pageId: page.id,
+        });
+      }
+    }
+    if (block.type === "switch") {
+      if (!block.nodeId || !pagesById.has(block.nodeId)) {
+        issues.push({
+          severity: "error",
+          code: "TARGET_MISSING",
+          message: "分支块必须拖入一个存在的节点",
+          pageId: page.id,
+        });
+      }
+      if (!block.key?.trim()) {
+        issues.push({
+          severity: "error",
+          code: "STYLE_KEY_INVALID",
+          message: "分支块必须填写属性 ID",
+          pageId: page.id,
+        });
+      }
+    }
+    if (block.type === "reference") {
+      if (!block.nodeId || !pagesById.has(block.nodeId)) {
+        issues.push({
+          severity: "error",
+          code: "TARGET_MISSING",
+          message: "节点块必须引用一个存在的图层",
           pageId: page.id,
         });
       }
@@ -435,6 +490,19 @@ function validateBehavior(
         }
       }
     }
+    if (block.type === "call") {
+      const target = block.key
+        ? behavior.blocks?.find((item) => item.id === block.key)
+        : undefined;
+      if (!target || target.type !== "function") {
+        issues.push({
+          severity: "error",
+          code: "TARGET_MISSING",
+          message: "调用块必须指向一个函数",
+          pageId: page.id,
+        });
+      }
+    }
     if (block.type === "action") {
       if (!block.action) {
         issues.push({
@@ -463,7 +531,6 @@ function validateBehavior(
 
   const allIds = new Set([...stateIds, ...blockIds]);
   const edgeIds = new Set<string>();
-  const outgoing = new Set<string>();
   for (const edge of edges) {
     if (!edge || typeof edge.id !== "string") {
       issues.push({
@@ -483,7 +550,6 @@ function validateBehavior(
       });
     }
     edgeIds.add(edge.id);
-    outgoing.add(edge.from);
     if (!allIds.has(edge.from) || !allIds.has(edge.to)) {
       issues.push({
         severity: "error",
@@ -493,23 +559,6 @@ function validateBehavior(
       });
     }
   }
-  for (const block of blocks) {
-    if (
-      block &&
-      (block.type === "event" ||
-        block.type === "condition" ||
-        block.type === "action") &&
-      !outgoing.has(block.id)
-    ) {
-      issues.push({
-        severity: "warning",
-        code: "BLOCK_NO_OUTGOING",
-        message: `行为块 ${block.id} 没有后续连线`,
-        pageId: page.id,
-      });
-    }
-  }
-
   return issues;
 }
 
@@ -565,13 +614,23 @@ function validateAction(
     return issues;
   }
 
+  if (TARGET_ACTION_TYPES.has(action.type) && !action.targetId) {
+    issues.push({
+      ...base,
+      severity: "error",
+      code: "TARGET_MISSING",
+      message: "动作必须指定目标节点",
+    });
+    return issues;
+  }
+
   if (
     action.type === "setData" ||
     action.type === "incrementData" ||
     action.type === "toggleData"
   ) {
-    const targetId = action.targetId ?? page.id;
-    const target = pagesById.get(targetId);
+    const targetId = action.targetId ?? "";
+    const target = targetId ? pagesById.get(targetId) : undefined;
     const dataEntry = target?.data?.find(
       (entry) => entry.key === action.key,
     );
@@ -617,7 +676,7 @@ function validateAction(
     return issues;
   }
 
-  if (!action.targetId || !pagesById.has(action.targetId)) {
+  if (action.targetId && !pagesById.has(action.targetId)) {
     issues.push({
       ...base,
       severity: "error",
@@ -626,7 +685,9 @@ function validateAction(
     });
     return issues;
   }
-  const target = pagesById.get(action.targetId);
+  const target = action.targetId
+    ? pagesById.get(action.targetId)
+    : undefined;
   if (!target) return issues;
 
   if (action.type === "setText" && (!target.widget || !TEXT_KINDS.has(target.widget.kind))) {
@@ -656,18 +717,12 @@ function validateAction(
       message: `${target.name} 不支持 setChecked`,
     });
   }
-  if (
-    action.type === "setStyle" &&
-    (!action.key ||
-      !CANVAS_BEHAVIOR_STYLE_KEYS.includes(
-        action.key as (typeof CANVAS_BEHAVIOR_STYLE_KEYS)[number],
-      ))
-  ) {
+  if (action.type === "setStyle" && !action.key) {
     issues.push({
       ...base,
       severity: "error",
       code: "STYLE_KEY_INVALID",
-      message: `样式属性 ${action.key ?? ""} 不在白名单内`,
+      message: `样式属性 ${action.key ?? ""} 不能通过行为修改`,
     });
   }
 
@@ -714,9 +769,6 @@ function validateCondition(
     return issues;
   }
 
-  const targetId = condition.targetId ?? page.id;
-  const target = pagesById.get(targetId);
-
   if (condition.source === "variable") {
     issues.push({
       ...base,
@@ -726,6 +778,19 @@ function validateCondition(
     });
     return issues;
   }
+
+  if (condition.source !== "state" && !condition.targetId) {
+    issues.push({
+      ...base,
+      severity: "error",
+      code: "TARGET_MISSING",
+      message: "条件必须指定目标节点",
+    });
+    return issues;
+  }
+
+  const targetId = condition.targetId ?? "";
+  const target = targetId ? pagesById.get(targetId) : undefined;
 
   if (condition.source === "nodeData" || condition.source === "controlState") {
     if (!target) {
@@ -751,6 +816,23 @@ function validateCondition(
     return issues;
   }
 
+  if (condition.source === "state") {
+    if (
+      target &&
+      !target.behavior?.states.some(
+        (state) => state.id === condition.value,
+      )
+    ) {
+      issues.push({
+        ...base,
+        severity: "error",
+        code: "STATE_MISSING",
+        message: `${target.name} 不存在状态 ${condition.value}`,
+      });
+    }
+    return issues;
+  }
+
   if (!target) {
     issues.push({
       ...base,
@@ -761,32 +843,15 @@ function validateCondition(
     return issues;
   }
 
-  if (condition.source === "state") {
-    const stateExists = target.behavior?.states.some(
-      (state) => state.id === condition.value,
-    );
-    if (!stateExists) {
-      issues.push({
-        ...base,
-        severity: "error",
-        code: "STATE_MISSING",
-        message: `${target.name} 不存在状态 ${condition.value}`,
-      });
-    }
-  }
-
   if (
     condition.source === "nodeStyle" &&
-    (!condition.key ||
-      !CANVAS_BEHAVIOR_STYLE_KEYS.includes(
-        condition.key as (typeof CANVAS_BEHAVIOR_STYLE_KEYS)[number],
-      ))
+    !condition.key
   ) {
     issues.push({
       ...base,
       severity: "error",
       code: "CONDITION_STYLE_KEY_INVALID",
-      message: `样式条件属性 ${condition.key ?? ""} 不在白名单内`,
+      message: `样式条件属性 ${condition.key ?? ""} 不能通过行为读取`,
     });
   }
 
@@ -821,6 +886,53 @@ function validateCondition(
   return issues;
 }
 
+function readOptionalPageId(value: unknown) {
+  if (typeof value !== "string" || !value.trim()) return "";
+  return readPageIdArgument(value, "pageId");
+}
+
+function isProjectScope(pageId: string) {
+  return pageId === "" || pageId === SHARED_BEHAVIOR_ID;
+}
+
+function projectHostPage(): CanvasPageDto {
+  return {
+    id: SHARED_BEHAVIOR_ID,
+    name: "项目",
+    x: 0,
+    y: 0,
+    styles: {},
+  };
+}
+
+function issueCounts(issues: ValidationIssue[]) {
+  return {
+    issues,
+    errorCount: issues.filter((item) => item.severity === "error").length,
+    warningCount: issues.filter((item) => item.severity === "warning").length,
+  };
+}
+
+const CURRENT_ACTION_TYPES = CANVAS_BEHAVIOR_ACTION_TYPES.filter(
+  (type) => !type.endsWith("Variable"),
+);
+const CURRENT_CONDITION_SOURCES = CANVAS_BEHAVIOR_CONDITION_SOURCES.filter(
+  (source) => source !== "variable",
+);
+
+function projectBehaviorResult(
+  projectId: string,
+  document: CanvasDocumentDto,
+) {
+  return {
+    projectId,
+    updatedAt: document.updatedAt,
+    scope: "project" as const,
+    behavior: document.behavior ?? null,
+    pages: document.pages.map(pageSummary),
+  };
+}
+
 function behaviorResult(
   projectId: string,
   document: CanvasDocumentDto,
@@ -835,8 +947,9 @@ function behaviorResult(
     data: page.data ?? [],
     behavior: page.behavior ?? null,
     supportedEvents: [...getSupportedCanvasEvents(page.widget?.kind)],
-    actions: [...CANVAS_BEHAVIOR_ACTION_TYPES],
-    conditionSources: [...CANVAS_BEHAVIOR_CONDITION_SOURCES],
+    projectBehavior: document.behavior ?? null,
+    actions: [...CURRENT_ACTION_TYPES],
+    conditionSources: [...CURRENT_CONDITION_SOURCES],
     conditionOperators: [...CANVAS_BEHAVIOR_CONDITION_OPERATORS],
   };
 }
@@ -851,20 +964,20 @@ export function behaviorCapabilities(): McpCapability[] {
       },
       description: {
         "zh-CN":
-          "读取一个页面节点的行为触发器、状态、变量、支持的事件以及当前动作与条件词表。",
+          "读取项目共享行为图。事件、判断和修改都通过 nodeId 或 targetId 指向图层；空槽不会作用到任何节点。控件自己的行为图仍挂在控件定义页上。",
         "en-US":
-          "Read a node's behavior triggers, states, variables, supported events, and the current action/condition vocabulary.",
+          "Read the shared project behavior graph. Events, judgments, and modifications point at layers through nodeId or targetId; an empty slot affects no node. A control keeps its own graph on the control definition page.",
       },
       usage: {
         "zh-CN":
-          "不传 pageId 时返回项目中所有节点的行为摘要。variables 是跨项目聚合的运行时变量。",
+          "不传 pageId，或传 __project__，读取项目共享行为图，并附带各页面行为摘要。传具体 pageId 时读取该页（通常是控件）自己的行为图，同时返回 projectBehavior。",
         "en-US":
-          "Omit pageId to list behavior summaries for every node. variables are aggregated project-wide runtime variables.",
+          "Omit pageId, or pass __project__, to read the shared project graph plus per-page summaries. Pass a real pageId to read that page's own graph, usually a control, and projectBehavior is included.",
       },
       returns: {
-        "zh-CN": "页面行为图、变量、支持事件、updatedAt。",
+        "zh-CN": "共享或页面行为图、页面摘要、支持事件与当前动作/条件词表、updatedAt。",
         "en-US":
-          "Page behavior graph, variables, supported events, and updatedAt.",
+          "Shared or page behavior graph, page summaries, supported events, current action/condition vocabulary, and updatedAt.",
       },
       category: "behavior",
       requirements: REQUIRE_NONE,
@@ -875,7 +988,8 @@ export function behaviorCapabilities(): McpCapability[] {
           projectId: PROJECT_ID_SCHEMA,
           pageId: {
             ...PAGE_ID_SCHEMA,
-            description: "Optional page id. Omit to list all behaviors.",
+            description:
+              "Optional page id. Omit or pass __project__ for the shared project graph.",
           },
         },
         required: ["projectId"],
@@ -888,16 +1002,9 @@ export function behaviorCapabilities(): McpCapability[] {
       async execute(context, args) {
         const projectId = readPageIdArgument(args.projectId, "projectId");
         const document = getProjectCanvas(context.user.id, projectId);
-        const pageId =
-          typeof args.pageId === "string" && args.pageId.trim()
-            ? readPageIdArgument(args.pageId, "pageId")
-            : "";
-        if (!pageId) {
-          return {
-            projectId,
-            updatedAt: document.updatedAt,
-            pages: document.pages.map(pageSummary),
-          };
+        const pageId = readOptionalPageId(args.pageId);
+        if (isProjectScope(pageId)) {
+          return projectBehaviorResult(projectId, document);
         }
         return behaviorResult(
           projectId,
@@ -914,20 +1021,19 @@ export function behaviorCapabilities(): McpCapability[] {
       },
       description: {
         "zh-CN":
-          "整体替换或清除一个页面节点的行为图。服务端会校验行为结构、引用和动作参数。",
+          "整体替换项目共享行为图，或替换某个控件页自己的行为图。服务端校验块、连线、事件节点和动作目标。",
         "en-US":
-          "Replace or clear a node's behavior graph. The server validates structure, references, and action arguments.",
+          "Replace the shared project behavior graph, or one control page's own graph. The server validates blocks, edges, event nodes, and action targets.",
       },
       usage: {
         "zh-CN":
-          'behavior 是 JSON 字符串；传 "null" 清除。建议先 get_behavior 并用 expectedUpdatedAt 防冲突。',
+          '不传 pageId 或传 __project__ 写入项目共享图。传具体 pageId 只改该页。behavior 是 JSON 字符串，传 "null" 清除。事件块要有 nodeId，判断和修改要有 targetId。建议带 expectedUpdatedAt。',
         "en-US":
-          'behavior is a JSON string; pass "null" to clear it. Read get_behavior first and use expectedUpdatedAt to avoid conflicts.',
+          'Omit pageId or pass __project__ to write the shared project graph. A real pageId changes only that page. behavior is a JSON string; pass "null" to clear it. Event blocks need nodeId, and judgments and modifications need targetId. Send expectedUpdatedAt.',
       },
       returns: {
-        "zh-CN": "更新后的行为图、聚合变量、updatedAt 与校验问题。",
-        "en-US":
-          "Updated behavior, aggregated variables, updatedAt, and validation issues.",
+        "zh-CN": "更新后的行为图、updatedAt 与校验问题。",
+        "en-US": "Updated behavior, updatedAt, and validation issues.",
       },
       category: "behavior",
       requirements: REQUIRE_NONE,
@@ -936,7 +1042,11 @@ export function behaviorCapabilities(): McpCapability[] {
         type: "object",
         properties: {
           projectId: PROJECT_ID_SCHEMA,
-          pageId: PAGE_ID_SCHEMA,
+          pageId: {
+            ...PAGE_ID_SCHEMA,
+            description:
+              "Optional. Omit or pass __project__ to write the shared project graph. Pass a control page id to write that control's graph.",
+          },
           behavior: BEHAVIOR_SCHEMA,
           expectedUpdatedAt: {
             type: "number",
@@ -944,28 +1054,26 @@ export function behaviorCapabilities(): McpCapability[] {
               "Optional optimistic concurrency check. Mismatch returns 409.",
           },
         },
-        required: ["projectId", "pageId", "behavior"],
+        required: ["projectId", "behavior"],
         additionalProperties: false,
       },
       examples: [
         {
           arguments: {
             projectId: "project-uuid",
-            pageId: "n1a2b3c4",
             behavior:
-              '{"triggers":[{"id":"t1","event":"click","actions":[{"id":"a1","type":"navigate","pageId":"home"}]}],"states":[{"id":"default","name":"Default","initial":true}],"variables":[]}',
+              '{"version":2,"triggers":[],"states":[{"id":"default","name":"Default","initial":true}],"blocks":[{"id":"e1","type":"event","x":40,"y":40,"event":"click","nodeId":"button"},{"id":"a1","type":"action","x":280,"y":40,"action":{"id":"a1","type":"setStyle","targetId":"button","key":"background-color","value":"#2f6fed"}}],"edges":[{"id":"edge","from":"e1","to":"a1"}]}',
           },
         },
       ],
       async execute(context, args) {
         const projectId = readPageIdArgument(args.projectId, "projectId");
-        const pageId = readPageIdArgument(args.pageId, "pageId");
+        const pageId = readOptionalPageId(args.pageId);
         const document = loadCanvasForWrite(
           context,
           projectId,
           readExpectedUpdatedAt(args),
         );
-        const page = findPage(document, pageId);
         const parsed = parseJsonArgument(args.behavior, "behavior");
         const behavior =
           parsed === null
@@ -974,6 +1082,25 @@ export function behaviorCapabilities(): McpCapability[] {
         if (behavior !== undefined && !isRecord(behavior)) {
           invalidArgument("behavior", "必须是 JSON 对象或 null");
         }
+        if (isProjectScope(pageId)) {
+          const saved = saveProjectCanvas(
+            context.user.id,
+            projectId,
+            document.pages,
+            document.links,
+            behavior ?? null,
+          );
+          const issues = validateBehavior(
+            projectHostPage(),
+            saved.behavior,
+            saved,
+          );
+          return {
+            ...projectBehaviorResult(projectId, saved),
+            ...issueCounts(issues),
+          };
+        }
+        const page = findPage(document, pageId);
         if (behavior) page.behavior = behavior;
         else delete page.behavior;
 
@@ -982,6 +1109,7 @@ export function behaviorCapabilities(): McpCapability[] {
           projectId,
           document.pages,
           document.links,
+          document.behavior,
         );
         const savedPage = findPage(saved, pageId);
         const issues = validateBehavior(
@@ -991,11 +1119,7 @@ export function behaviorCapabilities(): McpCapability[] {
         );
         return {
           ...behaviorResult(projectId, saved, savedPage),
-          issues,
-          errorCount: issues.filter((item) => item.severity === "error")
-            .length,
-          warningCount: issues.filter((item) => item.severity === "warning")
-            .length,
+          ...issueCounts(issues),
         };
       },
     },
@@ -1007,15 +1131,15 @@ export function behaviorCapabilities(): McpCapability[] {
       },
       description: {
         "zh-CN":
-          "校验项目内的行为引用、事件支持、状态、变量、目标节点和条件，不修改设计数据。",
+          "校验共享行为图和页面行为图的节点引用、事件、目标和条件，不修改设计数据。",
         "en-US":
-          "Validate behavior references, supported events, states, variables, target nodes, and conditions without changing the design.",
+          "Validate node references, events, targets, and conditions in the shared graph and page graphs without changing the design.",
       },
       usage: {
         "zh-CN":
-          "可选 pageId 仅校验一个页面；传入 behavior JSON 可先校验未保存的草稿。",
+          "不传 pageId 时同时校验项目共享图和各页行为图。传 __project__ 只校验共享图。传 behavior JSON 可先校验草稿；不带 pageId 时草稿按共享图校验。",
         "en-US":
-          "Optionally validate a single page; pass a behavior JSON draft to validate it before saving.",
+          "Omit pageId to validate the shared graph and every page graph. Pass __project__ for the shared graph only. Pass a behavior JSON draft to validate it first; without pageId the draft is checked as the shared graph.",
       },
       returns: {
         "zh-CN": "问题列表、错误/警告数量、updatedAt。",
@@ -1030,7 +1154,8 @@ export function behaviorCapabilities(): McpCapability[] {
           projectId: PROJECT_ID_SCHEMA,
           pageId: {
             ...PAGE_ID_SCHEMA,
-            description: "Optional page id. Omit to validate every behavior.",
+            description:
+              "Optional page id. Omit to validate the shared graph and every page. Pass __project__ for the shared graph only.",
           },
           behavior: {
             ...BEHAVIOR_SCHEMA,
@@ -1047,21 +1172,19 @@ export function behaviorCapabilities(): McpCapability[] {
           arguments: {
             projectId: "project-uuid",
             pageId: "n1a2b3c4",
-            behavior: '{"triggers":[],"states":[],"variables":[]}',
+            behavior:
+              '{"version":2,"triggers":[],"states":[{"id":"default","name":"Default","initial":true}],"blocks":[],"edges":[]}',
           },
         },
       ],
       async execute(context, args) {
         const projectId = readPageIdArgument(args.projectId, "projectId");
         const document = getProjectCanvas(context.user.id, projectId);
-        const pageId =
-          typeof args.pageId === "string" && args.pageId.trim()
-            ? readPageIdArgument(args.pageId, "pageId")
-            : "";
+        const pageId = readOptionalPageId(args.pageId);
+        const shared = isProjectScope(pageId);
         const hasDraft = args.behavior !== undefined;
         let draft: CanvasBehaviorDto | undefined;
         if (hasDraft) {
-          if (!pageId) invalidArgument("pageId", "在传入 behavior 时必填");
           const parsed = parseJsonArgument(args.behavior, "behavior");
           draft =
             parsed === null
@@ -1072,14 +1195,39 @@ export function behaviorCapabilities(): McpCapability[] {
           }
         }
 
-        const pages = pageId ? [findPage(document, pageId)] : document.pages;
-        const issues = pages.flatMap((page) =>
-          validateBehavior(
-            page,
-            hasDraft ? draft : page.behavior,
-            document,
-          ),
-        );
+        const issues: ValidationIssue[] = [];
+        if (hasDraft) {
+          const host = shared
+            ? projectHostPage()
+            : findPage(document, pageId);
+          issues.push(...validateBehavior(host, draft, document));
+        } else if (pageId === SHARED_BEHAVIOR_ID) {
+          issues.push(
+            ...validateBehavior(
+              projectHostPage(),
+              document.behavior,
+              document,
+            ),
+          );
+        } else if (shared) {
+          issues.push(
+            ...validateBehavior(
+              projectHostPage(),
+              document.behavior,
+              document,
+            ),
+          );
+          for (const page of document.pages) {
+            issues.push(
+              ...validateBehavior(page, page.behavior, document),
+            );
+          }
+        } else {
+          const page = findPage(document, pageId);
+          issues.push(
+            ...validateBehavior(page, page.behavior, document),
+          );
+        }
         return {
           projectId,
           updatedAt: document.updatedAt,
@@ -1225,7 +1373,10 @@ export function behaviorCapabilities(): McpCapability[] {
             { type: "toggleData", needsTarget: true, needsValue: false, config: ["targetId", "key"] },
           ],
           styleKeys: [...CANVAS_BEHAVIOR_STYLE_KEYS],
-          actionTypes: [...CANVAS_BEHAVIOR_ACTION_TYPES],
+          actionTypes: [...CURRENT_ACTION_TYPES],
+          legacyActionTypes: CANVAS_BEHAVIOR_ACTION_TYPES.filter((type) =>
+            type.endsWith("Variable"),
+          ),
         };
       },
     },
@@ -1236,14 +1387,15 @@ export function behaviorCapabilities(): McpCapability[] {
         "en-US": "List behavior conditions",
       },
       description: {
-        "zh-CN": "返回行为条件支持的来源、比较符与触发条件模式。",
+        "zh-CN": "返回当前判断积木支持的来源、比较符和条件组模式。",
         "en-US":
-          "Return condition sources, operators, and trigger condition modes.",
+          "Return the sources, operators, and group modes used by judgment blocks.",
       },
       usage: {
-        "zh-CN": "条件保存在 trigger.conditions，conditionMode 为 all 或 any。",
+        "zh-CN":
+          "判断块使用 condition 或 conditions。conditionMode 为 all 或 any。除 state 外都必须带 targetId。旧 variable 来源只作迁移。",
         "en-US":
-          "Conditions live in trigger.conditions; conditionMode is all or any.",
+          "Judgment blocks use condition or conditions. conditionMode is all or any. Every source except state requires targetId. The old variable source is migration-only.",
       },
       returns: {
         "zh-CN": "条件来源、比较符与模式。",
@@ -1263,7 +1415,8 @@ export function behaviorCapabilities(): McpCapability[] {
       examples: [{ arguments: { projectId: "project-uuid" } }],
       async execute() {
         return {
-          sources: [...CANVAS_BEHAVIOR_CONDITION_SOURCES],
+          sources: [...CURRENT_CONDITION_SOURCES],
+          legacySources: ["variable"],
           operators: [...CANVAS_BEHAVIOR_CONDITION_OPERATORS],
           modes: ["all", "any"],
           sourcesDetail: [

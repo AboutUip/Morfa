@@ -23,6 +23,8 @@ import { CanvasLeftSidebar } from "./CanvasLeftSidebar";
 import { CanvasRightSidebar } from "./CanvasRightSidebar";
 import { CanvasViewport } from "./CanvasViewport";
 import { CanvasBehaviorEditor } from "./CanvasBehaviorEditor";
+import { bindAgentHost } from "./agentSessions";
+import { liftSharedBehaviors } from "./canvasBehavior";
 import { CanvasControlToolbar } from "./CanvasControlToolbar";
 import { CanvasSimulator } from "./CanvasSimulator";
 import {
@@ -54,6 +56,7 @@ import {
   getControlStates,
   getControlStateSubtree,
   getPageFrame,
+  toLocalPosition,
   isControlDefinitionPage,
   isControlInstancePage,
   isControlInternalPage,
@@ -304,7 +307,8 @@ export function ProjectWorkspace({
   const { t } = useTranslation();
   const [activeTool, setActiveTool] = useState<CanvasTool>("select");
   const [snapSettings, setSnapSettings] = useCanvasSnapSettings();
-  const { pages, links, setDocument } = useProjectCanvas(project.id);
+  const { pages, links, behavior, setDocument, flushNow, adoptRemote } =
+    useProjectCanvas(project.id);
   const {
     commit,
     transient,
@@ -312,13 +316,72 @@ export function ProjectWorkspace({
     endTransaction,
     undo,
     redo,
-  } = useCanvasHistory({ pages, links }, setDocument, project.id);
+  } = useCanvasHistory(
+    { pages, links, behavior },
+    setDocument,
+    project.id,
+  );
   const [selectedPageIds, setSelectedPageIds] = useState<string[]>([]);
   const [selectedLinkId, setSelectedLinkId] = useState<string | null>(
     null,
   );
   const [lintOpen, setLintOpen] = useState(false);
   const [behaviorEditorOpen, setBehaviorEditorOpen] = useState(false);
+  const agentHostRef = useRef({
+    flushNow,
+    adoptRemote,
+    commit,
+    pages,
+    links,
+    behavior,
+    selectedPageIds,
+    behaviorEditorOpen,
+  });
+  agentHostRef.current = {
+    flushNow,
+    adoptRemote,
+    commit,
+    pages,
+    links,
+    behavior,
+    selectedPageIds,
+    behaviorEditorOpen,
+  };
+
+  useEffect(() => {
+    bindAgentHost(project.id, {
+      flush: () => agentHostRef.current.flushNow(),
+      refresh: async () => {
+        const response = await projectCanvasApi.get(project.id);
+        const next = liftSharedBehaviors({
+          pages: response.pages,
+          links: response.links ?? [],
+          ...(response.behavior ? { behavior: response.behavior } : {}),
+        });
+        const host = agentHostRef.current;
+        const current = {
+          pages: host.pages,
+          links: host.links,
+          ...(host.behavior ? { behavior: host.behavior } : {}),
+        };
+        if (JSON.stringify(current) !== JSON.stringify(next)) {
+          host.commit(next);
+        }
+        host.adoptRemote(next);
+      },
+      context: () => {
+        const host = agentHostRef.current;
+        return {
+          selectedIds: host.selectedPageIds,
+          selectedNames: host.selectedPageIds.map(
+            (id) => host.pages.find((page) => page.id === id)?.name ?? id,
+          ),
+          behaviorOpen: host.behaviorEditorOpen,
+        };
+      },
+    });
+    return () => bindAgentHost(project.id, null);
+  }, [project.id]);
   const [lintHeight, setLintHeight] = useState(220);
   const [behaviorHeight, setBehaviorHeight] = useState(() =>
     Math.round(
@@ -393,7 +456,11 @@ export function ProjectWorkspace({
     () =>
       editingControlId
         ? getControlDocumentPages(pages, editingControlId)
-        : pages,
+        : pages.filter(
+            (page) =>
+              !isControlDefinitionPage(page) &&
+              !isControlInternalPage(pages, page),
+          ),
     [editingControlId, pages],
   );
   const editingControlDirty = editingControlId
@@ -414,8 +481,8 @@ export function ProjectWorkspace({
   }, [editingControlId, pages]);
   const displayedLintItems = controlLintItems ?? lintItems;
   const documentSignature = useMemo(
-    () => JSON.stringify({ pages, links }),
-    [pages, links],
+    () => JSON.stringify({ pages, links, behavior }),
+    [pages, links, behavior],
   );
   const simulatorDirty = simulator
     ? simulator.sourceSignature !== documentSignature
@@ -742,10 +809,13 @@ export function ProjectWorkspace({
       project.id,
     );
     const response = await projectCanvasApi.get(project.id);
-    setDocument({
-      pages: response.pages,
-      links: response.links ?? [],
-    });
+    setDocument(
+      liftSharedBehaviors({
+        pages: response.pages,
+        links: response.links ?? [],
+        ...(response.behavior ? { behavior: response.behavior } : {}),
+      }),
+    );
     setSelectedLinkId(null);
     setSelectedPageIds([result.controlId]);
     setEditingControlId(null);
@@ -1112,13 +1182,21 @@ export function ProjectWorkspace({
 
   const handleUpdatePageBehavior = (
     pageId: string,
-    behavior: CanvasBehavior,
+    nextBehavior: CanvasBehavior,
   ) => {
     commitPages((current) =>
       current.map((page) =>
-        page.id === pageId ? { ...page, behavior } : page,
+        page.id === pageId ? { ...page, behavior: nextBehavior } : page,
       ),
     );
+  };
+
+  const handleUpdateSharedBehavior = (nextBehavior: CanvasBehavior) => {
+    if (editingControlId) {
+      handleUpdatePageBehavior(editingControlId, nextBehavior);
+      return;
+    }
+    commit((current) => ({ ...current, behavior: nextBehavior }));
   };
 
   const getRunTargets = (containerId: string) => {
@@ -1143,6 +1221,7 @@ export function ProjectWorkspace({
         links,
         containerId,
         entryPageId,
+        behavior,
       ),
       sourceSignature: documentSignature,
       compiling: false,
@@ -1207,6 +1286,7 @@ export function ProjectWorkspace({
               links,
               current.snapshot.containerId,
               entryPageId,
+              behavior,
             ),
             sourceSignature: documentSignature,
             compiling: false,
@@ -1230,42 +1310,39 @@ export function ProjectWorkspace({
     compileTimerRef.current = window.setTimeout(tick, 80);
   };
 
-  const handleMovePage = (pageId: string, x: number, y: number) => {
+  const handleMovePages = (
+    moves: { pageId: string; worldX: number; worldY: number }[],
+  ) => {
+    if (!moves.length) return;
     transientPages((current) => {
-      const target = current.find((page) => page.id === pageId);
-      if (!target) return current;
-
-      const targetFrame = getPageFrame(target, current, links);
-      const dx = x - targetFrame.worldX;
-      const dy = y - targetFrame.worldY;
-      const targetChanged =
-        target.x !== x ||
-        target.y !== y ||
-        hasPositionAnchor(target.styles);
-      const shiftDescendants = dx !== 0 || dy !== 0;
-      if (!targetChanged && !shiftDescendants) return current;
-
-      const descendants = getSubtreeIds(current, pageId);
-      descendants.delete(pageId);
-
-      return current.map((page) => {
-        if (page.id === pageId) {
-          return {
-            ...page,
-            x,
-            y,
-            styles: clearPositionAnchors(page.styles),
-          };
-        }
+      const byId = new Map(moves.map((move) => [move.pageId, move]));
+      let changed = false;
+      const next = current.map((page) => {
+        const move = byId.get(page.id);
+        if (!move) return page;
+        const local = toLocalPosition(
+          move.worldX,
+          move.worldY,
+          page,
+          current,
+          links,
+        );
         if (
-          shiftDescendants &&
-          descendants.has(page.id) &&
+          page.x === local.x &&
+          page.y === local.y &&
           !hasPositionAnchor(page.styles)
         ) {
-          return { ...page, x: page.x + dx, y: page.y + dy };
+          return page;
         }
-        return page;
+        changed = true;
+        return {
+          ...page,
+          x: local.x,
+          y: local.y,
+          styles: clearPositionAnchors(page.styles),
+        };
       });
+      return changed ? next : current;
     });
   };
 
@@ -1284,82 +1361,89 @@ export function ProjectWorkspace({
     beginTransaction();
   };
 
-  const handleMovePageEnd = (pageId: string, moved: boolean) => {
-    if (moved) {
+  const handleMovePageEnd = (pageIds: string[], moved: boolean) => {
+    if (moved && pageIds.length) {
       transient((current) => {
-        const page = current.pages.find((item) => item.id === pageId);
-        if (!page) return current;
+        let pages = current.pages;
+        let links = current.links;
+        const movedIds = new Set(pageIds);
 
-        const subtreeIds = getSubtreeIds(current.pages, pageId);
-        // A state root must stay top-level; its parent is always the control
-        // definition, not another canvas page.
-        if (editingControlStateId === pageId) return current;
+        for (const pageId of pageIds) {
+          const page = pages.find((item) => item.id === pageId);
+          if (!page || editingControlStateId === pageId) continue;
 
-        const pageFrame = getPageFrame(
-          page,
-          current.pages,
-          current.links,
-        );
-        const centerX = pageFrame.worldX + pageFrame.width / 2;
-        const centerY = pageFrame.worldY + pageFrame.height / 2;
-        const parentCandidates = editingControlId
-          ? canvasPages
-          : current.pages.filter(
-              (item) =>
-                !isHiddenCanvasPage(item) &&
-                !isControlInstancePage(item),
-            );
+          const subtreeIds = getSubtreeIds(pages, pageId);
+          const pageFrame = getPageFrame(page, pages, links);
+          const centerX = pageFrame.worldX + pageFrame.width / 2;
+          const centerY = pageFrame.worldY + pageFrame.height / 2;
+          const parentCandidates = editingControlId
+            ? canvasPages
+            : pages.filter(
+                (item) =>
+                  !isHiddenCanvasPage(item) &&
+                  !isControlInstancePage(item),
+              );
 
-        let parentPage: CanvasPage | null = null;
-        for (let index = parentCandidates.length - 1; index >= 0; index -= 1) {
-          const candidate = parentCandidates[index];
-          if (subtreeIds.has(candidate.id)) continue;
-          const frame = getPageFrame(
-            candidate,
-            current.pages,
-            current.links,
-          );
-          if (
-            centerX >= frame.worldX &&
-            centerX <= frame.worldX + frame.width &&
-            centerY >= frame.worldY &&
-            centerY <= frame.worldY + frame.height
+          let parentPage: CanvasPage | null = null;
+          for (
+            let index = parentCandidates.length - 1;
+            index >= 0;
+            index -= 1
           ) {
-            parentPage = candidate;
-            break;
+            const candidate = parentCandidates[index];
+            if (subtreeIds.has(candidate.id) || movedIds.has(candidate.id)) {
+              continue;
+            }
+            const frame = getPageFrame(candidate, pages, links);
+            if (
+              centerX >= frame.worldX &&
+              centerX <= frame.worldX + frame.width &&
+              centerY >= frame.worldY &&
+              centerY <= frame.worldY + frame.height
+            ) {
+              parentPage = candidate;
+              break;
+            }
           }
+
+          const nextParentId = parentPage?.id ?? null;
+          if ((page.parentId ?? null) === nextParentId) continue;
+
+          const nextPages = pages.map((item) => {
+            if (item.id !== pageId) return item;
+            const nextParent = nextParentId
+              ? pages.find((entry) => entry.id === nextParentId)
+              : undefined;
+            const parentFrame = nextParent
+              ? getPageFrame(nextParent, pages, links)
+              : null;
+            const next = {
+              ...item,
+              x: parentFrame
+                ? pageFrame.worldX - parentFrame.worldX
+                : pageFrame.worldX,
+              y: parentFrame
+                ? pageFrame.worldY - parentFrame.worldY
+                : pageFrame.worldY,
+              styles: clearPositionAnchors(item.styles),
+            };
+            if (nextParentId) next.parentId = nextParentId;
+            else delete next.parentId;
+            return next;
+          });
+          pages = nextPages;
+          const parentedIds = new Set(
+            pages.filter((item) => item.parentId).map((item) => item.id),
+          );
+          const nextLinks = links.filter(
+            (link) =>
+              !parentedIds.has(link.fromId) && !parentedIds.has(link.toId),
+          );
+          if (nextLinks.length !== links.length) links = nextLinks;
         }
 
-        const nextParentId = parentPage?.id ?? null;
-        if ((page.parentId ?? null) === nextParentId) return current;
-
-        const nextPages = current.pages.map((item) => {
-          if (item.id !== pageId) return item;
-          if (nextParentId) {
-            return { ...item, parentId: nextParentId };
-          }
-          const next = { ...item };
-          delete next.parentId;
-          return next;
-        });
-        const parentedIds = new Set(
-          nextPages
-            .filter((item) => item.parentId)
-            .map((item) => item.id),
-        );
-        const nextLinks = current.links.filter(
-          (link) =>
-            !parentedIds.has(link.fromId) &&
-            !parentedIds.has(link.toId),
-        );
-
-        return {
-          pages: nextPages,
-          links:
-            nextLinks.length === current.links.length
-              ? current.links
-              : nextLinks,
-        };
+        if (pages === current.pages && links === current.links) return current;
+        return { pages, links };
       });
     }
 
@@ -1376,13 +1460,17 @@ export function ProjectWorkspace({
     const target = pages.find((page) => page.id === pageId);
     if (!target || target.lockedSize) return;
 
-    const nextX = Math.round(x);
-    const nextY = Math.round(y);
     const layout = getCanvasLayout(pages, links);
     const parent = target.parentId
       ? pages.find((page) => page.id === target.parentId)
       : undefined;
     const parentFrame = parent ? layout.get(parent.id) : null;
+    const nextX = Math.round(
+      parentFrame ? x - parentFrame.worldX : x,
+    );
+    const nextY = Math.round(
+      parentFrame ? y - parentFrame.worldY : y,
+    );
     const formatLength = (
       currentValue: string | undefined,
       nextValue: number,
@@ -1480,10 +1568,19 @@ export function ProjectWorkspace({
         movedPage &&
         (movedPage.parentId ?? null) !== previousParentId
       ) {
-        // Reparenting changes the coordinate space. Keep the node visually
-        // stable by switching it to world coordinates in the new parent.
-        movedPage.x = frame.worldX;
-        movedPage.y = frame.worldY;
+        // 换父节点后，x/y 改写成相对新父节点的偏移，画面位置保持不动。
+        const nextParent = movedPage.parentId
+          ? nextPages.find((page) => page.id === movedPage.parentId)
+          : undefined;
+        const parentFrame = nextParent
+          ? getPageFrame(nextParent, nextPages, current.links)
+          : null;
+        movedPage.x = parentFrame
+          ? frame.worldX - parentFrame.worldX
+          : frame.worldX;
+        movedPage.y = parentFrame
+          ? frame.worldY - parentFrame.worldY
+          : frame.worldY;
         movedPage.styles = clearPositionAnchors(movedPage.styles);
       }
 
@@ -1636,38 +1733,87 @@ export function ProjectWorkspace({
   }, [links, selectedLinkId]);
 
   useEffect(() => {
+    const releaseFocus = (event: PointerEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest("input, textarea, select, [contenteditable='true']")
+      ) {
+        return;
+      }
+      const active = document.activeElement;
+      if (!isEditableTarget(active)) return;
+      if (
+        active instanceof Node &&
+        target instanceof Node &&
+        active.contains(target)
+      ) {
+        return;
+      }
+      if (active instanceof HTMLElement) active.blur();
+    };
+    window.addEventListener("pointerdown", releaseFocus, true);
+    return () =>
+      window.removeEventListener("pointerdown", releaseFocus, true);
+  }, []);
+
+  const canvasKeyRef = useRef({
+    selectedPageIds,
+    selectedLinkId,
+    deletePages,
+    deleteLink: handleDeleteLink,
+  });
+  canvasKeyRef.current = {
+    selectedPageIds,
+    selectedLinkId,
+    deletePages,
+    deleteLink: handleDeleteLink,
+  };
+
+  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.ctrlKey || event.metaKey || event.altKey) return;
       if (isEditableTarget(event.target)) return;
       if (document.body.dataset.canvasModal === "true") return;
-      if (behaviorEditorOpen) return;
-
-      if (event.key === "Delete" || event.key === "Backspace") {
-        if (selectedLinkId) {
-          event.preventDefault();
-          handleDeleteLink(selectedLinkId);
-          return;
-        }
-
-        if (!selectedPageIds.length) return;
-        event.preventDefault();
-        deletePages(selectedPageIds);
-        return;
-      }
 
       const key = event.key.toUpperCase();
       if (key === CANVAS_TOOL_SHORTCUTS.select) {
         setActiveTool("select");
-      } else if (key === CANVAS_TOOL_SHORTCUTS.move) {
-        setActiveTool("move");
-      } else if (key === CANVAS_TOOL_SHORTCUTS.hand) {
-        setActiveTool("hand");
+        return;
       }
+      if (key === CANVAS_TOOL_SHORTCUTS.move) {
+        setActiveTool("move");
+        return;
+      }
+      if (key === CANVAS_TOOL_SHORTCUTS.hand) {
+        setActiveTool("hand");
+        return;
+      }
+
+      if (event.key !== "Delete" && event.key !== "Backspace") return;
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest("[data-behavior-editor]")
+      ) {
+        return;
+      }
+
+      const current = canvasKeyRef.current;
+      if (current.selectedLinkId) {
+        event.preventDefault();
+        current.deleteLink(current.selectedLinkId);
+        return;
+      }
+
+      if (!current.selectedPageIds.length) return;
+      event.preventDefault();
+      current.deletePages(current.selectedPageIds);
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [behaviorEditorOpen, selectedLinkId, selectedPageIds]);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -1727,6 +1873,8 @@ export function ProjectWorkspace({
     <div className={styles.shell} data-project-workspace="true">
       <ProjectWorkspaceTopBar project={project} onExit={onExit} />
 
+      <div className={styles.workspace}>
+        <div className={styles.mainColumn}>
       <div className={styles.body}>
         <CanvasLeftSidebar
           activeTool={activeTool}
@@ -1794,7 +1942,7 @@ export function ProjectWorkspace({
             onCreateControlInstance={handleCreateControlInstance}
             onCreateLink={handleCreateLink}
             onDeleteLink={handleDeleteLink}
-            onMovePage={handleMovePage}
+            onMovePages={handleMovePages}
             onMovePageStart={handleMovePageStart}
             onMovePageEnd={handleMovePageEnd}
             onResizePage={handleResizePage}
@@ -1810,40 +1958,26 @@ export function ProjectWorkspace({
           />
         </div>
 
-        <CanvasRightSidebar
-          pages={canvasPages}
-          links={canvasLinks}
-          selectedId={selectedPageId}
-          selectedIds={selectedPageIds}
-          selectedLink={selectedLink}
-          onSelect={selectPage}
-          onUpdateLink={handleUpdateLink}
-          onDeleteLink={handleDeleteLink}
-          onRename={handleRenamePage}
-          onRenameId={handleRenamePageId}
-          onDelete={handleDeletePage}
-          onUpdateStyles={handleUpdatePageStyles}
-          onUpdatePosition={handleUpdatePagePosition}
-          onUpdateWidget={handleUpdatePageWidget}
-          onUpdateData={handleUpdatePageData}
-          onOpenBehaviorEditor={(pageId) => {
-            setSelectedPageIds([pageId]);
-            setSelectedLinkId(null);
-            setBehaviorEditorOpen(true);
-            setLintOpen(false);
-          }}
-          onReorder={handleReorderPage}
-        />
       </div>
 
       {behaviorEditorOpen ? (
         <CanvasBehaviorEditor
           pages={behaviorEditorPages}
-          pageId={selectedPageId}
+          links={links}
+          behavior={
+            editingControl?.behavior ??
+            (editingControlId ? null : behavior ?? null)
+          }
+          scopeId={editingControlId ?? "__project__"}
+          scopeName={
+            editingControl?.name ??
+            t("projects.workspace.behavior.sharedScope")
+          }
+          activeTool={activeTool}
           height={behaviorHeight}
           onHeightChange={setBehaviorHeight}
           onClose={() => setBehaviorEditorOpen(false)}
-          onUpdateBehavior={handleUpdatePageBehavior}
+          onUpdateBehavior={handleUpdateSharedBehavior}
         />
       ) : lintOpen ? (
         <CanvasLintPanel
@@ -1932,6 +2066,20 @@ export function ProjectWorkspace({
       ) : null}
 
       <footer className={styles.statusBar}>
+        <button
+          className={styles.behaviorStatusButton}
+          type="button"
+          data-active={behaviorEditorOpen}
+          aria-expanded={behaviorEditorOpen}
+          onClick={() => {
+            setLintOpen(false);
+            setControlLintItems(null);
+            setBehaviorEditorOpen((open) => !open);
+          }}
+        >
+          {t("projects.workspace.behavior.statusBehavior")}
+        </button>
+        <span className={styles.statusBarSpacer} />
         {simulator && (simulator.compiling || simulator.progress > 0) ? (
           <div className={styles.compileStatus}>
             <span className={styles.compileStatusLabel}>
@@ -1988,6 +2136,27 @@ export function ProjectWorkspace({
           )}
         </button>
       </footer>
+        </div>
+        <CanvasRightSidebar
+          projectId={project.id}
+          pages={canvasPages}
+          links={canvasLinks}
+          selectedId={selectedPageId}
+          selectedIds={selectedPageIds}
+          selectedLink={selectedLink}
+          onSelect={selectPage}
+          onUpdateLink={handleUpdateLink}
+          onDeleteLink={handleDeleteLink}
+          onRename={handleRenamePage}
+          onRenameId={handleRenamePageId}
+          onDelete={handleDeletePage}
+          onUpdateStyles={handleUpdatePageStyles}
+          onUpdatePosition={handleUpdatePagePosition}
+          onUpdateWidget={handleUpdatePageWidget}
+          onUpdateData={handleUpdatePageData}
+          onReorder={handleReorderPage}
+        />
+      </div>
     </div>
   );
 }

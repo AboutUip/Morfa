@@ -189,7 +189,11 @@ export type CanvasBehaviorBlockType =
   | "event"
   | "condition"
   | "action"
-  | "note";
+  | "note"
+  | "reference"
+  | "switch"
+  | "function"
+  | "call";
 
 export interface CanvasBehaviorBlockDto {
   id: string;
@@ -203,6 +207,12 @@ export interface CanvasBehaviorBlockDto {
   conditionMode?: "all" | "any";
   action?: CanvasBehaviorActionDto;
   text?: string;
+  /** Canvas page represented by a reference block, event, or switch. */
+  nodeId?: string;
+  /** CamelCase property id read by a switch block. */
+  key?: string;
+  /** Switch case values. Output port `case:n` follows `cases[n]`. */
+  cases?: string[];
 }
 
 export interface CanvasBehaviorEdgeDto {
@@ -303,6 +313,7 @@ export interface CanvasLinkDto {
 export interface ProjectCanvasResponse {
   pages: CanvasPageDto[];
   links: CanvasLinkDto[];
+  behavior?: CanvasBehaviorDto;
   updatedAt: number;
 }
 
@@ -526,13 +537,14 @@ export const projectCanvasApi = {
     projectId: string,
     pages: CanvasPageDto[],
     links: CanvasLinkDto[],
+    behavior: CanvasBehaviorDto | null,
   ) =>
     request<ProjectCanvasResponse>(
       `/api/me/projects/${encodeURIComponent(projectId)}/canvas`,
       {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ pages, links }),
+        body: JSON.stringify({ pages, links, behavior }),
       },
     ),
 };
@@ -753,6 +765,45 @@ export const modelProviderApi = {
   },
 };
 
+
+export interface AgentStreamBody {
+  providerId: string;
+  modelId: string;
+  effort: "off" | "low" | "medium" | "high";
+  messages: Array<{
+    role: "user" | "assistant";
+    text: string;
+    images?: Array<{ mediaType: string; data: string }>;
+  }>;
+  context: {
+    selectedIds: string[];
+    selectedNames: string[];
+    behaviorOpen: boolean;
+  };
+}
+
+export const agentApi = {
+  stream: async (
+    projectId: string,
+    body: AgentStreamBody,
+    signal: AbortSignal,
+  ): Promise<Response> => {
+    try {
+      return await fetch(
+        `/api/me/projects/${encodeURIComponent(projectId)}/agent`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+          signal,
+        },
+      );
+    } catch {
+      throw new ApiError(0, "NETWORK_ERROR", "Cannot reach the Morfa API");
+    }
+  },
+};
 
 export const accountComponentApi = {
   list: () =>

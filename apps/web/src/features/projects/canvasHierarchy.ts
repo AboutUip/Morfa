@@ -27,6 +27,28 @@ export function getRootPages(pages: CanvasPage[]) {
   );
 }
 
+/** 选区里真正要平移的节点。父节点已在选区中时，子节点会跟着父节点走。 */
+export function topSelectedIds(
+  pages: { id: string; parentId?: string }[],
+  selectedIds: string[],
+) {
+  const selected = new Set(selectedIds);
+  const parentById = new Map(
+    pages.map((page) => [page.id, page.parentId]),
+  );
+
+  return selectedIds.filter((id) => {
+    const seen = new Set<string>();
+    let parentId = parentById.get(id);
+    while (parentId && !seen.has(parentId)) {
+      if (selected.has(parentId)) return false;
+      seen.add(parentId);
+      parentId = parentById.get(parentId);
+    }
+    return true;
+  });
+}
+
 export function getSubtreeIds(pages: CanvasPage[], pageId: string) {
   const result = new Set<string>();
   if (!pages.some((page) => page.id === pageId)) return result;

@@ -1,6 +1,8 @@
 # 键盘与可访问性
 
 > 状态：已实现基础与 VCode 键盘交互 · 最后更新：2026-11-26
+>
+> English: [accessibility_en.md](accessibility_en.md)
 
 ## 目标
 

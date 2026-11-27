@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  convertStoredWorldPositions,
   resolveCanvasAspectRatio,
   resolveCanvasLayout,
   resolveCanvasLength,
@@ -199,7 +200,7 @@ test("resolves aspect-ratio when one dimension is auto", () => {
   );
 });
 
-test("legacy world coordinates remain visual coordinates", () => {
+test("child coordinates are offsets from the parent", () => {
   const frames = resolveCanvasLayout([
     {
       id: "root",
@@ -209,15 +210,47 @@ test("legacy world coordinates remain visual coordinates", () => {
     },
     {
       id: "child",
-      x: 180,
-      y: 120,
+      x: 80,
+      y: 60,
       parentId: "root",
       styles: { width: "100px", height: "50px" },
     },
+    {
+      id: "grand",
+      x: 10,
+      y: 12,
+      parentId: "child",
+      styles: { width: "20px", height: "20px" },
+    },
   ]);
   assert.equal(frames.get("child")?.localX, 80);
-  assert.equal(frames.get("child")?.localY, 80);
+  assert.equal(frames.get("child")?.localY, 60);
   assert.equal(frames.get("child")?.worldX, 180);
+  assert.equal(frames.get("child")?.worldY, 100);
+  assert.equal(frames.get("grand")?.worldX, 190);
+  assert.equal(frames.get("grand")?.worldY, 112);
+});
+
+test("stored world coordinates convert to parent offsets once", () => {
+  const nodes = [
+    { id: "root", x: 100, y: 40 },
+    { id: "child", x: 180, y: 120, parentId: "root" },
+    { id: "grand", x: 190, y: 132, parentId: "child" },
+  ];
+  convertStoredWorldPositions(nodes);
+  assert.equal(nodes[1].x, 80);
+  assert.equal(nodes[1].y, 80);
+  assert.equal(nodes[2].x, 10);
+  assert.equal(nodes[2].y, 12);
+
+  const frames = resolveCanvasLayout(
+    nodes.map((node) => ({
+      ...node,
+      styles: { width: "40px", height: "40px" },
+    })),
+  );
+  assert.equal(frames.get("child")?.worldX, 180);
+  assert.equal(frames.get("grand")?.worldX, 190);
 });
 
 test("missing parents and cycles are reported as invalid, not crashes", () => {

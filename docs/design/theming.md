@@ -1,6 +1,8 @@
 # 主题规范
 
 > 状态：已实现基础（system / light / dark）· 最后更新：2026-11-25
+>
+> English: [theming_en.md](theming_en.md)
 
 ## 目标
 
@@ -91,6 +93,8 @@ apps/web/src/styles/
 - 选择 `system` 时监听 `matchMedia('(prefers-color-scheme: dark)')` 的 `change` 事件。
 - 监听 `storage` 事件，多标签页同步偏好。
 - 切换时只更新根元素属性，不重建组件树。
+- 主题切换会通过根元素上的临时标记启用 320ms 的颜色过渡，并让品牌标志交叉淡入；过渡结束后移除标记，不影响日常 hover / 变换动画。
+- 尊重 `prefers-reduced-motion`：开启减少动态效果时直接切换，不播放主题过渡。
 
 ## 使用规则
 

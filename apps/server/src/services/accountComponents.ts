@@ -331,6 +331,7 @@ function remapBehavior(
             ...(block.action
               ? { action: remapAction(block.action, remap) }
               : {}),
+            ...(block.nodeId ? { nodeId: remap(block.nodeId) } : {}),
           })),
         }
       : {}),

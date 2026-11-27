@@ -31,6 +31,8 @@ const BATCH_WRITE_TOOLS = new Set([
   "reorder_layers",
   "set_layout",
   "batch_update_layout",
+  "create_nodes",
+  "patch_node",
   "update_behavior",
   "create_control",
   "update_control",
@@ -146,7 +148,7 @@ export function batchCapabilities(
           operations: {
             type: "string",
             description:
-              'JSON array of {"tool":"update_page","arguments":{...}} entries. Tools: create_page, update_page, delete_page, duplicate_page, update_page_styles, update_page_widget, update_page_data, create_link, update_link, delete_link, move_page, resize_page, set_page_parent, reorder_layers, set_layout, batch_update_layout, update_behavior, create_control, update_control, add_control_state, update_control_state, compile_control, create_control_instance, set_control_instance_state.',
+              'JSON array of {"tool":"update_page","arguments":{...}} entries. Tools: create_page, update_page, delete_page, duplicate_page, update_page_styles, update_page_widget, update_page_data, create_link, update_link, delete_link, move_page, resize_page, set_page_parent, reorder_layers, set_layout, batch_update_layout, create_nodes, patch_node, update_behavior, create_control, update_control, add_control_state, update_control_state, compile_control, create_control_instance, set_control_instance_state. update_behavior without pageId writes the shared project graph.',
             maxLength: MAX_BATCH_ARGUMENT_LENGTH,
           },
           expectedUpdatedAt: {

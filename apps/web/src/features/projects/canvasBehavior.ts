@@ -1,4 +1,9 @@
-import { getSupportedCanvasEvents } from "@morfa/shared/canvas-behavior";
+import {
+  CANVAS_BEHAVIOR_STYLE_KEYS,
+  getSupportedCanvasEvents,
+} from "@morfa/shared/canvas-behavior";
+
+import { isAttributeId, propertyFieldId } from "./canvasPropertyIds";
 
 import type {
   CanvasBehavior,
@@ -13,6 +18,7 @@ import type {
   CanvasBehaviorTrigger,
   CanvasPage,
 } from "./canvasDocument";
+import { isControlDefinitionPage } from "./canvasDocument";
 import {
   WIDGET_CHECKED_KINDS,
   WIDGET_TEXT_KINDS,
@@ -203,14 +209,246 @@ export function createBehaviorCondition(
   };
 }
 
-export const BEHAVIOR_STYLE_KEYS = [
-  "background-color",
-  "color",
-  "border-color",
-  "opacity",
-  "border-radius",
-  "display",
-] as const;
+export const BEHAVIOR_STYLE_KEYS = CANVAS_BEHAVIOR_STYLE_KEYS;
+
+const LAYOUT_STYLE_KEYS = new Set([
+  "width",
+  "height",
+  "min-width",
+  "max-width",
+  "min-height",
+  "max-height",
+  "left",
+  "top",
+  "right",
+  "bottom",
+  "position",
+  "z-index",
+  "transform",
+]);
+
+export type BehaviorFieldKind =
+  | "text"
+  | "value"
+  | "visible"
+  | "checked"
+  | "controlState"
+  | "data"
+  | "style"
+  | "attribute";
+
+export interface BehaviorField {
+  kind: BehaviorFieldKind;
+  key?: string;
+}
+
+export function listBehaviorFields(
+  page: CanvasPage | null,
+  role: "condition" | "action",
+): BehaviorField[] {
+  if (!page) return [];
+  const fields: BehaviorField[] = [];
+  if (page.widget && WIDGET_TEXT_KINDS.has(page.widget.kind)) {
+    fields.push({ kind: "text" });
+  }
+  if (page.widget && WIDGET_VALUE_KINDS.has(page.widget.kind)) {
+    fields.push({ kind: "value" });
+  }
+  fields.push({ kind: "visible" });
+  if (
+    role === "action" &&
+    page.widget &&
+    WIDGET_CHECKED_KINDS.has(page.widget.kind)
+  ) {
+    fields.push({ kind: "checked" });
+  }
+  if (page.controlId || page.nodeKind === "control") {
+    fields.push({ kind: "controlState" });
+  }
+  for (const entry of page.data ?? []) {
+    if (entry.key) fields.push({ kind: "data", key: entry.key });
+  }
+  const styleKeys = new Set<string>(BEHAVIOR_STYLE_KEYS);
+  for (const key of Object.keys(page.styles)) {
+    if (!LAYOUT_STYLE_KEYS.has(key)) styleKeys.add(key);
+  }
+  for (const key of styleKeys) fields.push({ kind: "style", key });
+  return fields;
+}
+
+export function behaviorFieldId(field: BehaviorField) {
+  return propertyFieldId(field);
+}
+
+export function behaviorFieldFromId(id: string): BehaviorField {
+  if (id.startsWith("data:")) return { kind: "data", key: id.slice(5) };
+  if (id.startsWith("style:")) return { kind: "style", key: id.slice(6) };
+  if (
+    id === "text" ||
+    id === "value" ||
+    id === "visible" ||
+    id === "checked" ||
+    id === "controlState"
+  ) {
+    return { kind: id };
+  }
+  if (id.startsWith("data.")) return { kind: "data", key: id.slice(5) };
+  return { kind: "style", key: id };
+}
+
+export function behaviorFieldMessage(field: BehaviorField) {
+  if (field.kind === "data") {
+    return {
+      key: "projects.workspace.behavior.properties.data",
+      params: { key: field.key ?? "" },
+    };
+  }
+  if (field.kind === "style") {
+    return {
+      key: "projects.workspace.behavior.properties.style",
+      params: { key: field.key ?? "" },
+    };
+  }
+  return { key: `projects.workspace.behavior.properties.${field.kind}` };
+}
+
+export function conditionField(
+  condition: CanvasBehaviorCondition,
+): BehaviorField {
+  switch (condition.source) {
+    case "nodeText":
+      return { kind: "text" };
+    case "nodeValue":
+      return { kind: "value" };
+    case "nodeVisible":
+      return { kind: "visible" };
+    case "controlState":
+      return { kind: "controlState" };
+    case "nodeStyle":
+      if (condition.key === "checked") return { kind: "checked" };
+      if (isAttributeId(condition.key)) {
+        return { kind: "attribute", key: condition.key };
+      }
+      return { kind: "style", key: condition.key };
+    case "state":
+      return { kind: "text" };
+    default:
+      return { kind: "data", key: condition.key };
+  }
+}
+
+export function applyConditionField(
+  condition: CanvasBehaviorCondition,
+  field: BehaviorField,
+): CanvasBehaviorCondition {
+  const source =
+    field.kind === "text"
+      ? "nodeText"
+      : field.kind === "value"
+        ? "nodeValue"
+        : field.kind === "visible"
+          ? "nodeVisible"
+          : field.kind === "controlState"
+            ? "controlState"
+            : field.kind === "style" ||
+                field.kind === "attribute" ||
+                field.kind === "checked"
+              ? "nodeStyle"
+              : "nodeData";
+  const previous = conditionField(condition);
+  const same =
+    previous.kind === field.kind &&
+    previous.key === field.key;
+  const equalityOnly =
+    field.kind === "visible" || field.kind === "controlState";
+  return {
+    ...condition,
+    source,
+    key:
+      field.kind === "checked"
+        ? "checked"
+        : field.kind === "data" ||
+            field.kind === "style" ||
+            field.kind === "attribute"
+          ? field.key
+          : undefined,
+    operator: equalityOnly
+      ? condition.operator === "neq"
+        ? "neq"
+        : "eq"
+      : condition.operator,
+    value: same
+      ? condition.value
+      : field.kind === "visible"
+        ? "true"
+        : "",
+  };
+}
+
+export function actionField(action: CanvasBehaviorAction): BehaviorField {
+  switch (action.type) {
+    case "setText":
+      return { kind: "text" };
+    case "setValue":
+      return { kind: "value" };
+    case "setVisible":
+      return { kind: "visible" };
+    case "setChecked":
+      return { kind: "checked" };
+    case "setControlState":
+      return { kind: "controlState" };
+    case "setStyle":
+      if (action.key === "checked") return { kind: "checked" };
+      if (isAttributeId(action.key)) {
+        return { kind: "attribute", key: action.key };
+      }
+      return { kind: "style", key: action.key };
+    default:
+      return { kind: "data", key: action.key };
+  }
+}
+
+export function applyActionField(
+  action: CanvasBehaviorAction,
+  field: BehaviorField,
+): CanvasBehaviorAction {
+  const type =
+    field.kind === "text"
+      ? "setText"
+      : field.kind === "value"
+        ? "setValue"
+        : field.kind === "visible"
+          ? "setVisible"
+          : field.kind === "checked"
+            ? "setChecked"
+            : field.kind === "controlState"
+              ? "setControlState"
+              : field.kind === "style" || field.kind === "attribute"
+                ? "setStyle"
+                : "setData";
+  const previous = actionField(action);
+  const same =
+    previous.kind === field.kind && previous.key === field.key;
+  return {
+    ...action,
+    type,
+    key:
+      field.kind === "data" ||
+      field.kind === "style" ||
+      field.kind === "attribute"
+        ? field.key
+        : undefined,
+    value: same
+      ? action.value
+      : field.kind === "visible" || field.kind === "checked"
+        ? "true"
+        : field.kind === "style" && field.key === "background-color"
+          ? "#2f6fed"
+          : field.kind === "value"
+            ? "0"
+            : "",
+  };
+}
 
 const EVENT_LABEL_KEYS: Record<string, string> = {
   click: "projects.workspace.behavior.events.click",
@@ -319,6 +557,14 @@ export function createBehaviorState(name: string): CanvasBehaviorState {
   };
 }
 
+export function createReferenceBlock(
+  nodeId: string,
+  x: number,
+  y: number,
+): CanvasBehaviorBlock {
+  return { id: makeId("b"), type: "reference", x, y, nodeId };
+}
+
 export function createBehaviorBlock(
   type: CanvasBehaviorBlock["type"],
   x: number,
@@ -345,7 +591,67 @@ export function createBehaviorBlock(
       action: createBehaviorAction("setStyle"),
     };
   }
+  if (type === "switch") {
+    return { id: makeId("b"), type, x, y, cases: [""] };
+  }
+  if (type === "reference") {
+    return { id: makeId("b"), type, x, y };
+  }
+  if (type === "function") {
+    return { id: makeId("b"), type, x, y, text: "函数" };
+  }
+  if (type === "call") {
+    return { id: makeId("b"), type, x, y };
+  }
   return { id: makeId("b"), type: "note", x, y, text: "" };
+}
+
+export interface BehaviorOutputPort {
+  id: string;
+  labelKey?: string;
+  label?: string;
+}
+
+export function behaviorOutputPorts(
+  block: CanvasBehaviorBlock,
+): BehaviorOutputPort[] {
+  if (block.type === "condition") {
+    return [
+      { id: "then", labelKey: "projects.workspace.behavior.ports.then" },
+      { id: "else", labelKey: "projects.workspace.behavior.ports.else" },
+    ];
+  }
+  if (block.type === "switch") {
+    const cases = block.cases?.length ? block.cases : [""];
+    return [
+      ...cases.map((value, index) => ({
+        id: `case:${index}`,
+        label: value || String(index + 1),
+      })),
+      {
+        id: "default",
+        labelKey: "projects.workspace.behavior.ports.default",
+      },
+    ];
+  }
+  return [{ id: "out" }];
+}
+
+export function behaviorEdgeMatches(
+  block: CanvasBehaviorBlock,
+  label: string | undefined,
+  port: string,
+) {
+  if (block.type === "condition") {
+    const edgePort =
+      !label || label === "out" || label === "then" ? "then" : label;
+    return edgePort === port;
+  }
+  if (block.type === "switch") {
+    const edgePort = !label || label === "out" ? "default" : label;
+    return edgePort === port;
+  }
+  return true;
 }
 
 export function createBehaviorEdge(
@@ -582,6 +888,11 @@ function lintCondition(
 ) {
   const push = createIssueSink(issues, page, idBase, scope);
 
+  if (condition.source !== "state" && !condition.targetId) {
+    push("target", "error", "projects.workspace.behavior.lint.targetMissing");
+    return;
+  }
+
   if (condition.source === "nodeData") {
     const target = condition.targetId
       ? pagesById.get(condition.targetId)
@@ -599,9 +910,7 @@ function lintCondition(
   }
 
   if (condition.source === "controlState") {
-    const target = condition.targetId
-      ? pagesById.get(condition.targetId)
-      : null;
+    const target = pagesById.get(condition.targetId ?? page.id) ?? null;
     if (!target?.controlId) {
       push(
         "control",
@@ -645,13 +954,7 @@ function lintCondition(
     );
   }
 
-  if (
-    condition.source === "nodeStyle" &&
-    (!condition.key ||
-      !BEHAVIOR_STYLE_KEYS.includes(
-        condition.key as (typeof BEHAVIOR_STYLE_KEYS)[number],
-      ))
-  ) {
+  if (condition.source === "nodeStyle" && !condition.key) {
     push(
       "style",
       "error",
@@ -718,6 +1021,14 @@ function lintAction(
     return;
   }
 
+  const definition = BEHAVIOR_ACTION_DEFINITIONS.find(
+    (item) => item.type === action.type,
+  );
+  if (definition?.needsTarget && !action.targetId) {
+    push("target", "error", "projects.workspace.behavior.lint.targetMissing");
+    return;
+  }
+
   if (
     action.type === "setData" ||
     action.type === "incrementData" ||
@@ -756,9 +1067,8 @@ function lintAction(
   }
 
   if (action.type === "setControlState") {
-    const target = action.targetId
-      ? pagesById.get(action.targetId)
-      : null;
+    const target =
+      pagesById.get(action.targetId ?? page.id) ?? null;
     if (!target?.controlId) {
       push(
         "control",
@@ -769,12 +1079,12 @@ function lintAction(
     return;
   }
 
-  if (!action.targetId || !pagesById.has(action.targetId)) {
+  if (action.targetId && !pagesById.has(action.targetId)) {
     push("target", "error", "projects.workspace.behavior.lint.targetMissing");
     return;
   }
 
-  const target = pagesById.get(action.targetId);
+  const target = pagesById.get(action.targetId ?? page.id);
   if (!target) return;
 
   if (
@@ -1044,16 +1354,37 @@ function collectGraphIssues(
           messageKey: "projects.workspace.behavior.lint.blockEventMissing",
           blockId: block.id,
         });
-      } else if (!supportedEvents.has(block.event)) {
+      } else if (!block.nodeId || !pagesById.has(block.nodeId)) {
         issues.push({
-          id: `${page.id}:block-event:${block.id}`,
+          id: `${page.id}:block-event-node:${block.id}`,
           pageId: page.id,
           pageName: page.name,
           severity: "error",
-          messageKey: "projects.workspace.behavior.lint.eventUnsupported",
-          params: { event: block.event },
+          messageKey: supportedEvents.has(block.event)
+            ? "projects.workspace.behavior.lint.targetMissing"
+            : "projects.workspace.behavior.lint.eventUnsupported",
+          ...(supportedEvents.has(block.event)
+            ? {}
+            : { params: { event: block.event } }),
           blockId: block.id,
         });
+      } else if (block.nodeId) {
+        const target = pagesById.get(block.nodeId);
+        const allowed = new Set(
+          target ? getSupportedEvents(target) : [],
+        );
+        if (target && !allowed.has(block.event)) {
+          issues.push({
+            id: `${page.id}:block-event:${block.id}`,
+            pageId: page.id,
+            pageName: page.name,
+            severity: "error",
+            messageKey:
+              "projects.workspace.behavior.lint.eventUnsupported",
+            params: { event: block.event },
+            blockId: block.id,
+          });
+        }
       }
 
       if (block.stateId) {
@@ -1128,9 +1459,45 @@ function collectGraphIssues(
           referencedStateIds.add(block.action.value);
         }
       }
+    } else if (block.type === "switch") {
+      if (!block.nodeId || !pagesById.has(block.nodeId)) {
+        issues.push({
+          id: `${page.id}:block-switch-node:${block.id}`,
+          pageId: page.id,
+          pageName: page.name,
+          severity: "error",
+          messageKey: "projects.workspace.behavior.lint.targetMissing",
+          blockId: block.id,
+        });
+      }
+      if (!block.key?.trim()) {
+        issues.push({
+          id: `${page.id}:block-switch-key:${block.id}`,
+          pageId: page.id,
+          pageName: page.name,
+          severity: "error",
+          messageKey: "projects.workspace.behavior.lint.styleKeyMissing",
+          blockId: block.id,
+        });
+      }
+    } else if (block.type === "reference") {
+      if (!block.nodeId || !pagesById.has(block.nodeId)) {
+        issues.push({
+          id: `${page.id}:block-reference:${block.id}`,
+          pageId: page.id,
+          pageName: page.name,
+          severity: "error",
+          messageKey: "projects.workspace.behavior.lint.referenceMissing",
+          blockId: block.id,
+        });
+      }
     }
 
-    if (block.type === "event" || block.type === "condition") {
+    if (
+      block.type === "event" ||
+      block.type === "condition" ||
+      block.type === "switch"
+    ) {
       if ((outgoingCount.get(block.id) ?? 0) === 0) {
         issues.push({
           id: `${page.id}:block-outgoing:${block.id}`,
@@ -1222,4 +1589,222 @@ export function collectBehaviorLint(
   }
 
   return issues;
+}
+
+export function collectSharedBehaviorLint(
+  pages: CanvasPage[],
+  behavior: CanvasBehavior,
+  scope: { id: string; name: string },
+): CanvasBehaviorLintIssue[] {
+  const issues: CanvasBehaviorLintIssue[] = [];
+  const pagesById = new Map(pages.map((page) => [page.id, page]));
+  const host: CanvasPage = {
+    id: scope.id,
+    name: scope.name,
+    x: 0,
+    y: 0,
+    styles: {},
+  };
+  const supportedEvents = new Set(Object.keys(EVENT_LABEL_KEYS));
+  const states = new Map(behavior.states.map((state) => [state.id, state]));
+  const initialStates = collectStateIssues(issues, host, behavior);
+  collectGraphIssues(
+    issues,
+    host,
+    pagesById,
+    behavior,
+    supportedEvents,
+    states,
+    initialStates,
+  );
+  return issues;
+}
+
+function controlRootId(
+  pagesById: Map<string, CanvasPage>,
+  page: CanvasPage,
+) {
+  let current: CanvasPage | undefined = page;
+  let found: string | null = null;
+  const seen = new Set<string>();
+  while (current && !seen.has(current.id)) {
+    seen.add(current.id);
+    if (isControlDefinitionPage(current)) found = current.id;
+    current = current.parentId
+      ? pagesById.get(current.parentId)
+      : undefined;
+  }
+  return found;
+}
+
+function behaviorListens(
+  behavior: CanvasBehavior | undefined,
+  pageId: string,
+  event: string,
+  explicitOnly: boolean,
+) {
+  if (!behavior) return false;
+  if (
+    !explicitOnly &&
+    behavior.triggers.some((trigger) => trigger.event === event)
+  ) {
+    return true;
+  }
+  return Boolean(
+    behavior.blocks?.some(
+      (block) =>
+        block.type === "event" &&
+        block.event === event &&
+        (explicitOnly
+          ? block.nodeId === pageId
+          : !block.nodeId || block.nodeId === pageId),
+    ),
+  );
+}
+
+export function pageReceivesBehaviorEvent(
+  pages: CanvasPage[],
+  projectBehavior: CanvasBehavior | undefined,
+  page: CanvasPage,
+  event: string,
+) {
+  if (behaviorListens(page.behavior, page.id, event, false)) return true;
+  const pagesById = new Map(pages.map((item) => [item.id, item]));
+  const rootId = controlRootId(pagesById, page);
+  if (rootId) {
+    const control = pagesById.get(rootId);
+    if (!control || control.id === page.id) return false;
+    return behaviorListens(control.behavior, page.id, event, true);
+  }
+  return behaviorListens(projectBehavior, page.id, event, true);
+}
+
+function mergeBehaviorGraphs(
+  base: CanvasBehavior | undefined,
+  sources: { page: CanvasPage; behavior: CanvasBehavior }[],
+): CanvasBehavior | undefined {
+  if (!base && sources.length === 0) return undefined;
+  const materializedBase = base
+    ? materializeBehaviorGraph(base).behavior
+    : undefined;
+  const behavior: CanvasBehavior = materializedBase
+    ? {
+        ...materializedBase,
+        blocks: [...(materializedBase.blocks ?? [])],
+        edges: [...(materializedBase.edges ?? [])],
+        states: [...materializedBase.states],
+      }
+    : {
+        version: 2,
+        triggers: [],
+        states: [{ id: "default", name: "默认状态", initial: true }],
+        blocks: [],
+        edges: [],
+      };
+  const blocks = behavior.blocks ?? [];
+  const edges = behavior.edges ?? [];
+  const blockIds = new Set(blocks.map((block) => block.id));
+  const edgeIds = new Set(edges.map((edge) => edge.id));
+  const stateIds = new Set(behavior.states.map((state) => state.id));
+  let maxX = blocks.reduce((max, block) => Math.max(max, block.x), 0);
+
+  for (const source of sources) {
+    const incoming = materializeBehaviorGraph(source.behavior).behavior;
+    const incomingBlocks = incoming.blocks ?? [];
+    const minX = incomingBlocks.reduce(
+      (min, block) => Math.min(min, block.x),
+      0,
+    );
+    const shift = blocks.length > 0 ? maxX + 120 - minX : 0;
+    for (const block of incomingBlocks) {
+      if (blockIds.has(block.id)) continue;
+      blockIds.add(block.id);
+      const next = {
+        ...block,
+        x: block.x + shift,
+        ...(block.type === "event" && !block.nodeId
+          ? { nodeId: source.page.id }
+          : {}),
+      };
+      blocks.push(next);
+      maxX = Math.max(maxX, next.x);
+    }
+    for (const edge of incoming.edges ?? []) {
+      if (edgeIds.has(edge.id)) continue;
+      if (!blockIds.has(edge.from) || !blockIds.has(edge.to)) continue;
+      edgeIds.add(edge.id);
+      edges.push(edge);
+    }
+    for (const state of incoming.states) {
+      if (stateIds.has(state.id)) continue;
+      stateIds.add(state.id);
+      behavior.states.push(state);
+    }
+  }
+
+  return {
+    ...behavior,
+    version: 2,
+    triggers: [],
+    blocks,
+    edges,
+  };
+}
+
+export function liftSharedBehaviors<
+  T extends { pages: CanvasPage[]; behavior?: CanvasBehavior },
+>(document: T): T {
+  const pagesById = new Map(document.pages.map((page) => [page.id, page]));
+  const projectSources: { page: CanvasPage; behavior: CanvasBehavior }[] =
+    [];
+  const controlSources = new Map<
+    string,
+    { page: CanvasPage; behavior: CanvasBehavior }[]
+  >();
+
+  for (const page of document.pages) {
+    if (!page.behavior) continue;
+    const root = controlRootId(pagesById, page);
+    if (root) {
+      const list = controlSources.get(root) ?? [];
+      list.push({ page, behavior: page.behavior });
+      controlSources.set(root, list);
+    } else {
+      projectSources.push({ page, behavior: page.behavior });
+    }
+  }
+
+  if (projectSources.length === 0 && controlSources.size === 0) {
+    return document;
+  }
+
+  const clearIds = new Set<string>();
+  const behavior = mergeBehaviorGraphs(document.behavior, projectSources);
+  for (const source of projectSources) clearIds.add(source.page.id);
+
+  const controlBehavior = new Map<string, CanvasBehavior>();
+  for (const [controlId, sources] of controlSources) {
+    const own = sources.find((source) => source.page.id === controlId);
+    const rest = sources.filter((source) => source.page.id !== controlId);
+    const merged = mergeBehaviorGraphs(own?.behavior, rest);
+    if (merged) controlBehavior.set(controlId, merged);
+    for (const source of rest) clearIds.add(source.page.id);
+  }
+
+  const pages = document.pages.map((page) => {
+    const controlGraph = controlBehavior.get(page.id);
+    if (controlGraph) return { ...page, behavior: controlGraph };
+    if (!clearIds.has(page.id)) return page;
+    const next = { ...page };
+    delete next.behavior;
+    return next;
+  });
+
+  const next = {
+    ...document,
+    pages,
+    ...(behavior ? { behavior } : {}),
+  };
+  if (!behavior) delete next.behavior;
+  return next;
 }

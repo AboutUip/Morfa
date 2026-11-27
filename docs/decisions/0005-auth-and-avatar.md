@@ -1,5 +1,7 @@
 # ADR 0005：账号认证与头像存储
 
+> English: [0005-auth-and-avatar_en.md](0005-auth-and-avatar_en.md)
+
 - 状态：已接受
 - 日期：2026-11-25
 - 决策者：项目维护者

@@ -58,6 +58,8 @@ export type {
 export interface CanvasDocument {
   pages: CanvasPage[];
   links: CanvasLink[];
+  /** One behavior graph shared by the project. Control definitions keep their own. */
+  behavior?: CanvasBehavior;
 }
 
 export const CANVAS_DATA_TYPES: readonly CanvasDataType[] = [
@@ -548,6 +550,44 @@ let styleCacheLinks: CanvasLink[] | null = null;
 let styleCache = new Map<string, Record<string, string>>();
 
 /**
+ * 用运行时写入的节点数据覆盖文档里的同名数据。
+ * 只影响样式解析时看到的数据，不改画布文档本身。
+ */
+export function overlayRuntimePageData(
+  pages: CanvasPage[],
+  runtimeData: Record<string, Record<string, string>> | undefined,
+  scope?: string,
+): CanvasPage[] {
+  if (!runtimeData) return pages;
+  let changed = false;
+  const next = pages.map((page) => {
+    const overlay = runtimeData[scope ? `${scope}::${page.id}` : page.id];
+    if (!overlay) return page;
+    const source = page.data ?? [];
+    let dataChanged = false;
+    const data = source.map((entry) => {
+      const value = overlay[entry.key];
+      if (value === undefined || value === entry.value) return entry;
+      dataChanged = true;
+      return { ...entry, value };
+    });
+    const known = new Set(source.map((entry) => entry.key));
+    const extras: CanvasDataEntry[] = [];
+    for (const [key, value] of Object.entries(overlay)) {
+      if (known.has(key)) continue;
+      extras.push({ key, type: "text", value });
+    }
+    if (!dataChanged && extras.length === 0) return page;
+    changed = true;
+    return {
+      ...page,
+      data: extras.length > 0 ? [...data, ...extras] : data,
+    };
+  });
+  return changed ? next : pages;
+}
+
+/**
  * 将样式值里的 ${self.key} / ${节点ID.key} 替换为节点数据。
  * 显式节点引用只读该节点的本地数据；self 使用继承后的有效数据。
  * 访问失败时使用上一次成功解析的视觉效果，并保留原始表达式供 lint 使用。
@@ -640,6 +680,24 @@ export function getCanvasLayout(
   const frames = resolveCanvasLayout(nodes);
   canvasLayoutCache.set(pages, { links, frames });
   return frames;
+}
+
+/** 把世界坐标写成节点自己的 x/y。有父节点时这是相对父节点的偏移。 */
+export function toLocalPosition(
+  worldX: number,
+  worldY: number,
+  page: CanvasPage,
+  pages: CanvasPage[],
+  links: CanvasLink[] = [],
+) {
+  if (!page.parentId) return { x: worldX, y: worldY };
+  const parent = pages.find((item) => item.id === page.parentId);
+  if (!parent) return { x: worldX, y: worldY };
+  const parentFrame = getPageFrame(parent, pages, links);
+  return {
+    x: worldX - parentFrame.worldX,
+    y: worldY - parentFrame.worldY,
+  };
 }
 
 export function getPageFrame(
