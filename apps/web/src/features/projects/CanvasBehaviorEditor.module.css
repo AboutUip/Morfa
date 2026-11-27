@@ -284,6 +284,120 @@
     var(--mf-bg-canvas);
 }
 
+.stateMap {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 4px;
+  padding: 7px 8px 6px;
+  border: 1px solid var(--mf-border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--mf-bg-surface) 82%, transparent);
+}
+
+.stateMapHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--mf-text-tertiary);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.stateMapCanvas {
+  display: block;
+  width: 100%;
+  height: 82px;
+  overflow: visible;
+}
+
+.stateMapCanvas text {
+  font-family: var(--mf-font-sans);
+  font-size: 10px;
+}
+
+.stateMapCanvas marker path {
+  fill: var(--mf-border-strong);
+}
+
+.stateMapCanvas path {
+  vector-effect: non-scaling-stroke;
+}
+
+.stateNode {
+  cursor: default;
+}
+
+.stateNode rect {
+  fill: var(--mf-bg-app);
+  stroke: var(--mf-border-strong);
+  stroke-width: 1;
+}
+
+.stateNode text {
+  fill: var(--mf-text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.stateNode[data-initial="true"] rect {
+  fill: var(--mf-accent-soft);
+  stroke: var(--mf-accent);
+}
+
+.stateNode[data-initial="true"] text {
+  fill: var(--mf-accent);
+}
+
+.stateNode[data-initial="true"] circle {
+  fill: var(--mf-accent);
+}
+
+.stateEdge {
+  cursor: pointer;
+}
+
+.stateEdge path {
+  fill: none;
+  stroke: var(--mf-border-strong);
+  stroke-width: 1;
+}
+
+.stateEdge text {
+  fill: var(--mf-text-tertiary);
+  font-size: 9px;
+  pointer-events: none;
+}
+
+.stateEdge:hover path,
+.stateEdge:focus-visible path {
+  stroke: var(--mf-accent);
+}
+
+.stateEdge:hover text,
+.stateEdge:focus-visible text {
+  fill: var(--mf-accent);
+}
+
+.stateNode:focus-visible {
+  outline: none;
+}
+
+.stateNode:focus-visible rect {
+  stroke: var(--mf-accent);
+  stroke-width: 2;
+}
+
+.stateMapHint {
+  margin: 0;
+  color: var(--mf-text-tertiary);
+  font-size: 8px;
+  line-height: 1.4;
+}
+
 .graphEmpty {
   display: flex;
   flex: 1;

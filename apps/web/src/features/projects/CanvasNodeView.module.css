@@ -1,0 +1,7 @@
+.node {
+  box-sizing: border-box;
+}
+
+.node[data-clickable="true"] {
+  cursor: pointer;
+}

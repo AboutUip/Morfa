@@ -578,6 +578,80 @@ export function CanvasBehaviorEditor({
     }
     return [...map.values()];
   }, [pages]);
+  const stateGraph = useMemo(() => {
+    if (!behavior || behavior.states.length === 0) return null;
+    const initialId =
+      behavior.states.find((state) => state.initial)?.id ??
+      behavior.states[0].id;
+    const edges: {
+      id: string;
+      triggerId: string;
+      sourceIndex: number;
+      targetIndex: number;
+      label: string;
+    }[] = [];
+
+    behavior.triggers.forEach((trigger) => {
+      const sourceId = trigger.stateId ?? initialId;
+      const sourceIndex = behavior.states.findIndex(
+        (state) => state.id === sourceId,
+      );
+      if (sourceIndex < 0) return;
+      trigger.actions.forEach((action) => {
+        if (action.type !== "setState" || !action.value) return;
+        const targetIndex = behavior.states.findIndex(
+          (state) => state.id === action.value,
+        );
+        if (targetIndex < 0) return;
+        edges.push({
+          id: `${trigger.id}:${action.id}`,
+          triggerId: trigger.id,
+          sourceIndex,
+          targetIndex,
+          label: t(behaviorEventLabelKey(trigger.event)),
+        });
+      });
+    });
+
+    return {
+      initialId,
+      states: behavior.states,
+      edges,
+    };
+  }, [behavior, t]);
+  const stateMapRef = useRef<HTMLElement | null>(null);
+  const [stateMapWidth, setStateMapWidth] = useState(640);
+
+  useEffect(() => {
+    const element = stateMapRef.current;
+    if (!element) return;
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width;
+      if (width) setStateMapWidth(Math.max(320, width));
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [stateGraph]);
+
+  const graphPadding = Math.min(60, Math.max(24, stateMapWidth * 0.06));
+  const graphStateCount = stateGraph?.states.length ?? 1;
+  const graphNodeWidth = Math.min(
+    92,
+    Math.max(
+      44,
+      ((stateMapWidth - graphPadding * 2) /
+        Math.max(1, graphStateCount)) *
+        0.62,
+    ),
+  );
+  const stateNodeX = (index: number) => {
+    if (graphStateCount <= 1) return stateMapWidth / 2;
+    return (
+      graphPadding +
+      (index * (stateMapWidth - graphPadding * 2)) /
+        (graphStateCount - 1)
+    );
+  };
 
   const resizeRef = useRef<{
     pointerId: number;
@@ -1009,6 +1083,157 @@ export function CanvasBehaviorEditor({
           </aside>
 
           <main className={styles.graph}>
+            {stateGraph ? (
+              <section
+                ref={stateMapRef}
+                className={styles.stateMap}
+                aria-label={t(
+                  "projects.workspace.behavior.stateMapTitle",
+                )}
+              >
+                <div className={styles.stateMapHeader}>
+                  <span>
+                    {t("projects.workspace.behavior.stateMapTitle")}
+                  </span>
+                  <span className={styles.countBadge}>
+                    {stateGraph.edges.length}
+                  </span>
+                </div>
+                <svg
+                  className={styles.stateMapCanvas}
+                  viewBox={`0 0 ${stateMapWidth} 82`}
+                  preserveAspectRatio="none"
+                  role="img"
+                  aria-label={t(
+                    "projects.workspace.behavior.stateMapTitle",
+                  )}
+                >
+                  <defs>
+                    <marker
+                      id="morfa-behavior-arrow"
+                      viewBox="0 0 10 10"
+                      refX="8"
+                      refY="5"
+                      markerWidth="10"
+                      markerHeight="10"
+                      orient="auto-start-reverse"
+                    >
+                      <path d="M 0 0 L 10 5 L 0 10 z" />
+                    </marker>
+                  </defs>
+                  {stateGraph.edges.map((edge) => {
+                    const sourceX = stateNodeX(edge.sourceIndex);
+                    const targetX = stateNodeX(edge.targetIndex);
+                    const path =
+                      edge.sourceIndex === edge.targetIndex
+                        ? `M ${sourceX - 24} 43 C ${sourceX - 48} 2, ${sourceX + 48} 2, ${sourceX + 24} 43`
+                        : `M ${sourceX} 43 C ${(sourceX + targetX) / 2} 8, ${(sourceX + targetX) / 2} 8, ${targetX} 43`;
+                    const labelX = (sourceX + targetX) / 2;
+                    return (
+                      <g
+                        className={styles.stateEdge}
+                        key={edge.id}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`${edge.label} → ${stateGraph.states[edge.targetIndex]?.name ?? ""}`}
+                        onClick={() =>
+                          setSelectedTriggerId(edge.triggerId)
+                        }
+                        onKeyDown={(event) => {
+                          if (
+                            event.key === "Enter" ||
+                            event.key === " "
+                          ) {
+                            event.preventDefault();
+                            setSelectedTriggerId(edge.triggerId);
+                          }
+                        }}
+                      >
+                        <path
+                          d={path}
+                          markerEnd="url(#morfa-behavior-arrow)"
+                        />
+                        <text
+                          x={labelX}
+                          y={edge.sourceIndex === edge.targetIndex ? 14 : 20}
+                          textAnchor="middle"
+                        >
+                          {edge.label.length > 14
+                            ? `${edge.label.slice(0, 14)}…`
+                            : edge.label}
+                        </text>
+                      </g>
+                    );
+                  })}
+                  {stateGraph.states.map((state, index) => {
+                    const x = stateNodeX(index);
+                    const relatedTrigger =
+                      behavior.triggers.find(
+                        (trigger) => trigger.stateId === state.id,
+                      ) ??
+                      (state.id === stateGraph.initialId
+                        ? behavior.triggers.find(
+                            (trigger) => !trigger.stateId,
+                          )
+                        : undefined);
+                    return (
+                      <g
+                        className={styles.stateNode}
+                        data-initial={
+                          state.id === stateGraph.initialId
+                            ? "true"
+                            : undefined
+                        }
+                        key={state.id}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={state.name}
+                        onClick={() => {
+                          if (relatedTrigger) {
+                            setSelectedTriggerId(relatedTrigger.id);
+                          }
+                        }}
+                        onKeyDown={(event) => {
+                          if (
+                            (event.key === "Enter" ||
+                              event.key === " ") &&
+                            relatedTrigger
+                          ) {
+                            event.preventDefault();
+                            setSelectedTriggerId(relatedTrigger.id);
+                          }
+                        }}
+                      >
+                        <rect
+                          x={x - graphNodeWidth / 2}
+                          y={43}
+                          width={graphNodeWidth}
+                          height={26}
+                          rx={6}
+                        />
+                        <text x={x} y={59.5} textAnchor="middle">
+                          {state.name.length > 10
+                            ? `${state.name.slice(0, 10)}…`
+                            : state.name}
+                        </text>
+                        {state.id === stateGraph.initialId ? (
+                          <circle
+                            cx={x - graphNodeWidth / 2 + 9}
+                            cy={48}
+                            r={3}
+                          />
+                        ) : null}
+                      </g>
+                    );
+                  })}
+                </svg>
+                <p className={styles.stateMapHint}>
+                  {stateGraph.edges.length
+                    ? t("projects.workspace.behavior.stateMapHint")
+                    : t("projects.workspace.behavior.stateMapEmpty")}
+                </p>
+              </section>
+            ) : null}
             {behavior.triggers.length === 0 ? (
               <div className={styles.graphEmpty}>
                 {t("projects.workspace.behavior.emptyHint")}

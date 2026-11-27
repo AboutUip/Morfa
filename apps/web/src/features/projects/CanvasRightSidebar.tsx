@@ -1546,6 +1546,19 @@ function PropertiesPanel({
                     />
                     <TextControl
                       label={t(
+                        "projects.workspace.propertiesPanel.fields.aspectRatio",
+                      )}
+                      value={page.styles["aspect-ratio"]}
+                      placeholder={t(
+                        "projects.workspace.propertiesPanel.aspectRatioPlaceholder",
+                      )}
+                      disabled={page.lockedSize}
+                      onChange={(value) =>
+                        updateStyle("aspect-ratio", value)
+                      }
+                    />
+                    <TextControl
+                      label={t(
                         "projects.workspace.propertiesPanel.fields.minWidth",
                       )}
                       value={page.styles["min-width"]}

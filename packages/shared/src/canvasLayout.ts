@@ -18,6 +18,7 @@ export interface CanvasLayoutNode {
 
 export type CanvasLayoutIssueCode =
   | "invalid-length"
+  | "invalid-aspect-ratio"
   | "percent-without-reference"
   | "parent-missing"
   | "parent-cycle"
@@ -53,6 +54,45 @@ export interface CanvasLengthResolution {
 
 const DEFAULT_SIZE = 800;
 const LENGTH_PATTERN = /^([+-]?(?:\d+(?:\.\d*)?|\.\d+))(%|px)?$/i;
+
+/**
+ * Parse a CSS aspect-ratio value. Supported forms are `16 / 9`, `16/9`,
+ * and a single positive number such as `1.5`. `auto`, empty, or invalid
+ * values return `null`.
+ */
+const ASPECT_RATIO_PART = /^(?:\d+(?:\.\d*)?|\.\d+)$/;
+
+export function resolveCanvasAspectRatio(
+  value: string | undefined,
+): number | null {
+  if (!value) return null;
+  const text = value.trim().toLowerCase();
+  if (!text || text === "auto") return null;
+  const parts = text.split("/").map((part) => part.trim());
+  if (parts.length === 1) {
+    if (!ASPECT_RATIO_PART.test(parts[0])) return null;
+    const ratio = Number.parseFloat(parts[0]);
+    return Number.isFinite(ratio) && ratio > 0 ? ratio : null;
+  }
+  if (parts.length !== 2) return null;
+  if (
+    !ASPECT_RATIO_PART.test(parts[0]) ||
+    !ASPECT_RATIO_PART.test(parts[1])
+  ) {
+    return null;
+  }
+  const numerator = Number.parseFloat(parts[0]);
+  const denominator = Number.parseFloat(parts[1]);
+  if (
+    !Number.isFinite(numerator) ||
+    !Number.isFinite(denominator) ||
+    numerator <= 0 ||
+    denominator <= 0
+  ) {
+    return null;
+  }
+  return numerator / denominator;
+}
 
 function blankResolution(kind: CanvasLengthResolution["kind"]): CanvasLengthResolution {
   return { value: null, auto: kind === "empty" || kind === "auto", kind };
@@ -377,7 +417,8 @@ function resolveOptional(
 
 /**
  * Resolve every node into a frame. Handles nesting, percentages, calc(),
- * min/max constraints, left/right/top/bottom anchoring, and cycle detection.
+ * aspect-ratio, min/max constraints, left/right/top/bottom anchoring, and
+ * cycle detection.
  */
 export function resolveCanvasLayout(
   nodes: CanvasLayoutNode[],
@@ -443,6 +484,13 @@ export function resolveCanvasLayout(
     const referenceHeight = parentFrame?.height;
     const styles = node.styles ?? {};
 
+    let widthAuto =
+      !styles.width || styles.width.trim().toLowerCase() === "auto";
+    let heightAuto =
+      !styles.height || styles.height.trim().toLowerCase() === "auto";
+    let widthResolved = !widthAuto;
+    let heightResolved = !heightAuto;
+
     let width = resolveValueOrFallback(
       styles,
       "width",
@@ -479,18 +527,39 @@ export function resolveCanvasLayout(
       node.id,
     );
 
-    if (parentFrame && left !== null && right !== null) {
-      const widthAuto =
-        !styles.width || styles.width.trim().toLowerCase() === "auto";
-      if (widthAuto) {
-        width = Math.max(0, parentFrame.width - left - right);
-      }
+    if (parentFrame && left !== null && right !== null && widthAuto) {
+      width = Math.max(0, parentFrame.width - left - right);
+      widthResolved = true;
+      widthAuto = false;
     }
-    if (parentFrame && top !== null && bottom !== null) {
-      const heightAuto =
-        !styles.height || styles.height.trim().toLowerCase() === "auto";
-      if (heightAuto) {
-        height = Math.max(0, parentFrame.height - top - bottom);
+    if (parentFrame && top !== null && bottom !== null && heightAuto) {
+      height = Math.max(0, parentFrame.height - top - bottom);
+      heightResolved = true;
+      heightAuto = false;
+    }
+
+    const aspectRaw = styles["aspect-ratio"]?.trim();
+    const aspectRatio = resolveCanvasAspectRatio(aspectRaw);
+    if (
+      aspectRaw &&
+      aspectRaw.toLowerCase() !== "auto" &&
+      aspectRatio === null
+    ) {
+      issues.push({
+        code: "invalid-aspect-ratio",
+        severity: "error",
+        nodeId: node.id,
+        styleKey: "aspect-ratio",
+        value: aspectRaw,
+        message: `无法解析 aspect-ratio: ${aspectRaw}`,
+      });
+    } else if (aspectRatio !== null) {
+      if (widthResolved && !heightResolved) {
+        height = width / aspectRatio;
+        heightResolved = true;
+      } else if (!widthResolved && heightResolved) {
+        width = height * aspectRatio;
+        widthResolved = true;
       }
     }
 

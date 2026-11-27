@@ -6,14 +6,17 @@ import Fastify from "fastify";
 
 import { registerAccountRoutes } from "./api/account.js";
 import { registerApiKeyRoutes } from "./api/apiKeys.js";
+import { registerAssetUploadRoutes } from "./api/assets.js";
 import { registerAuthRoutes } from "./api/auth.js";
 import { registerMcpRoutes } from "./api/mcp.js";
 import { registerModelProviderRoutes } from "./api/modelProviders.js";
 import { registerPreferencesRoutes } from "./api/preferences.js";
 import { registerProjectRoutes } from "./api/projects.js";
 import { registerRealtimeRoutes } from "./api/realtime.js";
+import { registerRenderRoutes } from "./api/render.js";
 import { registerUploadRoutes } from "./api/uploads.js";
 import {
+  ASSETS_DIR,
   AVATARS_DIR,
   EXPORTS_DIR,
   EXPORT_ARCHIVE_MAX_BYTES,
@@ -41,6 +44,7 @@ import {
 
 fs.mkdirSync(AVATARS_DIR, { recursive: true });
 fs.mkdirSync(PROJECT_ICONS_DIR, { recursive: true });
+fs.mkdirSync(ASSETS_DIR, { recursive: true });
 fs.mkdirSync(EXPORTS_DIR, { recursive: true });
 migrate();
 deleteExpiredSessions();
@@ -81,6 +85,8 @@ registerProjectRoutes(app);
 registerMcpRoutes(app, mcpController);
 registerRealtimeRoutes(app);
 registerUploadRoutes(app);
+registerAssetUploadRoutes(app);
+registerRenderRoutes(app);
 
 app.setErrorHandler((error, request, reply) => {
   if (error instanceof ApiError) {

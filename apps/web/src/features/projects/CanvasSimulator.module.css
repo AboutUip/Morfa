@@ -185,14 +185,6 @@
   transform-origin: top left;
 }
 
-.runtimeNode {
-  box-sizing: border-box;
-}
-
-.runtimeNode[data-clickable="true"] {
-  cursor: pointer;
-}
-
 .notch {
   position: absolute;
   top: 0;

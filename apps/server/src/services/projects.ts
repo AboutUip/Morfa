@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 
 import type { UserRow } from "../db/users.js";
+import { listProjectAssetStorageNames } from "../db/projectAssets.js";
 import {
   addProjectMember,
   countOwnedProjects,
@@ -23,6 +24,7 @@ import {
   projectIconUrl,
   saveProjectIcon,
 } from "./projectIcons.js";
+import { deleteProjectAssetFiles } from "./projectAssets.js";
 
 const MAX_PROJECTS_PER_USER = 50;
 const MAX_NAME_LENGTH = 80;
@@ -375,10 +377,14 @@ export async function deleteProject(
   if (row.user_id !== userId) {
     throw new ApiError(403, "PROJECT_FORBIDDEN", "只有项目所有者可以删除项目");
   }
+  const assetStorageNames = listProjectAssetStorageNames(projectId);
   const result = deleteProjectRecord(projectId, userId);
   if (!result.deleted) {
     throw new ApiError(404, "PROJECT_NOT_FOUND", "项目不存在");
   }
+  await deleteProjectAssetFiles(projectId, assetStorageNames).catch(() => {
+    // 项目删除后素材文件清理失败不阻塞结果
+  });
   if (result.iconPath) {
     await deleteProjectIcon(result.iconPath).catch(() => {
       // 项目删除后图标清理失败不阻塞结果

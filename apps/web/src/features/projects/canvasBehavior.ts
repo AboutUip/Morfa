@@ -368,6 +368,29 @@ export function collectBehaviorLint(
       }
     }
 
+    const referencedStateIds = new Set(
+      initialStates.map((state) => state.id),
+    );
+    for (const trigger of behavior.triggers) {
+      if (trigger.stateId) referencedStateIds.add(trigger.stateId);
+      for (const action of trigger.actions) {
+        if (action.type === "setState" && action.value) {
+          referencedStateIds.add(action.value);
+        }
+      }
+    }
+    for (const state of behavior.states) {
+      if (referencedStateIds.has(state.id)) continue;
+      issues.push({
+        id: `${page.id}:state-unreachable:${state.id}`,
+        pageId: page.id,
+        pageName: page.name,
+        severity: "warning",
+        messageKey: "projects.workspace.behavior.lint.stateUnreachable",
+        params: { state: state.name },
+      });
+    }
+
     const triggerIds = new Set<string>();
     for (const trigger of behavior.triggers) {
       if (triggerIds.has(trigger.id)) {

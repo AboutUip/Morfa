@@ -1945,6 +1945,7 @@ export function CanvasViewport({
             "max-width",
             "min-height",
             "max-height",
+            "aspect-ratio",
             "left",
             "right",
             "top",

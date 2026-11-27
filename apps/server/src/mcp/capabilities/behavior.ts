@@ -239,6 +239,25 @@ function validateBehavior(
     });
   }
 
+  const referencedStateIds = new Set(initialStates.map((state) => state.id));
+  for (const trigger of triggers) {
+    if (trigger?.stateId) referencedStateIds.add(trigger.stateId);
+    for (const action of trigger?.actions ?? []) {
+      if (action?.type === "setState" && action.value) {
+        referencedStateIds.add(action.value);
+      }
+    }
+  }
+  for (const state of states) {
+    if (!state?.id || referencedStateIds.has(state.id)) continue;
+    issues.push({
+      severity: "warning",
+      code: "STATE_UNREACHABLE",
+      message: `状态 ${state.name ?? state.id} 没有触发器或转移`,
+      pageId: page.id,
+    });
+  }
+
   const triggerIds = new Set<string>();
   for (const trigger of triggers) {
     if (!trigger || typeof trigger.id !== "string") {

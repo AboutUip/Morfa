@@ -2,25 +2,18 @@ import {
   useEffect,
   useRef,
   useState,
-  type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
+import { getPageFrame } from "./canvasDocument";
+import { CanvasNodeView } from "./CanvasNodeView";
 import {
-  getPageFrame,
-  resolveStyleVariables,
-  type CanvasPage,
-} from "./canvasDocument";
-import { CanvasWidgetView } from "./CanvasWidgetView";
-import {
-  applyWidgetRuntimeOverrides,
   createRuntimeState,
   dispatchPageLoad,
   dispatchRuntimeEvent,
   getRuntimePage,
-  runtimeStyleVariables,
   type CanvasRuntimeState,
   type RuntimeSnapshot,
 } from "./canvasRuntime";
@@ -28,137 +21,6 @@ import styles from "./CanvasSimulator.module.css";
 
 const TITLE_BAR_HEIGHT = 34;
 const MIN_WINDOW_WIDTH = 220;
-
-function toReactStyle(stylesMap: Record<string, string>): CSSProperties {
-  const result: Record<string, string> = {};
-  for (const [key, value] of Object.entries(stylesMap)) {
-    if (key.startsWith("--")) {
-      result[key] = value;
-      continue;
-    }
-    result[key.replace(/-([a-z])/g, (_, char: string) => char.toUpperCase())] =
-      value;
-  }
-  return result as CSSProperties;
-}
-
-function hasBehaviorTrigger(page: CanvasPage, event: string) {
-  return Boolean(
-    page.behavior?.triggers.some((trigger) => trigger.event === event),
-  );
-}
-
-function RuntimePageNode({
-  snapshot,
-  page,
-  isRoot,
-  runtime,
-  onEvent,
-  depth = 0,
-}: {
-  snapshot: RuntimeSnapshot;
-  page: CanvasPage;
-  isRoot: boolean;
-  runtime: CanvasRuntimeState;
-  onEvent: (nodeId: string, event: string) => void;
-  depth?: number;
-}) {
-  const frame = getPageFrame(page, snapshot.pages, snapshot.links);
-  const resolved = resolveStyleVariables(
-    page.styles,
-    page,
-    snapshot.pages,
-    snapshot.links,
-  );
-  const overrides = runtime.overrides[page.id];
-  const localX = isRoot ? 0 : frame.localX;
-  const localY = isRoot ? 0 : frame.localY;
-  const nodeStyle: CSSProperties = {
-    ...toReactStyle(resolved),
-    ...(runtimeStyleVariables(overrides) as CSSProperties),
-    position: isRoot ? "relative" : "absolute",
-    left: localX,
-    top: localY,
-    width: frame.width,
-    height: frame.height,
-    display: overrides?.visible === false ? "none" : "block",
-    overflow: "hidden",
-  };
-  const children =
-    depth < 8
-      ? snapshot.pages.filter((item) => item.parentId === page.id)
-      : [];
-  const widget = applyWidgetRuntimeOverrides(page.widget, overrides);
-  const clickable = hasBehaviorTrigger(page, "click");
-  const hoverable =
-    hasBehaviorTrigger(page, "hoverEnter") ||
-    hasBehaviorTrigger(page, "hoverLeave");
-
-  return (
-    <div
-      className={styles.runtimeNode}
-      data-node-id={page.id}
-      data-clickable={clickable || undefined}
-      style={nodeStyle}
-      role={clickable ? "button" : undefined}
-      aria-label={clickable ? page.name : undefined}
-      tabIndex={clickable ? 0 : undefined}
-      onClick={
-        clickable
-          ? (event) => {
-              event.stopPropagation();
-              onEvent(page.id, "click");
-            }
-          : undefined
-      }
-      onKeyDown={
-        clickable
-          ? (event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                event.stopPropagation();
-                onEvent(page.id, "click");
-              }
-            }
-          : undefined
-      }
-      onMouseEnter={
-        hoverable
-          ? (event) => {
-              event.stopPropagation();
-              onEvent(page.id, "hoverEnter");
-            }
-          : undefined
-      }
-      onMouseLeave={
-        hoverable
-          ? (event) => {
-              event.stopPropagation();
-              onEvent(page.id, "hoverLeave");
-            }
-          : undefined
-      }
-    >
-      {widget ? (
-        <CanvasWidgetView
-          widget={widget}
-          style={runtimeStyleVariables(overrides) as CSSProperties}
-        />
-      ) : null}
-      {children.map((child) => (
-        <RuntimePageNode
-          key={child.id}
-          snapshot={snapshot}
-          page={child}
-          isRoot={false}
-          runtime={runtime}
-          onEvent={onEvent}
-          depth={depth + 1}
-        />
-      ))}
-    </div>
-  );
-}
 
 function stabilizeRuntime(snapshot: RuntimeSnapshot, start: CanvasRuntimeState) {
   let state = start;
@@ -445,12 +307,14 @@ export function CanvasSimulator({
                   transform: `scale(${contentScale})`,
                 }}
               >
-                <RuntimePageNode
-                  snapshot={snapshot}
+                <CanvasNodeView
                   page={currentPage}
-                  isRoot
+                  pages={snapshot.pages}
+                  links={snapshot.links}
+                  root
                   runtime={runtime}
                   onEvent={handleRuntimeEvent}
+                  maxDepth={8}
                 />
               </div>
             </div>

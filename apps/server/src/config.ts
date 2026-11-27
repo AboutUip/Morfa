@@ -13,12 +13,15 @@ export const DATABASE_PATH = process.env.DATABASE_PATH
 export const UPLOADS_DIR = path.join(DATA_DIR, "uploads");
 export const AVATARS_DIR = path.join(UPLOADS_DIR, "avatars");
 export const PROJECT_ICONS_DIR = path.join(UPLOADS_DIR, "projects");
+export const ASSETS_DIR = path.join(UPLOADS_DIR, "assets");
 export const EXPORTS_DIR = path.join(DATA_DIR, "exports");
 export const EXPORT_MASTER_KEY_FILE = path.join(DATA_DIR, "export-master.key");
 export const MIGRATIONS_DIR = path.join(SERVER_ROOT, "migrations");
 
 export const HOST = process.env.HOST ?? "127.0.0.1";
 export const PORT = Number(process.env.PORT ?? 3001);
+export const WEB_ORIGIN =
+  process.env.WEB_ORIGIN ?? "http://127.0.0.1:5173";
 
 export const SESSION_COOKIE = "morfa_session";
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;

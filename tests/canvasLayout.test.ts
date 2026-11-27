@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  resolveCanvasAspectRatio,
   resolveCanvasLayout,
   resolveCanvasLength,
 } from "../packages/shared/src/canvasLayout";
@@ -111,6 +112,91 @@ test("nested percentages follow a resized parent", () => {
   pages[0].styles.width = "800px";
   const second = resolveCanvasLayout(pages);
   assert.equal(second.get("child")?.width, 400);
+});
+
+test("resolves aspect-ratio when one dimension is auto", () => {
+  assert.equal(resolveCanvasAspectRatio("16 / 9"), 16 / 9);
+  assert.equal(resolveCanvasAspectRatio("4/3"), 4 / 3);
+  assert.equal(resolveCanvasAspectRatio("1.5"), 1.5);
+  assert.equal(resolveCanvasAspectRatio("auto"), null);
+  assert.equal(resolveCanvasAspectRatio("0 / 9"), null);
+  assert.equal(resolveCanvasAspectRatio("16foo"), null);
+
+  const frames = resolveCanvasLayout([
+    {
+      id: "root",
+      x: 0,
+      y: 0,
+      styles: { width: "1000px", height: "800px" },
+    },
+    {
+      id: "from-width",
+      x: 0,
+      y: 0,
+      parentId: "root",
+      styles: {
+        width: "320px",
+        height: "auto",
+        "aspect-ratio": "16 / 9",
+      },
+    },
+    {
+      id: "from-height",
+      x: 0,
+      y: 0,
+      parentId: "root",
+      styles: {
+        width: "auto",
+        height: "180px",
+        "aspect-ratio": "4 / 3",
+      },
+    },
+    {
+      id: "stretched-width",
+      x: 0,
+      y: 0,
+      parentId: "root",
+      styles: {
+        left: "20px",
+        right: "20px",
+        height: "auto",
+        "aspect-ratio": "2",
+      },
+    },
+    {
+      id: "overridden",
+      x: 0,
+      y: 0,
+      parentId: "root",
+      styles: {
+        width: "300px",
+        height: "100px",
+        "aspect-ratio": "16 / 9",
+      },
+    },
+    {
+      id: "invalid",
+      x: 0,
+      y: 0,
+      parentId: "root",
+      styles: {
+        width: "100px",
+        height: "auto",
+        "aspect-ratio": "banana",
+      },
+    },
+  ]);
+
+  assert.equal(frames.get("from-width")?.height, 180);
+  assert.equal(frames.get("from-height")?.width, 240);
+  assert.equal(frames.get("stretched-width")?.width, 960);
+  assert.equal(frames.get("stretched-width")?.height, 480);
+  assert.equal(frames.get("overridden")?.height, 100);
+  assert.equal(frames.get("invalid")?.valid, false);
+  assert.equal(
+    frames.get("invalid")?.issues[0]?.code,
+    "invalid-aspect-ratio",
+  );
 });
 
 test("legacy world coordinates remain visual coordinates", () => {

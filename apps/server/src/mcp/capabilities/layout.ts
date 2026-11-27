@@ -34,7 +34,7 @@ const MAX_BATCH_ITEMS = 200;
 const LAYOUT_SCHEMA = {
   type: "string" as const,
   description:
-    'JSON object with layout fields: {"x":120,"y":80,"width":"50%","left":"24px","minWidth":200}. Numbers are px; strings are CSS lengths.',
+    'JSON object with layout fields: {"x":120,"y":80,"width":"50%","left":"24px","minWidth":200,"aspectRatio":"16 / 9"}. Numbers are px; strings are CSS lengths.',
   maxLength: 64000,
 };
 
@@ -56,6 +56,7 @@ const LAYOUT_STYLE_KEYS: Record<string, string> = {
   maxWidth: "max-width",
   minHeight: "min-height",
   maxHeight: "max-height",
+  aspectRatio: "aspect-ratio",
 };
 
 const LAYOUT_FIELDS = new Set([
@@ -100,6 +101,36 @@ function parseLayoutPatch(
       } else {
         patch.y = rawValue;
         patch.hasY = true;
+      }
+      continue;
+    }
+
+    if (key === "aspectRatio") {
+      if (typeof rawValue === "number") {
+        if (!Number.isFinite(rawValue) || rawValue <= 0) {
+          invalidArgument(`${field}.${key}`, "必须是正数或比例字符串");
+        }
+        patch.styles["aspect-ratio"] = String(rawValue);
+      } else if (typeof rawValue === "string") {
+        const text = rawValue.trim();
+        if (!text) invalidArgument(`${field}.${key}`, "不能为空");
+        if (
+          text.toLowerCase() !== "auto" &&
+          !/^\s*(?:\d+(?:\.\d*)?|\.\d+)\s*(?:\/\s*(?:\d+(?:\.\d*)?|\.\d+)\s*)?$/.test(
+            text,
+          )
+        ) {
+          invalidArgument(
+            `${field}.${key}`,
+            '必须是 "16 / 9"、"1.5" 或 "auto"',
+          );
+        }
+        patch.styles["aspect-ratio"] = text;
+      } else {
+        invalidArgument(
+          `${field}.${key}`,
+          "必须是数字、比例字符串或 auto",
+        );
       }
       continue;
     }
@@ -245,7 +276,7 @@ export function layoutCapabilities(): McpCapability[] {
         "zh-CN":
           'layout 为 JSON 字符串。数字按 px 处理，也可传 "50%"、"calc(100% - 24px)" 等 CSS 长度。width/height 写入 styles.width/styles.height，left/right/top/bottom 写入对应样式，minWidth 等写入 min-width 等。expectedUpdatedAt 可选：不一致时返回 409。',
         "en-US":
-          'layout is a JSON string. Numbers are px; CSS lengths like "50%" or "calc(100% - 24px)" are accepted. width/height map to styles.width/height, edges map to left/right/top/bottom, and min/max map to min-width/max-width/min-height/max-height. expectedUpdatedAt is optional and returns 409 on mismatch.',
+          'layout is a JSON string. Numbers are px; CSS lengths like "50%" or "calc(100% - 24px)" are accepted. width/height map to styles.width/height, edges map to left/right/top/bottom, and min/max map to min-width/max-width/min-height/max-height, and aspectRatio maps to aspect-ratio. expectedUpdatedAt is optional and returns 409 on mismatch.',
       },
       returns: {
         "zh-CN": "更新后的页面、解析后的 frame 与画布 updatedAt。",
