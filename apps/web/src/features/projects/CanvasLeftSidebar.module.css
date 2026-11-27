@@ -95,6 +95,8 @@
   flex: 1;
   min-height: 0;
   flex-direction: column;
+  container-name: components-panel;
+  container-type: inline-size;
 }
 
 .panelTabs {
@@ -290,6 +292,13 @@
   gap: 12px;
   padding: 10px 12px 16px;
   overflow-y: auto;
+}
+
+@container components-panel (min-width: 320px) {
+  .marketGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
 }
 
 .marketGroupTitle {
