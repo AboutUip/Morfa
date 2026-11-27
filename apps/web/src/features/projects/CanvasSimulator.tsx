@@ -7,7 +7,7 @@ import {
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
-import { getPageFrame } from "./canvasDocument";
+import { getPageFrame, overlayRuntimePageData, resolveStyleVariables } from "./canvasDocument";
 import { CanvasNodeView, type CanvasNodeEventContext } from "./CanvasNodeView";
 import {
   createRuntimeState,
@@ -107,11 +107,30 @@ export function CanvasSimulator({
   const bezel = container?.frame ? (container.frame === "watch" ? 8 : 9) : 0;
   const screenDesignWidth = Math.max(1, containerSize.width - bezel * 2);
   const screenDesignHeight = Math.max(1, containerSize.height - bezel * 2);
+  // 外层还有一次 scale，按屏幕像素多铺两像素，避免右下边露出屏幕底色。
+  const overscan = 2 / Math.max(scale, 0.05);
   const contentScale = currentPage
-    ? (screenDesignWidth + 1) / Math.max(1, currentSize.width)
+    ? (screenDesignWidth + overscan) / Math.max(1, currentSize.width)
     : 1;
-  const coverHeight = (screenDesignHeight + 1) / Math.max(contentScale, 0.0001);
+  const coverHeight =
+    (screenDesignHeight + overscan) / Math.max(contentScale, 0.0001);
   const filledHeight = Math.max(currentSize.height, coverHeight);
+  const pagesForFill = overlayRuntimePageData(
+    snapshot.pages,
+    runtime.runtimeNodeData,
+  );
+  const pageForFill =
+    (currentPage
+      ? pagesForFill.find((item) => item.id === currentPage.id)
+      : undefined) ?? currentPage;
+  const pageBackground = pageForFill
+    ? resolveStyleVariables(
+        pageForFill.styles,
+        pageForFill,
+        pagesForFill,
+        snapshot.links,
+      )["background-color"]
+    : undefined;
 
   const handleRuntimeEvent = (
     nodeId: string,
@@ -313,14 +332,16 @@ export function CanvasSimulator({
             <div className={styles.deviceScreen}>
               <div
                 className={styles.pageScaler}
-                style={{
-                  width: currentSize.width,
-                  height: filledHeight,
-                  left: 0,
-                  top: 0,
-                  transform: `scale(${contentScale})`,
-                }}
+                style={pageBackground ? { background: pageBackground } : undefined}
               >
+                <div
+                  className={styles.pageScale}
+                  style={{
+                    width: currentSize.width,
+                    height: filledHeight,
+                    transform: `scale(${contentScale})`,
+                  }}
+                >
                 <CanvasNodeView
                   page={currentPage}
                   pages={snapshot.pages}
@@ -336,6 +357,7 @@ export function CanvasSimulator({
                   onEvent={handleRuntimeEvent}
                   maxDepth={8}
                 />
+                </div>
               </div>
             </div>
             {container.frame === "iphone" ? (

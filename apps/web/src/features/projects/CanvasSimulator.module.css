@@ -165,7 +165,7 @@
   inset: 0;
   overflow: hidden;
   border-radius: 33px;
-  background: #ffffff;
+  background: transparent;
 }
 
 .device[data-frame="android"] .deviceScreen {
@@ -182,6 +182,14 @@
 
 .pageScaler {
   position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.pageScale {
+  position: absolute;
+  top: 0;
+  left: 0;
   transform-origin: top left;
 }
 
