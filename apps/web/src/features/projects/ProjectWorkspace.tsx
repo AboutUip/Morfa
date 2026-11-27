@@ -1137,11 +1137,30 @@ export function ProjectWorkspace({
     pageId: string,
     styles: Record<string, string>,
   ) => {
-    commitPages((current) =>
-      current.map((page) =>
-        page.id === pageId ? { ...page, styles } : page,
-      ),
-    );
+    const targets =
+      selectedPageIds.length > 1 && selectedPageIds.includes(pageId)
+        ? selectedPageIds
+        : [pageId];
+    commitPages((current) => {
+      const source = current.find((page) => page.id === pageId);
+      if (!source) return current;
+      const previous = source.styles;
+      const changed = [
+        ...new Set([...Object.keys(previous), ...Object.keys(styles)]),
+      ].filter((key) => (previous[key] ?? "") !== (styles[key] ?? ""));
+      if (changed.length === 0) return current;
+      const ids = new Set(targets);
+      return current.map((page) => {
+        if (!ids.has(page.id)) return page;
+        const next = { ...page.styles };
+        for (const key of changed) {
+          const value = styles[key];
+          if (!value) delete next[key];
+          else next[key] = value;
+        }
+        return { ...page, styles: next };
+      });
+    });
   };
 
   const handleUpdatePagePosition = (
