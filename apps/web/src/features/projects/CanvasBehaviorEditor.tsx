@@ -793,12 +793,30 @@ function BlockInspector({
             </button>
           </div>
         ) : block.condition ? (
-          <ConditionFields
-            condition={block.condition}
-            ownerId={page.id}
-            pages={pages}
-            onChange={(condition) => onChange({ condition })}
-          />
+          <div className={styles.inspectorFields}>
+            <ConditionFields
+              condition={block.condition}
+              ownerId={page.id}
+              pages={pages}
+              onChange={(condition) => onChange({ condition })}
+            />
+            <button
+              className={styles.paletteButton}
+              type="button"
+              onClick={() => {
+                const next = createBehaviorCondition("nodeData");
+                next.targetId = page.id;
+                onChange({
+                  condition: undefined,
+                  conditionMode: "all",
+                  conditions: [block.condition!, next],
+                });
+              }}
+            >
+              <span className={styles.paletteMark}>+</span>
+              {t("projects.workspace.behavior.addCondition")}
+            </button>
+          </div>
         ) : (
           <p className={styles.mutedText}>
             {t("projects.workspace.behavior.lint.blockConditionMissing")}

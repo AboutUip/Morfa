@@ -352,6 +352,7 @@
         "dropNodeHint": "Drag a node from Layers to use it as the target",
         "conditionTag": "If",
         "conditionsTitle": "Conditions",
+        "addCondition": "Add condition",
         "conditionsEmpty": "No conditions. The event runs its actions directly.",
         "conditionHint": "Add conditions to run actions only when they match",
         "conditionModeAll": "All conditions",
