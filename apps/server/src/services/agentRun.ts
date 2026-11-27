@@ -13,7 +13,7 @@ import { mcpController } from "../mcp/runtime.js";
 import { buildProviderEndpoint } from "./modelProviders.js";
 import { decryptSecret } from "./secretBox.js";
 
-const MAX_ROUNDS = 12;
+const OUTPUT_TOKENS = 128_000;
 function readDesignSkill() {
   return readFileSync(
     join(
@@ -23,11 +23,6 @@ function readDesignSkill() {
     "utf8",
   ).trim();
 }
-const MAX_MESSAGES = 32;
-const MAX_TEXT = 12_000;
-const MAX_IMAGES = 4;
-const MAX_IMAGE_CHARS = 1_800_000;
-const MAX_TOOL_TEXT = 8_000;
 const IMAGE_TYPES = new Set([
   "image/png",
   "image/jpeg",
@@ -121,24 +116,23 @@ function summarize(value: unknown) {
   } catch {
     text = String(value);
   }
-  return clip(text, MAX_TOOL_TEXT);
+  return text;
 }
 
 function readMessages(value: unknown): AgentTurnMessage[] {
   if (!Array.isArray(value)) {
     throw new ApiError(400, "AGENT_MESSAGES_INVALID", "缺少对话内容");
   }
-  const messages = value.slice(-MAX_MESSAGES).map((item) => {
+  const messages = value.map((item) => {
     if (!item || typeof item !== "object") {
       throw new ApiError(400, "AGENT_MESSAGES_INVALID", "对话内容不正确");
     }
     const record = item as Record<string, unknown>;
     const role: AgentTurnMessage["role"] =
       record.role === "assistant" ? "assistant" : "user";
-    const text =
-      typeof record.text === "string" ? record.text.slice(0, MAX_TEXT) : "";
+    const text = typeof record.text === "string" ? record.text : "";
     const images = Array.isArray(record.images)
-      ? record.images.slice(0, MAX_IMAGES).flatMap((image) => {
+      ? record.images.flatMap((image) => {
           if (!image || typeof image !== "object") return [];
           const part = image as Record<string, unknown>;
           const mediaType =
@@ -149,9 +143,6 @@ function readMessages(value: unknown): AgentTurnMessage[] {
             data = data.slice(marker + 1);
           }
           if (!IMAGE_TYPES.has(mediaType) || !data) return [];
-          if (data.length > MAX_IMAGE_CHARS) {
-            throw new ApiError(400, "AGENT_IMAGE_TOO_LARGE", "图片太大");
-          }
           return [{ mediaType, data }];
         })
       : [];
@@ -170,16 +161,14 @@ function readContext(value: unknown): AgentContext {
   }
   const record = value as Record<string, unknown>;
   const selectedIds = Array.isArray(record.selectedIds)
-    ? record.selectedIds.filter((item) => typeof item === "string").slice(0, 20)
+    ? record.selectedIds.filter((item): item is string => typeof item === "string")
     : [];
   const selectedNames = Array.isArray(record.selectedNames)
-    ? record.selectedNames
-        .filter((item) => typeof item === "string")
-        .slice(0, 20)
+    ? record.selectedNames.filter((item): item is string => typeof item === "string")
     : [];
   return {
-    selectedIds: selectedIds as string[],
-    selectedNames: selectedNames as string[],
+    selectedIds,
+    selectedNames,
     behaviorOpen: record.behaviorOpen === true,
   };
 }
@@ -709,12 +698,9 @@ function readToolImages(
   if (!images?.length) return [];
   const ready: ToolImage[] = [];
   for (const image of images) {
-    if (ready.length >= 2) break;
     const mediaType = image.mimeType ?? "";
     const data = image.data ?? "";
-    if (!IMAGE_TYPES.has(mediaType) || !data || data.length > MAX_IMAGE_CHARS) {
-      continue;
-    }
+    if (!IMAGE_TYPES.has(mediaType) || !data) continue;
     ready.push({ mediaType, data });
   }
   return ready;
@@ -766,7 +752,7 @@ async function* executeTools(
       id,
       name: call.name,
       phase: "call",
-      arguments: clip(call.arguments || "{}", 2000),
+      arguments: call.arguments || "{}",
     };
     let ok = false;
     let summary = "";
@@ -809,7 +795,7 @@ async function* executeTools(
       name: call.name,
       phase: "result",
       ok,
-      summary: clip(summary, 2000),
+      summary,
       mutated,
     };
   }
@@ -826,12 +812,13 @@ async function* runOpenAi(run: RunInput): AsyncGenerator<AgentEvent> {
     })),
   ];
 
-  for (let round = 0; round < MAX_ROUNDS; round += 1) {
+  for (;;) {
     if (run.signal.aborted) return;
     const body: Record<string, unknown> = {
       model: run.model.model_id,
       messages,
       stream: run.model.supports_streaming,
+      max_tokens: OUTPUT_TOKENS,
     };
     if (run.model.supports_streaming) {
       body.stream_options = { include_usage: true };
@@ -890,14 +877,12 @@ async function* runAnthropic(run: RunInput): AsyncGenerator<AgentEvent> {
       message.role === "user" ? anthropicContent(message) : message.text || " ",
   }));
   const budgets = { low: 1024, medium: 4096, high: 8000 } as const;
-  const maxTokens =
-    run.effort === "high" ? 16_000 : run.effort === "medium" ? 8_000 : 4_096;
 
-  for (let round = 0; round < MAX_ROUNDS; round += 1) {
+  for (;;) {
     if (run.signal.aborted) return;
     const body: Record<string, unknown> = {
       model: run.model.model_id,
-      max_tokens: maxTokens,
+      max_tokens: OUTPUT_TOKENS,
       system: run.prompt,
       messages,
       stream: run.model.supports_streaming,

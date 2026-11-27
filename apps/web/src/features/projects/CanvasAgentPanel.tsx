@@ -62,7 +62,7 @@ function formatTokens(value: number) {
 
 function readImages(files: FileList | File[]) {
   return Promise.all(
-    [...files].slice(0, 4).map(
+    [...files].map(
       (file) =>
         new Promise<AgentImage | null>((resolve) => {
           if (!file.type.startsWith("image/")) {
@@ -75,7 +75,7 @@ function readImages(files: FileList | File[]) {
               typeof reader.result === "string" ? reader.result : "";
             const comma = result.indexOf(",");
             const data = comma >= 0 ? result.slice(comma + 1) : result;
-            if (!data || data.length > 1_800_000) {
+            if (!data) {
               resolve(null);
               return;
             }
@@ -341,7 +341,7 @@ export function CanvasAgentPanel({ projectId }: { projectId: string }) {
     if (next.length === 0) return;
     setImages((current) => ({
       ...current,
-      [conversation.id]: [...(current[conversation.id] ?? []), ...next].slice(0, 4),
+      [conversation.id]: [...(current[conversation.id] ?? []), ...next],
     }));
   };
 
