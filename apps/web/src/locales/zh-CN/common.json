@@ -179,7 +179,7 @@
           "noAccess": "当前节点无法访问 {{name}} 的数据",
           "missingSelfKey": "当前节点没有数据 {{key}}",
           "missingNodeKey": "{{name}} 没有数据 {{key}}",
-          "layoutInvalid": "{{page}} ? {{property}} ????{{value}}"
+          "layoutInvalid": "{{page}} 的 {{property}} 值无效：{{value}}"
         }
       },
       "propertiesPanel": {
@@ -223,7 +223,7 @@
           "maxWidth": "最大宽度",
           "minHeight": "最小高度",
           "maxHeight": "最大高度",
-          "aspectRatio": "???",
+          "aspectRatio": "宽高比",
           "display": "显示",
           "overflow": "溢出",
           "boxSizing": "盒模型",
@@ -268,7 +268,7 @@
         "widgetTextPlaceholder": "输入组件显示的文字",
         "lengthPlaceholder": "例如 320px、50%、calc(100% - 24px)、auto",
         "positionHint": "百分比基于父级内容盒解析；左/上/右/下用于在父级内部定位当前页面。",
-        "aspectRatioPlaceholder": "?? 16 / 9",
+        "aspectRatioPlaceholder": "例如 16 / 9",
         "widgetDescriptionPlaceholder": "输入补充说明文字",
         "widgetOptionsPlaceholder": "用 | 分隔多个选项",
         "widgetDataPlaceholder": "用逗号分隔，例如 32, 58, 76, 45",
@@ -327,9 +327,9 @@
         "lintTitle": "行为检查",
         "lintClean": "未发现行为问题。",
         "states": "状态",
-        "stateMapTitle": "???",
-        "stateMapHint": "????????????????",
-        "stateMapEmpty": "???????????????",
+        "stateMapTitle": "状态图",
+        "stateMapHint": "点击转移线可编辑其触发条件。",
+        "stateMapEmpty": "添加“切换状态”动作即可连接状态。",
         "variables": "变量",
         "setInitialState": "设为初始状态",
         "stateName": "状态名称",
