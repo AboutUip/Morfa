@@ -320,6 +320,18 @@ export function ProjectWorkspace({
   const [lintOpen, setLintOpen] = useState(false);
   const [behaviorEditorOpen, setBehaviorEditorOpen] = useState(false);
   const [lintHeight, setLintHeight] = useState(220);
+  const [behaviorHeight, setBehaviorHeight] = useState(() =>
+    Math.round(
+      Math.min(
+        760,
+        Math.max(
+          420,
+          (typeof window === "undefined" ? 900 : window.innerHeight) *
+            0.6,
+        ),
+      ),
+    ),
+  );
   const [editingControlId, setEditingControlId] = useState<string | null>(
     null,
   );
@@ -1828,8 +1840,8 @@ export function ProjectWorkspace({
         <CanvasBehaviorEditor
           pages={behaviorEditorPages}
           pageId={selectedPageId}
-          height={lintHeight}
-          onHeightChange={setLintHeight}
+          height={behaviorHeight}
+          onHeightChange={setBehaviorHeight}
           onClose={() => setBehaviorEditorOpen(false)}
           onUpdateBehavior={handleUpdatePageBehavior}
         />

@@ -19,7 +19,6 @@ import type {
   CanvasBehaviorConditionOperator,
   CanvasBehaviorConditionSource,
   CanvasBehaviorEdge,
-  CanvasBehaviorState,
   CanvasPage,
 } from "./canvasDocument";
 import {
@@ -34,7 +33,6 @@ import {
   createBehaviorBlock,
   createBehaviorCondition,
   createBehaviorEdge,
-  createBehaviorState,
   getPageBehavior,
   getSupportedEvents,
   materializeBehaviorGraph,
@@ -51,6 +49,13 @@ const MIN_LEFT_PANEL_WIDTH = 150;
 const MAX_LEFT_PANEL_WIDTH = 360;
 const MIN_RIGHT_PANEL_WIDTH = 200;
 const MAX_RIGHT_PANEL_WIDTH = 440;
+const HIDDEN_STATE_LINT_KEYS = new Set([
+  "projects.workspace.behavior.lint.initialStateMissing",
+  "projects.workspace.behavior.lint.initialStateMultiple",
+  "projects.workspace.behavior.lint.stateMissing",
+  "projects.workspace.behavior.lint.stateUnreachable",
+  "projects.workspace.behavior.lint.conditionStateMissing",
+]);
 
 function DraftInput({
   value,
@@ -232,6 +237,9 @@ function ConditionFields({
     BEHAVIOR_CONDITION_SOURCES.find(
       (item) => item.source === condition.source,
     ) ?? BEHAVIOR_CONDITION_SOURCES[0];
+  const sourceDefinitions = BEHAVIOR_CONDITION_SOURCES.filter(
+    (item) => item.source !== "state" || condition.source === "state",
+  );
   const needsTarget = sourceDefinition.needsTarget;
   const targetId = condition.targetId ?? ownerId;
   const target = pages.find((page) => page.id === targetId) ?? null;
@@ -274,7 +282,7 @@ function ConditionFields({
             replaceSource(value as CanvasBehaviorConditionSource)
           }
         >
-          {BEHAVIOR_CONDITION_SOURCES.map((item) => (
+          {sourceDefinitions.map((item) => (
             <option value={item.source} key={item.source}>
               {t(item.labelKey)}
             </option>
@@ -653,6 +661,10 @@ function BlockInspector({
     ? [...supportedEvents]
     : [eventValue, ...supportedEvents];
   const action = block.action;
+  const actionDefinitions = BEHAVIOR_ACTION_DEFINITIONS.filter(
+    (definition) =>
+      definition.type !== "setState" || action?.type === "setState",
+  );
 
   const replaceActionType = (type: CanvasBehaviorActionType) => {
     const definition = BEHAVIOR_ACTION_DEFINITIONS.find(
@@ -697,24 +709,9 @@ function BlockInspector({
               ))}
             </SelectField>
           </label>
-          <label className={styles.fieldRow}>
-            <span>{t("projects.workspace.behavior.fields.stateFilter")}</span>
-            <SelectField
-              value={block.stateId ?? ""}
-              onChange={(value) =>
-                onChange({ stateId: value || undefined })
-              }
-            >
-              <option value="">
-                {t("projects.workspace.behavior.anyState")}
-              </option>
-              {behavior.states.map((state) => (
-                <option value={state.id} key={state.id}>
-                  {state.name}
-                </option>
-              ))}
-            </SelectField>
-          </label>
+          <p className={styles.dropHint}>
+            {t("projects.workspace.behavior.startEditorHint")}
+          </p>
         </div>
       ) : null}
 
@@ -839,7 +836,7 @@ function BlockInspector({
                   replaceActionType(value as CanvasBehaviorActionType)
                 }
               >
-                {BEHAVIOR_ACTION_DEFINITIONS.map((definition) => (
+                {actionDefinitions.map((definition) => (
                   <option value={definition.type} key={definition.type}>
                     {t(behaviorActionLabelKey(definition.type))}
                   </option>
@@ -878,58 +875,6 @@ function BlockInspector({
           />
         </div>
       ) : null}
-    </div>
-  );
-}
-
-function StateInspector({
-  state,
-  canDelete,
-  onRename,
-  onSetInitial,
-  onDelete,
-}: {
-  state: CanvasBehaviorState;
-  canDelete: boolean;
-  onRename: (name: string) => void;
-  onSetInitial: (initial: boolean) => void;
-  onDelete: () => void;
-}) {
-  const { t } = useTranslation();
-  return (
-    <div className={styles.inspector}>
-      <div className={styles.inspectorHeader}>
-        <span className={styles.inspectorKind}>
-          {t("projects.workspace.behavior.blockTypes.state")}
-        </span>
-        <button
-          className={styles.iconButton}
-          type="button"
-          disabled={!canDelete}
-          aria-label={t("projects.workspace.behavior.deleteState")}
-          onClick={onDelete}
-        >
-          ×
-        </button>
-      </div>
-      <div className={styles.inspectorFields}>
-        <label className={styles.fieldRow}>
-          <span>{t("projects.workspace.behavior.stateName")}</span>
-          <DraftInput
-            value={state.name}
-            ariaLabel={t("projects.workspace.behavior.stateName")}
-            onCommit={onRename}
-          />
-        </label>
-        <label className={styles.checkboxRow}>
-          <input
-            type="checkbox"
-            checked={Boolean(state.initial)}
-            onChange={(event) => onSetInitial(event.target.checked)}
-          />
-          {t("projects.workspace.behavior.setInitialState")}
-        </label>
-      </div>
     </div>
   );
 }
@@ -987,8 +932,8 @@ export function CanvasBehaviorEditor({
   const behavior = page ? getPageBehavior(page) : null;
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
-  const [leftPanelWidth, setLeftPanelWidth] = useState(210);
-  const [rightPanelWidth, setRightPanelWidth] = useState(248);
+  const [leftPanelWidth, setLeftPanelWidth] = useState(230);
+  const [rightPanelWidth, setRightPanelWidth] = useState(270);
   const [convertedPageId, setConvertedPageId] = useState<string | null>(
     null,
   );
@@ -1004,13 +949,16 @@ export function CanvasBehaviorEditor({
 
   const blocks = behavior?.blocks ?? [];
   const edges = behavior?.edges ?? [];
-  const states = behavior?.states ?? [];
   const supportedEvents = page
     ? getSupportedEvents(page)
     : ["click", "load"];
   const lintItems = useMemo(() => collectBehaviorLint(pages), [pages]);
   const currentLint = page
-    ? lintItems.filter((item) => item.pageId === page.id)
+    ? lintItems.filter(
+        (item) =>
+          item.pageId === page.id &&
+          !HIDDEN_STATE_LINT_KEYS.has(item.messageKey),
+      )
     : [];
   useEffect(() => {
     if (!page || !behavior) return;
@@ -1037,12 +985,11 @@ export function CanvasBehaviorEditor({
   useEffect(() => {
     if (
       selectedNodeId &&
-      !blocks.some((block) => block.id === selectedNodeId) &&
-      !states.some((state) => state.id === selectedNodeId)
+      !blocks.some((block) => block.id === selectedNodeId)
     ) {
       setSelectedNodeId(null);
     }
-  }, [blocks, states, selectedNodeId]);
+  }, [blocks, selectedNodeId]);
 
   useEffect(() => {
     if (
@@ -1060,11 +1007,9 @@ export function CanvasBehaviorEditor({
   const updateGraph = ({
     blocks: nextBlocks,
     edges: nextEdges,
-    states: nextStates,
   }: {
     blocks?: CanvasBehaviorBlock[];
     edges?: CanvasBehaviorEdge[];
-    states?: CanvasBehaviorState[];
   }) => {
     if (!behavior) return;
     updateBehavior({
@@ -1073,7 +1018,6 @@ export function CanvasBehaviorEditor({
       triggers: [],
       blocks: nextBlocks ?? blocks,
       edges: nextEdges ?? edges,
-      states: nextStates ?? states,
     });
   };
 
@@ -1088,26 +1032,6 @@ export function CanvasBehaviorEditor({
     });
   };
 
-  const patchState = (
-    id: string,
-    patch: Partial<CanvasBehaviorState>,
-  ) => {
-    updateGraph({
-      states: states.map((state) =>
-        state.id === id ? { ...state, ...patch } : state,
-      ),
-    });
-  };
-
-  const setInitialState = (id: string) => {
-    updateGraph({
-      states: states.map((state) => ({
-        ...state,
-        initial: state.id === id,
-      })),
-    });
-  };
-
   const findFreePosition = (
     width: number,
     height: number,
@@ -1119,12 +1043,6 @@ export function CanvasBehaviorEditor({
         y: block.y,
         width: BEHAVIOR_GRAPH_NODE_WIDTH,
         height: 100,
-      })),
-      ...states.map((state, index) => ({
-        x: state.x ?? 96 + index * 228,
-        y: state.y ?? 32,
-        width: 178,
-        height: 62,
       })),
     ];
     const overlaps = (x: number, y: number) =>
@@ -1188,45 +1106,9 @@ export function CanvasBehaviorEditor({
     addBlock({ type: "action", action: createBehaviorAction(type) });
   };
 
-  const addStateAt = (name: string) => {
-    if (!behavior) return;
-    const center = graphApiRef.current?.getViewportCenter() ?? {
-      x: 200,
-      y: 120,
-    };
-    const position = findFreePosition(178, 62, center);
-    const state: CanvasBehaviorState = {
-      ...createBehaviorState(name),
-      x: position.x,
-      y: position.y,
-      ...(states.length === 0 || !states.some((item) => item.initial)
-        ? { initial: true }
-        : {}),
-    };
-    updateGraph({ states: [...states, state] });
-    setSelectedNodeId(state.id);
-    setSelectedEdgeId(null);
-  };
-
   const deleteBlock = (id: string) => {
     updateGraph({
       blocks: blocks.filter((block) => block.id !== id),
-      edges: edges.filter((edge) => edge.from !== id && edge.to !== id),
-    });
-    if (selectedNodeId === id) setSelectedNodeId(null);
-    setSelectedEdgeId(null);
-  };
-
-  const deleteState = (id: string) => {
-    if (states.length <= 1) return;
-    let nextStates = states.filter((state) => state.id !== id);
-    if (nextStates.length > 0 && !nextStates.some((state) => state.initial)) {
-      nextStates = nextStates.map((state, index) =>
-        index === 0 ? { ...state, initial: true } : state,
-      );
-    }
-    updateGraph({
-      states: nextStates,
       edges: edges.filter((edge) => edge.from !== id && edge.to !== id),
     });
     if (selectedNodeId === id) setSelectedNodeId(null);
@@ -1241,17 +1123,12 @@ export function CanvasBehaviorEditor({
   const deleteNode = (id: string) => {
     if (blocks.some((block) => block.id === id)) {
       deleteBlock(id);
-    } else if (states.some((state) => state.id === id)) {
-      deleteState(id);
     }
   };
 
   const addEdge = (from: string, to: string) => {
     if (!behavior) return;
-    const knownIds = new Set([
-      ...blocks.map((block) => block.id),
-      ...states.map((state) => state.id),
-    ]);
+    const knownIds = new Set(blocks.map((block) => block.id));
     if (!knownIds.has(from) || !knownIds.has(to)) return;
     const existing = edges.find(
       (edge) => edge.from === from && edge.to === to,
@@ -1268,17 +1145,12 @@ export function CanvasBehaviorEditor({
   };
 
   const moveNode = (id: string, x: number, y: number) => {
-    if (blocks.some((block) => block.id === id)) {
-      updateGraph({
-        blocks: blocks.map((block) =>
-          block.id === id ? { ...block, x, y } : block,
-        ),
-      });
-      return;
-    }
-    if (states.some((state) => state.id === id)) {
-      patchState(id, { x, y });
-    }
+    if (!blocks.some((block) => block.id === id)) return;
+    updateGraph({
+      blocks: blocks.map((block) =>
+        block.id === id ? { ...block, x, y } : block,
+      ),
+    });
   };
 
   useEffect(() => {
@@ -1327,13 +1199,35 @@ export function CanvasBehaviorEditor({
   const handleResizeMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     const resize = resizeRef.current;
     if (!resize || resize.pointerId !== event.pointerId) return;
-    const maxHeight = Math.max(160, window.innerHeight * 0.7);
+    const maxHeight = Math.max(320, window.innerHeight * 0.86);
     onHeightChange(
       Math.min(
         maxHeight,
-        Math.max(160, resize.startHeight + resize.startY - event.clientY),
+        Math.max(320, resize.startHeight + resize.startY - event.clientY),
       ),
     );
+  };
+
+  const expandedHeightRef = useRef<number | null>(null);
+
+  const viewportHeight =
+    typeof window === "undefined" ? 900 : window.innerHeight;
+  const isExpanded = height > viewportHeight * 0.72;
+
+  const toggleExpanded = () => {
+    const maxHeight = Math.max(320, viewportHeight * 0.86);
+    if (!isExpanded) {
+      expandedHeightRef.current = height;
+      onHeightChange(Math.round(maxHeight));
+      return;
+    }
+    onHeightChange(
+      expandedHeightRef.current ??
+        Math.round(
+          Math.min(760, Math.max(420, viewportHeight * 0.6)),
+        ),
+    );
+    expandedHeightRef.current = null;
   };
 
   const endResize = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -1433,11 +1327,6 @@ export function CanvasBehaviorEditor({
     if (issue.blockId) {
       setSelectedNodeId(issue.blockId);
       setSelectedEdgeId(null);
-      return;
-    }
-    if (issue.stateId) {
-      setSelectedNodeId(issue.stateId);
-      setSelectedEdgeId(null);
     }
   };
 
@@ -1468,14 +1357,28 @@ export function CanvasBehaviorEditor({
             {page ? page.name : t("projects.workspace.behavior.noSelection")}
           </span>
         </div>
-        <button
-          className={styles.closeButton}
-          type="button"
-          aria-label={t("projects.workspace.behavior.close")}
-          onClick={onClose}
-        >
-          ×
-        </button>
+        <div className={styles.headerActions}>
+          <button
+            className={styles.headerButton}
+            type="button"
+            aria-label={t(
+              isExpanded
+                ? "projects.workspace.behavior.restoreHeight"
+                : "projects.workspace.behavior.expandHeight",
+            )}
+            onClick={toggleExpanded}
+          >
+            {isExpanded ? "⤡" : "⤢"}
+          </button>
+          <button
+            className={styles.closeButton}
+            type="button"
+            aria-label={t("projects.workspace.behavior.close")}
+            onClick={onClose}
+          >
+            ×
+          </button>
+        </div>
       </header>
 
       {!page || !behavior ? (
@@ -1545,7 +1448,7 @@ export function CanvasBehaviorEditor({
             onKeyDown={(event) =>
               handleSideResizeKeyDown("left", event)
             }
-            onDoubleClick={() => setLeftPanelWidth(210)}
+            onDoubleClick={() => setLeftPanelWidth(230)}
           />
 
           <main className={styles.graphStage}>
@@ -1570,7 +1473,6 @@ export function CanvasBehaviorEditor({
               pages={pages}
               blocks={blocks}
               edges={edges}
-              states={states}
               selectedNodeId={selectedNodeId}
               selectedEdgeId={selectedEdgeId}
               fitKey={page.id}
@@ -1587,6 +1489,12 @@ export function CanvasBehaviorEditor({
               onCreateEdge={addEdge}
               onDeleteEdge={deleteEdge}
               onDeleteNode={deleteNode}
+              onCreateStart={() =>
+                addBlock({
+                  type: "event",
+                  event: supportedEvents[0] ?? "click",
+                })
+              }
               renderBlockEditor={(block) => (
                 <BlockInspector
                   block={block}
@@ -1596,18 +1504,6 @@ export function CanvasBehaviorEditor({
                   supportedEvents={supportedEvents}
                   onChange={(patch) => patchBlock(block.id, patch)}
                   onDelete={() => deleteBlock(block.id)}
-                />
-              )}
-              renderStateEditor={(state) => (
-                <StateInspector
-                  state={state}
-                  canDelete={states.length > 1}
-                  onRename={(name) => patchState(state.id, { name })}
-                  onSetInitial={(initial) => {
-                    if (initial) setInitialState(state.id);
-                    else patchState(state.id, { initial: false });
-                  }}
-                  onDelete={() => deleteState(state.id)}
                 />
               )}
             />
@@ -1632,7 +1528,7 @@ export function CanvasBehaviorEditor({
             onKeyDown={(event) =>
               handleSideResizeKeyDown("right", event)
             }
-            onDoubleClick={() => setRightPanelWidth(248)}
+            onDoubleClick={() => setRightPanelWidth(270)}
           />
 
           <aside
@@ -1682,20 +1578,6 @@ export function CanvasBehaviorEditor({
                 <button
                   className={styles.paletteButton}
                   type="button"
-                  onClick={() =>
-                    addStateAt(
-                      t("projects.workspace.behavior.stateDefaultName", {
-                        index: states.length + 1,
-                      }),
-                    )
-                  }
-                >
-                  <span className={styles.paletteMark}>+</span>
-                  {t("projects.workspace.behavior.blockTypes.state")}
-                </button>
-                <button
-                  className={styles.paletteButton}
-                  type="button"
                   onClick={() => addBlock({ type: "note", text: "" })}
                 >
                   <span className={styles.paletteMark}>+</span>
@@ -1740,7 +1622,9 @@ export function CanvasBehaviorEditor({
               }
             >
               <div className={styles.palette}>
-                {BEHAVIOR_CONDITION_SOURCES.map((definition) => (
+                {BEHAVIOR_CONDITION_SOURCES.filter(
+                  (definition) => definition.source !== "state",
+                ).map((definition) => (
                   <button
                     className={styles.paletteButton}
                     type="button"
@@ -1765,7 +1649,9 @@ export function CanvasBehaviorEditor({
               }
             >
               <div className={styles.palette}>
-                {BEHAVIOR_ACTION_DEFINITIONS.map((definition) => (
+                {BEHAVIOR_ACTION_DEFINITIONS.filter(
+                  (definition) => definition.type !== "setState",
+                ).map((definition) => (
                   <button
                     className={styles.paletteButton}
                     type="button"
