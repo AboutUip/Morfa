@@ -227,6 +227,7 @@
           "maxHeight": "最大高度",
           "aspectRatio": "宽高比",
           "display": "显示",
+          "visibility": "可见性",
           "overflow": "溢出",
           "boxSizing": "盒模型",
           "padding": "内边距",

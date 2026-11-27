@@ -1632,6 +1632,16 @@ function PropertiesPanel({
                     />
                     <SelectControl
                       label={t(
+                        "projects.workspace.propertiesPanel.fields.visibility",
+                      )}
+                      value={page.styles.visibility}
+                      options={["visible", "hidden", "collapse"]}
+                      onChange={(value) =>
+                        updateStyle("visibility", value)
+                      }
+                    />
+                    <SelectControl
+                      label={t(
                         "projects.workspace.propertiesPanel.fields.overflow",
                       )}
                       value={page.styles.overflow}

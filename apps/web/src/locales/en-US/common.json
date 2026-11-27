@@ -227,6 +227,7 @@
           "maxHeight": "Max height",
           "aspectRatio": "Aspect ratio",
           "display": "Display",
+          "visibility": "Visibility",
           "overflow": "Overflow",
           "boxSizing": "Box sizing",
           "padding": "Padding",

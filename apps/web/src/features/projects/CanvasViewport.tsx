@@ -2012,6 +2012,7 @@ export function CanvasViewport({
             "right",
             "top",
             "bottom",
+            "opacity",
           ]) {
             delete surfaceStyles[key];
           }
@@ -2038,6 +2039,18 @@ export function CanvasViewport({
                 top: frame.worldY,
                 width: frame.width,
                 height: frame.height,
+                ...(resolvedStyles.visibility
+                  ? {
+                      visibility:
+                        resolvedStyles.visibility as CSSProperties["visibility"],
+                    }
+                  : {}),
+                ...(resolvedStyles.opacity
+                  ? { opacity: resolvedStyles.opacity }
+                  : {}),
+                ...(resolvedStyles.display === "none"
+                  ? { display: "none" as const }
+                  : {}),
               }}
             >
               {renamingId === page.id ? (
