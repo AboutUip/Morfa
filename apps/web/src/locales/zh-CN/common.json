@@ -412,7 +412,8 @@
           "reference": "节点",
           "switch": "分支",
           "function": "函数",
-          "call": "调用"
+          "call": "调用",
+          "loop": "循环"
         },
         "startNode": "起始点",
         "startNodeHint": "流程入口",
@@ -432,9 +433,14 @@
         "noteEmpty": "空注释",
         "notePlaceholder": "写点说明…",
         "functionPlaceholder": "函数名称",
-        "functionHint": "从出口接上这段逻辑。别的地方用「调用」节点指向它，不用再复制一遍。",
-        "callHint": "运行所选函数出口后面的节点，然后继续走这条线。",
+        "functionHint": "从出口接上函数体。参数是这次调用的数据。以 __名称__ 结尾的键只在函数内部有效，返回后消失。把节点放进边框里，它就属于这个函数，函数里面还可以再放函数。",
+        "callHint": "先写入参数，跑完函数体，再沿这条线继续。",
         "chooseFunction": "选择函数",
+        "addParameter": "加一个参数",
+        "parameterPlaceholder": "参数名",
+        "argumentPlaceholder": "值或 ${节点.键}",
+        "loopCount": "重复 {{count}} 次",
+        "loopHint": "先走「重复」端口，次数用完再走「结束」。次数最多 50。序号写进索引键，默认是 __i__。",
         "nodeNoConfig": "未配置",
         "pendingEdgeHint": "点另一个节点完成连线，同一端口可以连出多条",
         "inputPort": "输入端口",
@@ -460,7 +466,9 @@
         "ports": {
           "then": "成立",
           "else": "否则",
-          "default": "默认"
+          "default": "默认",
+          "body": "重复",
+          "done": "结束"
         },
         "builtinIds": {
           "text": "文本",
@@ -546,6 +554,7 @@
           "function": "定义一个可复用的函数",
           "call": "调用一个函数",
           "apply": "一次改多项",
+          "loop": "重复若干次",
           "addCase": "加一条分支",
           "placeSentence": "放上一条语句",
           "not": "并非",
@@ -642,7 +651,10 @@
           "actionType": "动作类型",
           "noteText": "注释内容",
           "functionName": "函数名称",
-          "callFunction": "调用"
+          "callFunction": "调用",
+          "parameter": "参数",
+          "loopCount": "次数",
+          "loopIndex": "索引"
         },
         "properties": {
           "text": "文本",

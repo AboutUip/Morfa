@@ -38,6 +38,9 @@ import {
   applyActionField,
   applyConditionField,
   behaviorEventLabelKey,
+  behaviorBlockInFunction,
+  behaviorOwnedFunctionIds,
+  behaviorScopeAtPoint,
   collectSharedBehaviorLint,
   conditionField,
   createBehaviorAction,
@@ -1242,6 +1245,51 @@ function BlockInspector({
           <p className={styles.mutedText}>
             {t("projects.workspace.behavior.functionHint")}
           </p>
+          {(block.params ?? []).map((param, index) => (
+            <div className={styles.applyRow} key={`${param.key}-${index}`}>
+              <DraftInput
+                value={param.key}
+                ariaLabel={t("projects.workspace.behavior.fields.parameter")}
+                placeholder={t(
+                  "projects.workspace.behavior.parameterPlaceholder",
+                )}
+                onCommit={(key) => {
+                  const trimmed = key.trim();
+                  if (!/^[_A-Za-z][_A-Za-z0-9]*$/.test(trimmed)) return;
+                  const params = [...(block.params ?? [])];
+                  params[index] = { key: trimmed };
+                  onChange({ params });
+                }}
+              />
+              <button
+                className={styles.applyRemove}
+                type="button"
+                onClick={() =>
+                  onChange({
+                    params: (block.params ?? []).filter(
+                      (_, paramIndex) => paramIndex !== index,
+                    ),
+                  })
+                }
+              >
+                {t("projects.workspace.behavior.applyRemove")}
+              </button>
+            </div>
+          ))}
+          <button
+            className={styles.addPhrase}
+            type="button"
+            onClick={() =>
+              onChange({
+                params: [
+                  ...(block.params ?? []),
+                  { key: `arg${(block.params?.length ?? 0) + 1}` },
+                ],
+              })
+            }
+          >
+            {t("projects.workspace.behavior.addParameter")}
+          </button>
         </div>
       ) : null}
 
@@ -1274,6 +1322,67 @@ function BlockInspector({
           </label>
           <p className={styles.mutedText}>
             {t("projects.workspace.behavior.callHint")}
+          </p>
+          {(behavior.blocks?.find(
+            (item) => item.id === block.key && item.type === "function",
+          )?.params ?? []
+          ).map((param) => (
+            <label className={styles.fieldRow} key={param.key}>
+              <span>{param.key}</span>
+              <DraftInput
+                value={
+                  block.args?.find((item) => item.key === param.key)?.value ??
+                  ""
+                }
+                ariaLabel={param.key}
+                placeholder={t(
+                  "projects.workspace.behavior.argumentPlaceholder",
+                )}
+                onCommit={(value) => {
+                  const params =
+                    behavior.blocks?.find(
+                      (item) =>
+                        item.id === block.key && item.type === "function",
+                    )?.params ?? [];
+                  onChange({
+                    args: params.map((item) => ({
+                      key: item.key,
+                      value:
+                        item.key === param.key
+                          ? value
+                          : block.args?.find((arg) => arg.key === item.key)
+                              ?.value ?? "",
+                    })),
+                  });
+                }}
+              />
+            </label>
+          ))}
+        </div>
+      ) : null}
+
+      {block.type === "loop" ? (
+        <div className={styles.inspectorFields}>
+          <label className={styles.fieldRow}>
+            <span>{t("projects.workspace.behavior.fields.loopCount")}</span>
+          </label>
+          <DraftInput
+            value={block.value ?? ""}
+            ariaLabel={t("projects.workspace.behavior.fields.loopCount")}
+            placeholder="3"
+            onCommit={(value) => onChange({ value })}
+          />
+          <label className={styles.fieldRow}>
+            <span>{t("projects.workspace.behavior.fields.loopIndex")}</span>
+          </label>
+          <DraftInput
+            value={block.key ?? "__i__"}
+            ariaLabel={t("projects.workspace.behavior.fields.loopIndex")}
+            placeholder="__i__"
+            onCommit={(key) => onChange({ key })}
+          />
+          <p className={styles.mutedText}>
+            {t("projects.workspace.behavior.loopHint")}
           </p>
         </div>
       ) : null}
@@ -1377,13 +1486,9 @@ export function CanvasBehaviorEditor({
   const blocks = behavior?.blocks ?? [];
   const edges = behavior?.edges ?? [];
   const visibleBlocks = useMemo(() => {
-    if (!editingFunctionId) {
-      return blocks.filter((block) => !block.scopeId);
-    }
-    return blocks.filter(
-      (block) =>
-        block.id === editingFunctionId ||
-        block.scopeId === editingFunctionId,
+    if (!editingFunctionId) return blocks;
+    return blocks.filter((block) =>
+      behaviorBlockInFunction(blocks, block, editingFunctionId),
     );
   }, [blocks, editingFunctionId]);
   const visibleIds = useMemo(
@@ -1541,10 +1646,17 @@ export function CanvasBehaviorEditor({
       position.x,
       position.y,
     );
+    const scopeId =
+      editingFunctionId ??
+      behaviorScopeAtPoint(
+        blocks,
+        position.x + BEHAVIOR_GRAPH_NODE_WIDTH / 2,
+        position.y + 36,
+      );
     const block: CanvasBehaviorBlock = {
       ...created,
       ...partial,
-      ...(editingFunctionId ? { scopeId: editingFunctionId } : {}),
+      ...(scopeId ? { scopeId } : {}),
     };
     updateGraph({ blocks: [...blocks, block] });
     setSelectedNodeIds([block.id]);
@@ -1586,6 +1698,10 @@ export function CanvasBehaviorEditor({
       addBlock({ type: "call" }, point);
       return;
     }
+    if (phrase === "loop") {
+      addBlock({ type: "loop", key: "__i__", value: "3" }, point);
+      return;
+    }
     if (phrase === "data") {
       addBlock(
         { type: "action", action: createBehaviorAction("setData") },
@@ -1621,9 +1737,16 @@ export function CanvasBehaviorEditor({
       setSelectedEdgeId(null);
       return;
     }
+    const scopeId =
+      editingFunctionId ??
+      behaviorScopeAtPoint(
+        blocks,
+        Math.round(x) + BEHAVIOR_GRAPH_NODE_WIDTH / 2,
+        Math.round(y) + 36,
+      );
     const block = {
       ...createReferenceBlock(nodeId, Math.round(x), Math.round(y)),
-      ...(editingFunctionId ? { scopeId: editingFunctionId } : {}),
+      ...(scopeId ? { scopeId } : {}),
     };
     updateGraph({ blocks: [...blocks, block] });
     setSelectedNodeIds([block.id]);
@@ -1762,10 +1885,31 @@ export function CanvasBehaviorEditor({
   const moveNodes = (moves: { id: string; x: number; y: number }[]) => {
     if (!moves.length) return;
     const byId = new Map(moves.map((move) => [move.id, move]));
+    const positioned = blocks.map((block) => {
+      const move = byId.get(block.id);
+      return move ? { ...block, x: move.x, y: move.y } : block;
+    });
+    const movedIds = new Set(moves.map((move) => move.id));
     updateGraph({
-      blocks: blocks.map((block) => {
-        const move = byId.get(block.id);
-        return move ? { ...block, x: move.x, y: move.y } : block;
+      blocks: positioned.map((block) => {
+        if (!movedIds.has(block.id)) return block;
+        const ignore =
+          block.type === "function"
+            ? behaviorOwnedFunctionIds(positioned, block.id)
+            : new Set<string>();
+        const scopeId = behaviorScopeAtPoint(
+          positioned,
+          block.x + BEHAVIOR_GRAPH_NODE_WIDTH / 2,
+          block.y + 36,
+          ignore,
+        );
+        if ((block.scopeId ?? undefined) === scopeId) return block;
+        if (!scopeId) {
+          const next = { ...block };
+          delete next.scopeId;
+          return next;
+        }
+        return { ...block, scopeId };
       }),
     });
   };
@@ -2239,6 +2383,13 @@ export function CanvasBehaviorEditor({
                 kind="call"
                 label={t("projects.workspace.behavior.phrases.call")}
                 onAdd={() => addBlock({ type: "call" })}
+              />
+              <PhraseButton
+                kind="loop"
+                label={t("projects.workspace.behavior.phrases.loop")}
+                onAdd={() =>
+                  addBlock({ type: "loop", key: "__i__", value: "3" })
+                }
               />
               <PhraseButton
                 kind="navigate"

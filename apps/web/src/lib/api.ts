@@ -195,7 +195,13 @@ export type CanvasBehaviorBlockType =
   | "reference"
   | "switch"
   | "function"
-  | "call";
+  | "call"
+  | "loop";
+
+export interface CanvasBehaviorBindingDto {
+  key: string;
+  value?: string;
+}
 
 export interface CanvasBehaviorBlockDto {
   id: string;
@@ -217,6 +223,11 @@ export interface CanvasBehaviorBlockDto {
   cases?: string[];
   /** Function id that owns this block. Empty means the main graph. */
   scopeId?: string;
+  /** Function parameters. Call arguments reuse the same shape and set `value`. */
+  params?: CanvasBehaviorBindingDto[];
+  args?: CanvasBehaviorBindingDto[];
+  /** Loop count. May contain ${node.key} or a function-local key. */
+  value?: string;
 }
 
 export interface CanvasBehaviorEdgeDto {

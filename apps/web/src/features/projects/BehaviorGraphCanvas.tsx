@@ -19,7 +19,9 @@ import {
   BEHAVIOR_CONDITION_SOURCES,
   behaviorActionLabelKey,
   behaviorEventLabelKey,
+  behaviorFunctionFrames,
   behaviorOutputPorts,
+  behaviorScopeMembers,
   readBehaviorApplyEntries,
 } from "./canvasBehavior";
 import styles from "./BehaviorGraphCanvas.module.css";
@@ -39,6 +41,7 @@ export const BEHAVIOR_GRAPH_NODE_HEIGHT: Record<
   reference: 64,
   function: 96,
   call: 72,
+  loop: 88,
 };
 
 const MIN_ZOOM = 0.25;
@@ -1013,15 +1016,20 @@ export function BehaviorGraphCanvas({
     if (activeTool !== "move" || fieldTarget || editorBody) return;
 
     event.preventDefault();
-    const companions = keepGroup
-      ? selectedNodeIds.flatMap((id) => {
-          if (id === node.id) return [];
-          const block = blocks.find((item) => item.id === id);
-          return block
-            ? [{ id, originX: block.x, originY: block.y }]
-            : [];
-        })
-      : [];
+    const memberIds =
+      node.block?.type === "function"
+        ? behaviorScopeMembers(blocks, node.id)
+        : [];
+    const companionIds = new Set<string>();
+    const companions = [
+      ...(keepGroup ? selectedNodeIds : []),
+      ...memberIds,
+    ].flatMap((id) => {
+      if (id === node.id || companionIds.has(id)) return [];
+      companionIds.add(id);
+      const block = blocks.find((item) => item.id === id);
+      return block ? [{ id, originX: block.x, originY: block.y }] : [];
+    });
 
     const session: NodeDragSession = {
       pointerId: event.pointerId,
@@ -1311,6 +1319,11 @@ export function BehaviorGraphCanvas({
         ? t("projects.workspace.behavior.callNamed", { name })
         : t("projects.workspace.behavior.blockTypes.call");
     }
+    if (block.type === "loop") {
+      return t("projects.workspace.behavior.loopCount", {
+        count: block.value?.trim() || "0",
+      });
+    }
     const text = block.text?.trim();
     return text || t("projects.workspace.behavior.noteEmpty");
   };
@@ -1416,6 +1429,38 @@ export function BehaviorGraphCanvas({
         />
       ) : null}
       <div ref={worldRef} className={styles.world} style={worldStyle}>
+        {behaviorFunctionFrames(
+          renderNodes.flatMap((node) =>
+            node.block
+              ? [
+                  {
+                    ...node.block,
+                    x: node.x,
+                    y: node.y,
+                    width: node.width,
+                    height: node.height,
+                  },
+                ]
+              : [],
+          ),
+        ).map((frame) => (
+          <div
+            key={frame.id}
+            className={styles.functionFrame}
+            data-depth={String(Math.min(frame.depth, 3))}
+            style={{
+              left: frame.x,
+              top: frame.y,
+              width: frame.width,
+              height: frame.height,
+            }}
+          >
+            <span className={styles.functionFrameLabel}>
+              {frame.name ||
+                t("projects.workspace.behavior.blockTypes.function")}
+            </span>
+          </div>
+        ))}
         <svg className={styles.edgeLayer} width={20000} height={20000}>
           <defs>
             <marker

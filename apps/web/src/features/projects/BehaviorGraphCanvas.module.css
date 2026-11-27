@@ -47,6 +47,31 @@
   pointer-events: none;
 }
 
+.functionFrame {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--mf-accent) 42%, var(--mf-border));
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--mf-accent) 7%, transparent);
+  pointer-events: none;
+}
+
+.functionFrame[data-depth="1"],
+.functionFrame[data-depth="2"],
+.functionFrame[data-depth="3"] {
+  background: color-mix(in srgb, var(--mf-accent) 12%, transparent);
+}
+
+.functionFrameLabel {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  color: var(--mf-text-tertiary);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+}
+
 .world {
   position: absolute;
   top: 0;

@@ -4,6 +4,7 @@ import {
   CANVAS_BEHAVIOR_CONDITION_SOURCES,
   CANVAS_BEHAVIOR_STYLE_KEYS,
   getSupportedCanvasEvents,
+  isBehaviorLocalKey,
 } from "@morfa/shared/canvas-behavior";
 
 import { ApiError } from "../../lib/errors.js";
@@ -47,7 +48,7 @@ const SHARED_BEHAVIOR_ID = "__project__";
 const BEHAVIOR_SCHEMA = {
   type: "string" as const,
   description:
-    'JSON behavior graph. Blocks are event, condition, action, switch, function, call, note, and reference. Graph nodes are one line, 220px wide: space them at least 280px apart horizontally and 120px vertically. A function block stays on the main graph and has no scopeId. Its body blocks set scopeId to that function id, so they leave the main graph; outgoing edges from the function still run the body. A call block sets key to that function block id. One apply action replaces a chain of setText, setStyle, and setData: action.value is a JSON array of objects with targetId, kind, key, and value. kind is data, style, or text. Condition edges use label "else" for the failing branch; unlabeled edges are the succeeding branch. Switch blocks read a camelCase property id in key and branch through edge labels case:0 and default. Example: {"version":2,"triggers":[],"states":[{"id":"default","name":"Default","initial":true}],"blocks":[{"id":"fn","type":"function","x":40,"y":40,"text":"Darken"},{"id":"set","type":"action","scopeId":"fn","x":40,"y":160,"action":{"id":"set","type":"apply","value":"[]"}},{"id":"e1","type":"event","x":40,"y":320,"event":"click","nodeId":"button"},{"id":"use","type":"call","x":320,"y":320,"key":"fn"}],"edges":[{"id":"body","from":"fn","to":"set"},{"id":"go","from":"e1","to":"use"}]}. Every event, judgment, modification, and switch needs an explicit node id. Use null to clear. Legacy triggers are still accepted.',
+    'JSON behavior graph. Blocks are event, condition, action, switch, function, call, loop, note, and reference. Graph nodes are one line, 220px wide: space them at least 280px apart horizontally and 120px vertically. A function block stays on the main graph. Its body blocks set scopeId to that function id and stay inside the function frame. A function placed inside another function frame is nested. Outgoing edges from the function still run the body. A call block sets key to that function block id. A function lists params as objects with key. A call lists args as objects with key and value. A key shaped __name__ is data local to that call and disappears when the call returns. A loop block repeats its body port, then follows done; value is the count and key is the index, default __i__, capped at 50. One apply action replaces a chain of setText, setStyle, and setData: action.value is a JSON array of objects with targetId, kind, key, and value. kind is data, style, or text. Condition edges use label "else" for the failing branch; unlabeled edges are the succeeding branch. Switch blocks read a camelCase property id in key and branch through edge labels case:0 and default. Example: {"version":2,"triggers":[],"states":[{"id":"default","name":"Default","initial":true}],"blocks":[{"id":"fn","type":"function","x":40,"y":40,"text":"Darken"},{"id":"set","type":"action","scopeId":"fn","x":40,"y":160,"action":{"id":"set","type":"apply","value":"[]"}},{"id":"e1","type":"event","x":40,"y":320,"event":"click","nodeId":"button"},{"id":"use","type":"call","x":320,"y":320,"key":"fn"}],"edges":[{"id":"body","from":"fn","to":"set"},{"id":"go","from":"e1","to":"use"}]}. Every event, judgment, modification, and switch needs an explicit node id. Use null to clear. Legacy triggers are still accepted.',
   maxLength: 500000,
 };
 
@@ -667,6 +668,14 @@ function validateAction(
   }
 
   if (TARGET_ACTION_TYPES.has(action.type) && !action.targetId) {
+    if (
+      (action.type === "setData" ||
+        action.type === "incrementData" ||
+        action.type === "toggleData") &&
+      isBehaviorLocalKey(action.key ?? "")
+    ) {
+      return issues;
+    }
     issues.push({
       ...base,
       severity: "error",
@@ -681,6 +690,7 @@ function validateAction(
     action.type === "incrementData" ||
     action.type === "toggleData"
   ) {
+    if (isBehaviorLocalKey(action.key ?? "")) return issues;
     const targetId = action.targetId ?? "";
     const target = targetId ? pagesById.get(targetId) : undefined;
     const dataEntry = target?.data?.find(

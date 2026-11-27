@@ -412,7 +412,8 @@
           "reference": "Node",
           "switch": "Switch",
           "function": "Function",
-          "call": "Call"
+          "call": "Call",
+          "loop": "Loop"
         },
         "startNode": "Start",
         "startNodeHint": "Flow entry",
@@ -432,9 +433,14 @@
         "noteEmpty": "Empty note",
         "notePlaceholder": "Add a note…",
         "functionPlaceholder": "Function name",
-        "functionHint": "Connect this function's output to the shared steps. Call it from elsewhere instead of copying those nodes.",
-        "callHint": "Runs the nodes after the chosen function, then continues along this wire.",
+        "functionHint": "Connect the output to the body. Parameters are data for this call. Keys shaped __name__ stay inside the function and disappear when it returns. A node dropped inside the frame belongs to the function, and a function can contain another function.",
+        "callHint": "Writes the arguments, runs the function body, then continues along this wire.",
         "chooseFunction": "Choose a function",
+        "addParameter": "Add a parameter",
+        "parameterPlaceholder": "Parameter name",
+        "argumentPlaceholder": "Value or ${node.key}",
+        "loopCount": "Repeat {{count}} times",
+        "loopHint": "Follow the repeat port, then the done port after the count. The count stops at 50. The index is written to the index key, __i__ by default.",
         "nodeNoConfig": "Not configured",
         "pendingEdgeHint": "Click another node to connect. One port can lead to several nodes.",
         "inputPort": "Input port",
@@ -460,7 +466,9 @@
         "ports": {
           "then": "then",
           "else": "else",
-          "default": "default"
+          "default": "default",
+          "body": "repeat",
+          "done": "done"
         },
         "builtinIds": {
           "text": "Text",
@@ -546,6 +554,7 @@
           "function": "Define a reusable function",
           "call": "Call a function",
           "apply": "Change several fields",
+          "loop": "Repeat a number of times",
           "addCase": "Add a branch",
           "placeSentence": "Place a sentence",
           "not": "Not",
@@ -642,7 +651,10 @@
           "actionType": "Action type",
           "noteText": "Note text",
           "functionName": "Function name",
-          "callFunction": "Call"
+          "callFunction": "Call",
+          "parameter": "Parameter",
+          "loopCount": "Count",
+          "loopIndex": "Index"
         },
         "properties": {
           "text": "text",

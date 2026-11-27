@@ -75,6 +75,12 @@ export const CANVAS_BEHAVIOR_ACTION_TYPES = [
   "toggleVariable",
 ] as const;
 
+const BEHAVIOR_LOCAL_KEY = /^__.+__$/;
+
+export function isBehaviorLocalKey(key: string) {
+  return BEHAVIOR_LOCAL_KEY.test(key);
+}
+
 export const CANVAS_BEHAVIOR_STYLE_KEYS = [
   "display",
   "visibility",

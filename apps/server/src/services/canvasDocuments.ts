@@ -175,7 +175,13 @@ export type CanvasBehaviorBlockType =
   | "reference"
   | "switch"
   | "function"
-  | "call";
+  | "call"
+  | "loop";
+
+export interface CanvasBehaviorBindingDto {
+  key: string;
+  value?: string;
+}
 
 export interface CanvasBehaviorBlockDto {
   id: string;
@@ -197,6 +203,11 @@ export interface CanvasBehaviorBlockDto {
   cases?: string[];
   /** Function id that owns this block. Absent means the main graph. */
   scopeId?: string;
+  /** Function parameters, or call arguments. Arguments use `value`. */
+  params?: CanvasBehaviorBindingDto[];
+  args?: CanvasBehaviorBindingDto[];
+  /** Loop count. May contain ${node.key} or a function-local key. */
+  value?: string;
 }
 
 export interface CanvasBehaviorEdgeDto {
@@ -578,6 +589,7 @@ const BEHAVIOR_BLOCK_TYPES = new Set<CanvasBehaviorBlockType>([
   "switch",
   "function",
   "call",
+  "loop",
 ]);
 
 function normalizeBehaviorAction(
@@ -679,6 +691,31 @@ function normalizeBehaviorCondition(
     value: conditionValue,
     ...(condition.negate === true ? { negate: true } : {}),
   };
+}
+
+function readBehaviorKey(value: unknown) {
+  if (typeof value !== "string") return "";
+  const key = value.trim();
+  if (!/^[_A-Za-z][_A-Za-z0-9]*$/.test(key) || key.length > 40) return "";
+  return key;
+}
+
+function readBehaviorBindings(value: unknown, withValue: boolean) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const bindings: { key: string; value?: string }[] = [];
+  for (const item of value) {
+    if (bindings.length >= 16) break;
+    if (!item || typeof item !== "object") continue;
+    const record = item as Record<string, unknown>;
+    const key = readBehaviorKey(record.key);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const rawValue = typeof record.value === "string" ? record.value : "";
+    if (rawValue.length > 500) invalidDocument();
+    bindings.push(withValue ? { key, value: rawValue } : { key });
+  }
+  return bindings;
 }
 
 function normalizeBehaviorBlock(
@@ -788,24 +825,42 @@ function normalizeBehaviorBlock(
     };
   }
   if (type === "function") {
+    const params = readBehaviorBindings(block.params, false);
     return {
       id,
       type: "function",
       x,
       y,
       ...(textValue ? { text: textValue } : {}),
+      ...(params.length ? { params } : {}),
     };
   }
   if (type === "call") {
     const keyValue =
       typeof block.key === "string" ? block.key.trim() : "";
     if (keyValue.length > MAX_BEHAVIOR_ID_LENGTH) invalidDocument();
+    const args = readBehaviorBindings(block.args, true);
     return {
       id,
       type: "call",
       x,
       y,
       ...(keyValue ? { key: keyValue } : {}),
+      ...(args.length ? { args } : {}),
+    };
+  }
+  if (type === "loop") {
+    const loopValue =
+      typeof block.value === "string" ? block.value.trim() : "";
+    if (loopValue.length > 200) invalidDocument();
+    const indexKey = readBehaviorKey(block.key) || "__i__";
+    return {
+      id,
+      type: "loop",
+      x,
+      y,
+      key: indexKey,
+      value: loopValue || "1",
     };
   }
   if (type === "reference") {

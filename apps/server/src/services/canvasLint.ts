@@ -1,5 +1,5 @@
 import type { CanvasLayoutIssue } from "@morfa/shared/canvas-layout";
-import { getSupportedCanvasEvents } from "@morfa/shared/canvas-behavior";
+import { getSupportedCanvasEvents, isBehaviorLocalKey } from "@morfa/shared/canvas-behavior";
 
 import type {
   CanvasBehaviorActionDto,
@@ -596,6 +596,7 @@ function validateAction(input: {
   }
 
   if (DATA_ACTION_TYPES.has(actionType)) {
+    if (isBehaviorLocalKey(action.key ?? "")) return;
     if (!action.targetId) {
       push({
         severity: "error",

@@ -31,17 +31,19 @@ data 是这个节点自己的数据，形如 [{key, type, value}]。type 用 tex
 
 行为节点在画布上只有一行标题，宽 220。横着至少隔 280，竖着至少隔 120。完整句子在右侧编辑，不要为了塞下长句子把节点排得很密。
 
-- function 节点留在主图，不要写 scopeId，text 是名字。
-- 函数体里的块写 scopeId，值是这个 function 的 id。它们不会出现在主图上。从 function 连到函数体的边仍然会执行。
-- call 节点留在主图，key 填 function 的 id。每个事件只连到 call。
-- 同一组数据、样式、文本改动合成一个 apply 动作，不要连成 setData、setStyle、setText 的长链。apply 的 value 是 JSON 数组，每项有 targetId、kind、key、value。kind 用 data、style 或 text。text 的 key 可以是空字符串。
+- function 节点的 text 是名字。params 是参数列表，每项只有 key。
+- 函数体里的块写 scopeId，值是这个 function 的 id。编辑器会用边框把函数和它的内部包起来。函数节点放进另一个函数的边框里，就是内嵌函数，它自己的体再写它的 scopeId。
+- call 节点的 key 是 function 的 id。args 按参数名给值，值可以是字面量，或 ${节点id.键}。每个事件只连到 call。
+- 同一组数据、样式、文本改动合成一个 apply。value 是 JSON 数组，每项有 targetId、kind、key、value。kind 用 data、style 或 text。
+- 以 __名称__ 这种形式作为 setData、apply 或判断的 key 时，写的是当前这次调用内部的数据，不会写到画布节点上，调用结束就消失。
+- loop 节点的 value 是次数，key 是索引名，默认 __i__。body 端口是每次重复的体，done 端口是次数用完之后。次数最多 50。
 
 ```json
 {"version":2,"triggers":[],"states":[],"blocks":[
-  {"id":"fn","type":"function","x":40,"y":40,"text":"换成深色"},
-  {"id":"set","type":"action","scopeId":"fn","x":40,"y":160,"action":{"id":"set","type":"apply","value":"[{\"targetId\":\"画面id\",\"kind\":\"data\",\"key\":\"bg\",\"value\":\"#161411\"},{\"targetId\":\"标题id\",\"kind\":\"text\",\"key\":\"\",\"value\":\"深色\"}]"}},
-  {"id":"click","type":"event","x":40,"y":200,"event":"click","nodeId":"按钮id"},
-  {"id":"use","type":"call","x":320,"y":200,"key":"fn"}
+  {"id":"fn","type":"function","x":40,"y":40,"text":"换成深色","params":[{"key":"bg"}]},
+  {"id":"set","type":"action","scopeId":"fn","x":80,"y":180,"action":{"id":"set","type":"apply","value":"[{\"targetId\":\"画面id\",\"kind\":\"data\",\"key\":\"bg\",\"value\":\"${bg}\"},{\"targetId\":\"\",\"kind\":\"data\",\"key\":\"__step__\",\"value\":\"1\"}]"}},
+  {"id":"click","type":"event","x":40,"y":360,"event":"click","nodeId":"按钮id"},
+  {"id":"use","type":"call","x":360,"y":360,"key":"fn","args":[{"key":"bg","value":"#161411"}]}
 ],"edges":[
   {"id":"body","from":"fn","to":"set"},
   {"id":"go","from":"click","to":"use"}

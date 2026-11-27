@@ -25,6 +25,7 @@ import {
   isAttributeId,
   resolvePropertyId,
 } from "./canvasPropertyIds";
+import { isBehaviorLocalKey } from "@morfa/shared/canvas-behavior";
 
 export interface RuntimeSnapshot {
   containerId: string;
@@ -301,12 +302,70 @@ function setNodeDataValue(
   state.runtimeNodeData[runtimeKey] = { ...values, [key]: value };
 }
 
+function resolveBehaviorValue(
+  raw: string,
+  locals: Record<string, string> | undefined,
+  snapshot: RuntimeSnapshot,
+  state: CanvasRuntimeState,
+  owner: CanvasPage,
+  scope?: string,
+) {
+  if (!raw.includes("${")) return raw;
+  return raw.replace(/\$\{([^{}]+)\}/g, (match, expression: string) => {
+    const token = expression.trim();
+    if (
+      locals &&
+      Object.prototype.hasOwnProperty.call(locals, token)
+    ) {
+      return locals[token] ?? "";
+    }
+    const dot = token.indexOf(".");
+    if (dot <= 0) return match;
+    const nodeId = token.slice(0, dot);
+    const key = token.slice(dot + 1);
+    return getNodeDataValue(
+      snapshot,
+      state,
+      nodeId === "self" ? owner.id : nodeId,
+      key,
+      scope,
+    );
+  });
+}
+
+function writeLocalData(
+  locals: Record<string, string> | undefined,
+  key: string,
+  value: string,
+) {
+  if (!locals) return false;
+  if (
+    !isBehaviorLocalKey(key) &&
+    !Object.prototype.hasOwnProperty.call(locals, key)
+  ) {
+    return false;
+  }
+  locals[key] = value;
+  return true;
+}
+
+function readLocalData(
+  locals: Record<string, string> | undefined,
+  key: string,
+) {
+  if (!locals || !Object.prototype.hasOwnProperty.call(locals, key)) {
+    return undefined;
+  }
+  return locals[key] ?? "";
+}
+
 function applyAction(
   snapshot: RuntimeSnapshot,
   state: CanvasRuntimeState,
   owner: CanvasPage,
   action: CanvasBehaviorAction,
   scope?: string,
+  locals?: Record<string, string>,
 ) {
   const ownerKey = getRuntimeNodeKey(scope, owner.id);
   const targetKey = resolveRuntimeTargetKey(
@@ -314,6 +373,8 @@ function applyAction(
     scope,
     action.targetId,
   );
+  const resolve = (value: string | undefined) =>
+    resolveBehaviorValue(value ?? "", locals, snapshot, state, owner, scope);
   switch (action.type) {
     case "navigate": {
       if (!action.pageId || action.pageId === state.currentPageId) return;
@@ -329,14 +390,14 @@ function applyAction(
       setOverride(state, targetKey, {
         styles: {
           ...overrides.styles,
-          [action.key]: action.value ?? "",
+          [action.key]: resolve(action.value),
         },
       });
       return;
     }
     case "setText": {
       if (!targetKey) return;
-      setOverride(state, targetKey, { text: action.value ?? "" });
+      setOverride(state, targetKey, { text: resolve(action.value) });
       return;
     }
     case "setVisible": {
@@ -398,7 +459,7 @@ function applyAction(
         );
         if (entry.kind === "text") {
           if (!entryKey) continue;
-          setOverride(state, entryKey, { text: entry.value });
+          setOverride(state, entryKey, { text: resolve(entry.value) });
           continue;
         }
         if (entry.kind === "style") {
@@ -407,34 +468,46 @@ function applyAction(
           setOverride(state, entryKey, {
             styles: {
               ...overrides.styles,
-              [entry.key]: entry.value,
+              [entry.key]: resolve(entry.value),
             },
           });
           continue;
         }
+        if (writeLocalData(locals, entry.key, resolve(entry.value))) continue;
         setNodeDataValue(
           state,
           entry.targetId,
           entry.key,
-          entry.value,
+          resolve(entry.value),
           scope,
         );
       }
       return;
     }
     case "setData": {
-      if (!action.key || !action.targetId) return;
+      if (!action.key) return;
+      const nextValue = resolve(action.value);
+      if (writeLocalData(locals, action.key, nextValue)) return;
+      if (!action.targetId) return;
       setNodeDataValue(
         state,
         action.targetId,
         action.key,
-        action.value ?? "",
+        nextValue,
         scope,
       );
       return;
     }
     case "incrementData": {
-      if (!action.key || !action.targetId) return;
+      if (!action.key) return;
+      const delta = parseNumber(resolve(action.value), 0);
+      const local = readLocalData(locals, action.key);
+      if (local !== undefined || isBehaviorLocalKey(action.key)) {
+        const current = parseNumber(local, 0);
+        writeLocalData(locals, action.key, String(current + delta));
+        return;
+      }
+      if (!action.targetId) return;
       const targetId = action.targetId;
       const current = parseNumber(
         getNodeDataValue(
@@ -450,13 +523,23 @@ function applyAction(
         state,
         targetId,
         action.key,
-        String(current + parseNumber(action.value, 0)),
+        String(current + delta),
         scope,
       );
       return;
     }
     case "toggleData": {
-      if (!action.key || !action.targetId) return;
+      if (!action.key) return;
+      const local = readLocalData(locals, action.key);
+      if (local !== undefined || isBehaviorLocalKey(action.key)) {
+        writeLocalData(
+          locals,
+          action.key,
+          local === "true" ? "false" : "true",
+        );
+        return;
+      }
+      if (!action.targetId) return;
       const targetId = action.targetId;
       const current = getNodeDataValue(
         snapshot,
@@ -524,20 +607,29 @@ export function evaluateBehaviorCondition(
   owner: CanvasPage,
   condition: CanvasBehaviorCondition,
   scope?: string,
+  locals?: Record<string, string>,
 ): boolean {
-  if (condition.source !== "state" && !condition.targetId) return false;
+  if (condition.source !== "state" && !condition.targetId && !isBehaviorLocalKey(condition.key ?? "")) {
+    return false;
+  }
   const targetId = condition.targetId ?? owner.id;
   let actual: string;
   if (condition.source === "nodeData") {
-    actual = condition.key
-      ? getNodeDataValue(
-          snapshot,
-          state,
-          targetId,
-          condition.key,
-          scope,
-        )
-      : "";
+    const local = condition.key
+      ? readLocalData(locals, condition.key)
+      : undefined;
+    actual =
+      local !== undefined || isBehaviorLocalKey(condition.key ?? "")
+        ? local ?? ""
+        : condition.key
+          ? getNodeDataValue(
+              snapshot,
+              state,
+              targetId,
+              condition.key,
+              scope,
+            )
+          : "";
   } else if (condition.source === "controlState") {
     const target = snapshot.pages.find((item) => item.id === targetId);
     actual =
@@ -555,7 +647,14 @@ export function evaluateBehaviorCondition(
     );
   }
 
-  const expected = condition.value;
+  const expected = resolveBehaviorValue(
+    condition.value,
+    locals,
+    snapshot,
+    state,
+    owner,
+    scope,
+  );
   let matched = false;
   switch (condition.operator) {
     case "eq":
@@ -695,7 +794,11 @@ function readSwitchCandidates(
   nodeId: string | undefined,
   propertyId: string,
   scope?: string,
+  locals?: Record<string, string>,
 ) {
+  if (isBehaviorLocalKey(propertyId)) {
+    return [readLocalData(locals, propertyId) ?? ""];
+  }
   if (!nodeId || !propertyId.trim()) return [];
   const node = snapshot.pages.find((item) => item.id === nodeId);
   if (!node) return [];
@@ -797,18 +900,20 @@ function executeBehaviorGraph(
       (!block.stateId || block.stateId === currentState),
   );
 
-  for (const start of starts) {
-    const queue: { id: string; visited: Set<string> }[] = [
-      { id: start.id, visited: new Set([start.id]) },
-    ];
+  const stepBudget = { n: 0 };
+  const maxSteps = 200;
+  const maxLoop = 50;
+  const runFlow = (
+    seeds: { id: string; visited: Set<string> }[],
+    locals: Record<string, string>,
+  ) => {
+    const queue = seeds;
     let cursor = 0;
-    let steps = 0;
-
-    while (cursor < queue.length && steps < 200) {
+    while (cursor < queue.length && stepBudget.n < maxSteps) {
       const current = queue[cursor];
       cursor += 1;
       if (!current) break;
-      steps += 1;
+      stepBudget.n += 1;
       const block = blocks.get(current.id);
       const targetState = states.get(current.id);
 
@@ -835,6 +940,7 @@ function executeBehaviorGraph(
                   owner,
                   condition,
                   scope,
+                  locals,
                 ),
               )
             : conditions.every((condition) =>
@@ -844,18 +950,26 @@ function executeBehaviorGraph(
                   owner,
                   condition,
                   scope,
+                  locals,
                 ),
               );
-        const port = matched ? "then" : "else";
-        followBehaviorEdges(queue, current, outgoing, block, port);
+        followBehaviorEdges(
+          queue,
+          current,
+          outgoing,
+          block,
+          matched ? "then" : "else",
+        );
         continue;
-      } else if (block.type === "switch") {
+      }
+      if (block.type === "switch") {
         const actual = readSwitchCandidates(
           snapshot,
           state,
           block.nodeId,
           block.key ?? "",
           scope,
+          locals,
         );
         const cases = block.cases ?? [];
         const index = cases.findIndex((item) => actual.includes(item));
@@ -867,24 +981,84 @@ function executeBehaviorGraph(
           index >= 0 ? `case:${index}` : "default",
         );
         continue;
-      } else if (block.type === "action" && block.action) {
-        applyAction(snapshot, state, owner, block.action, scope);
+      }
+      if (block.type === "action" && block.action) {
+        applyAction(snapshot, state, owner, block.action, scope, locals);
       } else if (block.type === "call") {
         const fn = block.key ? blocks.get(block.key) : undefined;
-        if (
-          fn?.type === "function" &&
-          !current.visited.has(fn.id)
-        ) {
+        if (fn?.type === "function" && !current.visited.has(fn.id)) {
+          const nextLocals = { ...locals };
+          for (const param of fn.params ?? []) {
+            const arg = block.args?.find((item) => item.key === param.key);
+            nextLocals[param.key] = resolveBehaviorValue(
+              arg?.value ?? "",
+              locals,
+              snapshot,
+              state,
+              owner,
+              scope,
+            );
+          }
           const visited = new Set(current.visited);
           visited.add(fn.id);
-          queue.push({ id: fn.id, visited });
+          runFlow([{ id: fn.id, visited }], nextLocals);
+          current.visited.add(fn.id);
         }
-      } else if (block.type === "event" || block.type === "function") {
-        // Entry or function body: flow continues through outgoing edges.
+        followBehaviorEdges(queue, current, outgoing, block, null);
+        continue;
+      } else if (block.type === "loop") {
+        const count = Math.max(
+          0,
+          Math.min(
+            maxLoop,
+            Math.floor(
+              parseNumber(
+                resolveBehaviorValue(
+                  block.value ?? "0",
+                  locals,
+                  snapshot,
+                  state,
+                  owner,
+                  scope,
+                ),
+                0,
+              ),
+            ),
+          ),
+        );
+        const indexKey = isBehaviorLocalKey(block.key ?? "")
+          ? (block.key as string)
+          : "__i__";
+        const bodyEdges = (outgoing.get(block.id) ?? []).filter((edge) =>
+          behaviorEdgeMatches(block, edge.label, "body"),
+        );
+        for (
+          let index = 0;
+          index < count && stepBudget.n < maxSteps;
+          index += 1
+        ) {
+          locals[indexKey] = String(index);
+          const visited = new Set(current.visited);
+          visited.add(block.id);
+          const bodySeeds: { id: string; visited: Set<string> }[] = [];
+          for (const edge of bodyEdges) {
+            if (visited.has(edge.to)) continue;
+            const nextVisited = new Set(visited);
+            nextVisited.add(edge.to);
+            bodySeeds.push({ id: edge.to, visited: nextVisited });
+          }
+          if (bodySeeds.length) runFlow(bodySeeds, locals);
+        }
+        followBehaviorEdges(queue, current, outgoing, block, "done");
+        continue;
       }
 
       followBehaviorEdges(queue, current, outgoing, block, null);
     }
+  };
+
+  for (const start of starts) {
+    runFlow([{ id: start.id, visited: new Set([start.id]) }], {});
   }
 
   return true;

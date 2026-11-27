@@ -1,6 +1,7 @@
 import {
   CANVAS_BEHAVIOR_STYLE_KEYS,
   getSupportedCanvasEvents,
+  isBehaviorLocalKey,
 } from "@morfa/shared/canvas-behavior";
 
 import { isAttributeId, propertyFieldId } from "./canvasPropertyIds";
@@ -510,7 +511,9 @@ export function readBehaviorApplyEntries(
   value: string | undefined,
 ): BehaviorApplyEntry[] {
   return readBehaviorApplyDraft(value).filter(
-    (entry) => entry.targetId && (entry.kind === "text" || entry.key),
+    (entry) =>
+      (entry.kind === "text" || entry.key) &&
+      (entry.targetId || isBehaviorLocalKey(entry.key)),
   );
 }
 
@@ -654,6 +657,9 @@ export function createBehaviorBlock(
   if (type === "call") {
     return { id: makeId("b"), type, x, y };
   }
+  if (type === "loop") {
+    return { id: makeId("b"), type, x, y, key: "__i__", value: "3" };
+  }
   return { id: makeId("b"), type: "note", x, y, text: "" };
 }
 
@@ -685,6 +691,12 @@ export function behaviorOutputPorts(
       },
     ];
   }
+  if (block.type === "loop") {
+    return [
+      { id: "body", labelKey: "projects.workspace.behavior.ports.body" },
+      { id: "done", labelKey: "projects.workspace.behavior.ports.done" },
+    ];
+  }
   return [{ id: "out" }];
 }
 
@@ -702,7 +714,199 @@ export function behaviorEdgeMatches(
     const edgePort = !label || label === "out" ? "default" : label;
     return edgePort === port;
   }
+  if (block.type === "loop") {
+    const edgePort = !label || label === "out" || label === "body" ? "body" : label;
+    return edgePort === port;
+  }
   return true;
+}
+
+const FRAME_PAD_X = 28;
+const FRAME_PAD_TOP = 34;
+const FRAME_PAD_BOTTOM = 24;
+const FRAME_NODE_WIDTH = 220;
+const FRAME_NODE_HEIGHT: Record<CanvasBehaviorBlock["type"], number> = {
+  event: 72,
+  condition: 72,
+  action: 72,
+  switch: 88,
+  note: 72,
+  reference: 64,
+  function: 96,
+  call: 72,
+  loop: 88,
+};
+
+export interface BehaviorFrameRect {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  depth: number;
+}
+
+type FrameBlock = CanvasBehaviorBlock & {
+  width?: number;
+  height?: number;
+};
+
+function frameBlockSize(block: FrameBlock) {
+  const ports =
+    block.type === "switch"
+      ? (block.cases?.length ?? 1) + 1
+      : block.type === "condition" || block.type === "loop"
+        ? 2
+        : 1;
+  return {
+    width: block.width ?? FRAME_NODE_WIDTH,
+    height: Math.max(
+      block.height ?? FRAME_NODE_HEIGHT[block.type],
+      ports > 1 ? ports * 28 : 0,
+    ),
+  };
+}
+
+export function behaviorFunctionFrames(
+  blocks: readonly FrameBlock[],
+): BehaviorFrameRect[] {
+  const byId = new Map(blocks.map((block) => [block.id, block]));
+  const cache = new Map<string, BehaviorFrameRect | null>();
+
+  const depthOf = (id: string) => {
+    let depth = 0;
+    let scope = byId.get(id)?.scopeId;
+    const seen = new Set<string>();
+    while (scope && !seen.has(scope)) {
+      seen.add(scope);
+      depth += 1;
+      scope = byId.get(scope)?.scopeId;
+    }
+    return depth;
+  };
+
+  const build = (id: string): BehaviorFrameRect | null => {
+    if (cache.has(id)) return cache.get(id) ?? null;
+    const fn = byId.get(id);
+    if (!fn || fn.type !== "function") {
+      cache.set(id, null);
+      return null;
+    }
+    cache.set(id, null);
+    let minX = Number.POSITIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+    const include = (x: number, y: number, width: number, height: number) => {
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x + width);
+      maxY = Math.max(maxY, y + height);
+    };
+    for (const block of blocks) {
+      if (block.id !== id && block.scopeId !== id) continue;
+      if (block.type === "function" && block.id !== id) {
+        const inner = build(block.id);
+        if (inner) {
+          include(inner.x, inner.y, inner.width, inner.height);
+          continue;
+        }
+      }
+      const size = frameBlockSize(block);
+      include(block.x, block.y, size.width, size.height);
+    }
+    if (!Number.isFinite(minX)) return null;
+    const rect: BehaviorFrameRect = {
+      id,
+      name: fn.text?.trim() || "",
+      x: minX - FRAME_PAD_X,
+      y: minY - FRAME_PAD_TOP,
+      width: maxX - minX + FRAME_PAD_X * 2,
+      height: maxY - minY + FRAME_PAD_TOP + FRAME_PAD_BOTTOM,
+      depth: depthOf(id),
+    };
+    cache.set(id, rect);
+    return rect;
+  };
+
+  return blocks
+    .filter((block) => block.type === "function")
+    .map((block) => build(block.id))
+    .filter((frame): frame is BehaviorFrameRect => frame !== null)
+    .sort((a, b) => b.width * b.height - a.width * a.height);
+}
+
+export function behaviorScopeAtPoint(
+  blocks: readonly FrameBlock[],
+  x: number,
+  y: number,
+  ignore: ReadonlySet<string> = new Set(),
+) {
+  const hits = behaviorFunctionFrames(blocks).filter(
+    (frame) =>
+      !ignore.has(frame.id) &&
+      x >= frame.x &&
+      y >= frame.y &&
+      x <= frame.x + frame.width &&
+      y <= frame.y + frame.height,
+  );
+  hits.sort((a, b) => a.width * a.height - b.width * b.height);
+  return hits[0]?.id;
+}
+
+export function behaviorBlockInFunction(
+  blocks: readonly CanvasBehaviorBlock[],
+  block: CanvasBehaviorBlock,
+  functionId: string,
+) {
+  if (block.id === functionId) return true;
+  const byId = new Map(blocks.map((item) => [item.id, item]));
+  const seen = new Set<string>();
+  let scope = block.scopeId;
+  while (scope && !seen.has(scope)) {
+    if (scope === functionId) return true;
+    seen.add(scope);
+    const owner = byId.get(scope);
+    scope = owner?.scopeId;
+  }
+  return false;
+}
+
+export function behaviorScopeMembers(
+  blocks: readonly CanvasBehaviorBlock[],
+  functionId: string,
+) {
+  return blocks
+    .filter(
+      (block) =>
+        block.id !== functionId &&
+        behaviorBlockInFunction(blocks, block, functionId),
+    )
+    .map((block) => block.id);
+}
+
+export function behaviorOwnedFunctionIds(
+  blocks: readonly CanvasBehaviorBlock[],
+  functionId: string,
+) {
+  const ids = new Set<string>([functionId]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const block of blocks) {
+      if (
+        block.type === "function" &&
+        block.scopeId &&
+        ids.has(block.scopeId) &&
+        !ids.has(block.id)
+      ) {
+        ids.add(block.id);
+        changed = true;
+      }
+    }
+  }
+  return ids;
 }
 
 export function createBehaviorEdge(
@@ -1069,6 +1273,15 @@ function lintAction(
         { state: action.value ?? "" },
       );
     }
+    return;
+  }
+
+  if (
+    (action.type === "setData" ||
+      action.type === "incrementData" ||
+      action.type === "toggleData") &&
+    isBehaviorLocalKey(action.key ?? "")
+  ) {
     return;
   }
 
