@@ -520,6 +520,21 @@
         "removeCondition": "删除条件",
         "dropConditionHint": "把节点拖进这个槽。清空后这条判断不再指向任何节点。",
         "chooseStyleKey": "选择样式属性",
+        "applyCount": "一次改 {{count}} 项",
+        "callNamed": "调用 {{name}}",
+        "backToGraph": "返回",
+        "openFunction": "进入",
+        "applyTarget": "目标节点",
+        "applyKind": "改哪一类",
+        "applyKey": "字段",
+        "applyValue": "值",
+        "applyAdd": "加一项",
+        "applyRemove": "去掉",
+        "applyKinds": {
+          "data": "数据",
+          "style": "样式",
+          "text": "文本"
+        },
         "phrases": {
           "event": "当{{name}}发生的时候",
           "eventGeneric": "当某件事发生的时候",
@@ -530,6 +545,7 @@
           "switch": "按某个值分支",
           "function": "定义一个可复用的函数",
           "call": "调用一个函数",
+          "apply": "一次改多项",
           "addCase": "加一条分支",
           "placeSentence": "放上一条语句",
           "not": "并非",
@@ -570,7 +586,8 @@
             "setControlState": "把控件状态切换为某状态",
             "setData": "修改节点数据为某值",
             "incrementData": "把节点数据增加某值",
-            "toggleData": "切换布尔数据"
+            "toggleData": "切换布尔数据",
+            "apply": "一次改多项"
           }
         },
         "sentences": {
@@ -684,6 +701,7 @@
           "setData": "设置节点数据",
           "incrementData": "增减节点数据",
           "toggleData": "切换布尔数据",
+          "apply": "一次改多项",
           "setVariable": "设置变量",
           "incrementVariable": "增减变量",
           "toggleVariable": "切换布尔变量",

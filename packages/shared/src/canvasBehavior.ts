@@ -69,6 +69,7 @@ export const CANVAS_BEHAVIOR_ACTION_TYPES = [
   "setData",
   "incrementData",
   "toggleData",
+  "apply",
   "setVariable",
   "incrementVariable",
   "toggleVariable",

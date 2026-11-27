@@ -57,6 +57,7 @@ const BEHAVIOR_ACTION_TYPES = new Set<CanvasBehaviorActionType>([
   "setData",
   "incrementData",
   "toggleData",
+  "apply",
   "setVariable",
   "incrementVariable",
   "toggleVariable",
@@ -513,6 +514,52 @@ function validateAction(input: {
       message: `页面「${page.name}」的动作 ${action.id} 使用了未知类型 ${actionType || "(空)"}`,
       actionId: action.id,
     });
+    return;
+  }
+
+  if (actionType === "apply") {
+    let entries: unknown = [];
+    try {
+      entries = JSON.parse(action.value || "[]");
+    } catch {
+      push({
+        severity: "error",
+        code: "BEHAVIOR_APPLY_INVALID",
+        pageId: page.id,
+        pageName: page.name,
+        message: `页面「${page.name}」的动作 ${action.id} 不是合法的多项修改`,
+        actionId: action.id,
+      });
+      return;
+    }
+    if (!Array.isArray(entries)) {
+      push({
+        severity: "error",
+        code: "BEHAVIOR_APPLY_INVALID",
+        pageId: page.id,
+        pageName: page.name,
+        message: `页面「${page.name}」的动作 ${action.id} 不是合法的多项修改`,
+        actionId: action.id,
+      });
+      return;
+    }
+    for (const entry of entries) {
+      if (!entry || typeof entry !== "object") continue;
+      const targetId =
+        typeof (entry as { targetId?: unknown }).targetId === "string"
+          ? (entry as { targetId: string }).targetId
+          : "";
+      if (targetId && !pagesById.has(targetId)) {
+        push({
+          severity: "error",
+          code: "BEHAVIOR_TARGET_MISSING",
+          pageId: page.id,
+          pageName: page.name,
+          message: `页面「${page.name}」的动作 ${action.id} 指向了不存在的节点 ${targetId}`,
+          actionId: action.id,
+        });
+      }
+    }
     return;
   }
 

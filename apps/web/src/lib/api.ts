@@ -126,6 +126,7 @@ export type CanvasBehaviorActionType =
   | "setData"
   | "incrementData"
   | "toggleData"
+  | "apply"
   | "setVariable"
   | "incrementVariable"
   | "toggleVariable";
@@ -214,6 +215,8 @@ export interface CanvasBehaviorBlockDto {
   key?: string;
   /** Switch case values. Output port `case:n` follows `cases[n]`. */
   cases?: string[];
+  /** Function id that owns this block. Empty means the main graph. */
+  scopeId?: string;
 }
 
 export interface CanvasBehaviorEdgeDto {

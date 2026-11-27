@@ -48,6 +48,8 @@ import {
   createReferenceBlock,
   getSupportedEvents,
   materializeBehaviorGraph,
+  readBehaviorApplyDraft,
+  type BehaviorApplyEntry,
   type BehaviorField,
 } from "./canvasBehavior";
 import {
@@ -555,6 +557,114 @@ function ConditionFields({
   );
 }
 
+function ApplyEntryList({
+  pages,
+  value,
+  onChange,
+}: {
+  pages: CanvasPage[];
+  value: string | undefined;
+  onChange: (value: string) => void;
+}) {
+  const { t } = useTranslation();
+  const entries = readBehaviorApplyDraft(value);
+  const write = (next: BehaviorApplyEntry[]) => {
+    onChange(JSON.stringify(next));
+  };
+  const update = (index: number, patch: Partial<BehaviorApplyEntry>) => {
+    write(
+      entries.map((entry, entryIndex) =>
+        entryIndex === index ? { ...entry, ...patch } : entry,
+      ),
+    );
+  };
+
+  return (
+    <div className={styles.applyList}>
+      {entries.map((entry, index) => (
+        <div className={styles.applyRow} key={index}>
+          <select
+            className={styles.fieldSelect}
+            aria-label={t("projects.workspace.behavior.applyTarget")}
+            value={entry.targetId}
+            onChange={(event) =>
+              update(index, { targetId: event.target.value })
+            }
+          >
+            <option value="">
+              {t("projects.workspace.behavior.applyTarget")}
+            </option>
+            {pages.map((page) => (
+              <option value={page.id} key={page.id}>
+                {page.name || page.id}
+              </option>
+            ))}
+          </select>
+          <select
+            className={styles.fieldSelect}
+            aria-label={t("projects.workspace.behavior.applyKind")}
+            value={entry.kind}
+            onChange={(event) =>
+              update(index, {
+                kind: event.target.value as BehaviorApplyEntry["kind"],
+              })
+            }
+          >
+            <option value="data">
+              {t("projects.workspace.behavior.applyKinds.data")}
+            </option>
+            <option value="style">
+              {t("projects.workspace.behavior.applyKinds.style")}
+            </option>
+            <option value="text">
+              {t("projects.workspace.behavior.applyKinds.text")}
+            </option>
+          </select>
+          {entry.kind === "text" ? null : (
+            <input
+              className={styles.fieldInput}
+              aria-label={t("projects.workspace.behavior.applyKey")}
+              value={entry.key}
+              placeholder={t("projects.workspace.behavior.applyKey")}
+              onChange={(event) => update(index, { key: event.target.value })}
+            />
+          )}
+          <input
+            className={styles.fieldInput}
+            aria-label={t("projects.workspace.behavior.applyValue")}
+            value={entry.value}
+            placeholder={t("projects.workspace.behavior.applyValue")}
+            onChange={(event) =>
+              update(index, { value: event.target.value })
+            }
+          />
+          <button
+            className={styles.applyRemove}
+            type="button"
+            onClick={() =>
+              write(entries.filter((_, entryIndex) => entryIndex !== index))
+            }
+          >
+            {t("projects.workspace.behavior.applyRemove")}
+          </button>
+        </div>
+      ))}
+      <button
+        className={styles.addPhrase}
+        type="button"
+        onClick={() =>
+          write([
+            ...entries,
+            { targetId: "", kind: "data", key: "", value: "" },
+          ])
+        }
+      >
+        {t("projects.workspace.behavior.applyAdd")}
+      </button>
+    </div>
+  );
+}
+
 function ActionFields({
   action,
   pages,
@@ -622,6 +732,16 @@ function ActionFields({
       ))}
     </select>
   );
+
+  if (action.type === "apply") {
+    return (
+      <ApplyEntryList
+        pages={pages}
+        value={action.value}
+        onChange={(value) => onChange({ value })}
+      />
+    );
+  }
 
   return (
     <Trans
@@ -1247,12 +1367,43 @@ export function CanvasBehaviorEditor({
   const [convertedPageId, setConvertedPageId] = useState<string | null>(
     null,
   );
+  const [editingFunctionId, setEditingFunctionId] = useState<string | null>(
+    null,
+  );
   const graphApiRef = useRef<BehaviorGraphCanvasApi | null>(null);
   const panelRef = useRef<HTMLElement | null>(null);
   const materializedRef = useRef<string | null>(null);
 
   const blocks = behavior?.blocks ?? [];
   const edges = behavior?.edges ?? [];
+  const visibleBlocks = useMemo(() => {
+    if (!editingFunctionId) {
+      return blocks.filter((block) => !block.scopeId);
+    }
+    return blocks.filter(
+      (block) =>
+        block.id === editingFunctionId ||
+        block.scopeId === editingFunctionId,
+    );
+  }, [blocks, editingFunctionId]);
+  const visibleIds = useMemo(
+    () => new Set(visibleBlocks.map((block) => block.id)),
+    [visibleBlocks],
+  );
+  const visibleEdges = useMemo(
+    () =>
+      edges.filter(
+        (edge) => visibleIds.has(edge.from) && visibleIds.has(edge.to),
+      ),
+    [edges, visibleIds],
+  );
+  const editingFunction = editingFunctionId
+    ? blocks.find((block) => block.id === editingFunctionId)
+    : undefined;
+  const inspectedBlock =
+    selectedNodeIds.length === 1
+      ? visibleBlocks.find((block) => block.id === selectedNodeIds[0])
+      : undefined;
   const currentLint = useMemo(
     () =>
       collectSharedBehaviorLint(pages, behavior, {
@@ -1274,7 +1425,14 @@ export function CanvasBehaviorEditor({
   useEffect(() => {
     setSelectedNodeIds([]);
     setSelectedEdgeId(null);
+    setEditingFunctionId(null);
   }, [scopeId]);
+
+  useEffect(() => {
+    if (!editingFunctionId) return;
+    const owner = blocks.find((block) => block.id === editingFunctionId);
+    if (!owner || owner.type !== "function") setEditingFunctionId(null);
+  }, [blocks, editingFunctionId]);
 
   useEffect(() => {
     if (convertedPageId && convertedPageId === scopeId) {
@@ -1337,14 +1495,12 @@ export function CanvasBehaviorEditor({
     height: number,
     center: { x: number; y: number },
   ) => {
-    const occupied = [
-      ...blocks.map((block) => ({
-        x: block.x,
-        y: block.y,
-        width: BEHAVIOR_GRAPH_NODE_WIDTH,
-        height: BEHAVIOR_GRAPH_NODE_HEIGHT[block.type],
-      })),
-    ];
+    const occupied = visibleBlocks.map((block) => ({
+      x: block.x,
+      y: block.y,
+      width: BEHAVIOR_GRAPH_NODE_WIDTH,
+      height: BEHAVIOR_GRAPH_NODE_HEIGHT[block.type],
+    }));
     const overlaps = (x: number, y: number) =>
       occupied.some(
         (rect) =>
@@ -1385,7 +1541,11 @@ export function CanvasBehaviorEditor({
       position.x,
       position.y,
     );
-    const block: CanvasBehaviorBlock = { ...created, ...partial };
+    const block: CanvasBehaviorBlock = {
+      ...created,
+      ...partial,
+      ...(editingFunctionId ? { scopeId: editingFunctionId } : {}),
+    };
     updateGraph({ blocks: [...blocks, block] });
     setSelectedNodeIds([block.id]);
     setSelectedEdgeId(null);
@@ -1433,6 +1593,13 @@ export function CanvasBehaviorEditor({
       );
       return;
     }
+    if (phrase === "apply") {
+      addBlock(
+        { type: "action", action: createBehaviorAction("apply") },
+        point,
+      );
+      return;
+    }
     if (phrase === "action") {
       addBlock(
         { type: "action", action: createBehaviorAction("setText") },
@@ -1444,18 +1611,20 @@ export function CanvasBehaviorEditor({
   const createReference = (nodeId: string, x: number, y: number) => {
     if (!behavior || !pages.some((item) => item.id === nodeId)) return;
     const existing = blocks.find(
-      (block) => block.type === "reference" && block.nodeId === nodeId,
+      (block) =>
+        block.type === "reference" &&
+        block.nodeId === nodeId &&
+        (block.scopeId ?? null) === editingFunctionId,
     );
     if (existing) {
       setSelectedNodeIds([existing.id]);
       setSelectedEdgeId(null);
       return;
     }
-    const block = createReferenceBlock(
-      nodeId,
-      Math.round(x),
-      Math.round(y),
-    );
+    const block = {
+      ...createReferenceBlock(nodeId, Math.round(x), Math.round(y)),
+      ...(editingFunctionId ? { scopeId: editingFunctionId } : {}),
+    };
     updateGraph({ blocks: [...blocks, block] });
     setSelectedNodeIds([block.id]);
     setSelectedEdgeId(null);
@@ -1908,6 +2077,26 @@ export function CanvasBehaviorEditor({
           />
 
           <main className={styles.graphStage}>
+            {editingFunction ? (
+              <div className={styles.scopeBar}>
+                <button
+                  className={styles.scopeBack}
+                  type="button"
+                  onClick={() => {
+                    const parent = editingFunction.scopeId ?? null;
+                    setEditingFunctionId(parent);
+                    setSelectedNodeIds(parent ? [parent] : []);
+                    setSelectedEdgeId(null);
+                  }}
+                >
+                  {t("projects.workspace.behavior.backToGraph")}
+                </button>
+                <span>
+                  {editingFunction.text?.trim() ||
+                    t("projects.workspace.behavior.blockTypes.function")}
+                </span>
+              </div>
+            ) : null}
             {convertedPageId === scopeId ? (
               <div className={styles.notice} role="status">
                 <span>
@@ -1926,12 +2115,12 @@ export function CanvasBehaviorEditor({
               </div>
             ) : null}
             <BehaviorGraphCanvas
-              blocks={blocks}
-              edges={edges}
+              blocks={visibleBlocks}
+              edges={visibleEdges}
               activeTool={activeTool}
               selectedNodeIds={selectedNodeIds}
               selectedEdgeId={selectedEdgeId}
-              fitKey={scopeId}
+              fitKey={`${scopeId}:${editingFunctionId ?? "main"}`}
               apiRef={graphApiRef}
               onSelectNodes={(ids) => {
                 setSelectedNodeIds(ids);
@@ -1955,25 +2144,11 @@ export function CanvasBehaviorEditor({
               onCreateReference={createReference}
               onCreatePhrase={createPhrase}
               onAssignReference={assignReference}
-              renderBlockEditor={(block) => (
-                <BlockInspector
-                  block={block}
-                  pages={pages}
-                  links={links}
-                  behavior={behavior}
-                  onChange={(patch) => patchBlock(block.id, patch)}
-                  onRewrite={(patch, nextEdges) =>
-                    updateGraph({
-                      blocks: blocks.map((item) =>
-                        item.id === block.id
-                          ? { ...item, ...patch }
-                          : item,
-                      ),
-                      edges: nextEdges,
-                    })
-                  }
-                />
-              )}
+              onOpenFunction={(functionId) => {
+                setEditingFunctionId(functionId);
+                setSelectedNodeIds([functionId]);
+                setSelectedEdgeId(null);
+              }}
             />
           </main>
 
@@ -2003,6 +2178,27 @@ export function CanvasBehaviorEditor({
             className={styles.rightPanel}
             style={{ width: rightPanelWidth }}
           >
+            {inspectedBlock ? (
+              <div className={styles.inspectorPane}>
+                <BlockInspector
+                  block={inspectedBlock}
+                  pages={pages}
+                  links={links}
+                  behavior={behavior}
+                  onChange={(patch) => patchBlock(inspectedBlock.id, patch)}
+                  onRewrite={(patch, nextEdges) =>
+                    updateGraph({
+                      blocks: blocks.map((item) =>
+                        item.id === inspectedBlock.id
+                          ? { ...item, ...patch }
+                          : item,
+                      ),
+                      edges: nextEdges,
+                    })
+                  }
+                />
+              </div>
+            ) : null}
             <div className={styles.phraseList}>
               <PhraseButton
                 kind="event"
@@ -2023,6 +2219,11 @@ export function CanvasBehaviorEditor({
                 kind="data"
                 label={t("projects.workspace.behavior.phrases.modifyData")}
                 onAdd={() => addActionBlock("setData")}
+              />
+              <PhraseButton
+                kind="apply"
+                label={t("projects.workspace.behavior.phrases.apply")}
+                onAdd={() => addActionBlock("apply")}
               />
               <PhraseButton
                 kind="switch"

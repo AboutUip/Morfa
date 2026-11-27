@@ -520,6 +520,21 @@
         "removeCondition": "Remove condition",
         "dropConditionHint": "Drop a node into this slot. Clearing it leaves the judgment with no node.",
         "chooseStyleKey": "Choose style property",
+        "applyCount": "Change {{count}} fields",
+        "callNamed": "Call {{name}}",
+        "backToGraph": "Back",
+        "openFunction": "Open",
+        "applyTarget": "Target node",
+        "applyKind": "What to change",
+        "applyKey": "Field",
+        "applyValue": "Value",
+        "applyAdd": "Add a field",
+        "applyRemove": "Remove",
+        "applyKinds": {
+          "data": "Data",
+          "style": "Style",
+          "text": "Text"
+        },
         "phrases": {
           "event": "When {{name}} happens",
           "eventGeneric": "When something happens",
@@ -530,6 +545,7 @@
           "switch": "Branch on a value",
           "function": "Define a reusable function",
           "call": "Call a function",
+          "apply": "Change several fields",
           "addCase": "Add a branch",
           "placeSentence": "Place a sentence",
           "not": "Not",
@@ -570,7 +586,8 @@
             "setControlState": "Switch the control state to a state",
             "setData": "Change node data to a value",
             "incrementData": "Increase node data by a value",
-            "toggleData": "Toggle a boolean"
+            "toggleData": "Toggle a boolean",
+            "apply": "Change several fields"
           }
         },
         "sentences": {
@@ -684,6 +701,7 @@
           "setData": "Set node data",
           "incrementData": "Increment node data",
           "toggleData": "Toggle node data",
+          "apply": "Change several fields",
           "setVariable": "Set variable",
           "incrementVariable": "Increment variable",
           "toggleVariable": "Toggle variable",

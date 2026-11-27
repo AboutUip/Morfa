@@ -117,6 +117,12 @@ export const BEHAVIOR_ACTION_DEFINITIONS: readonly BehaviorActionDefinition[] =
       needsTarget: true,
       needsValue: false,
     },
+    {
+      type: "apply",
+      labelKey: "projects.workspace.behavior.actions.apply",
+      needsTarget: false,
+      needsValue: true,
+    },
   ];
 
 export type BehaviorConditionSourceDefinition = {
@@ -493,6 +499,50 @@ export function behaviorEventLabelKey(event: string) {
   );
 }
 
+export interface BehaviorApplyEntry {
+  targetId: string;
+  kind: "data" | "style" | "text";
+  key: string;
+  value: string;
+}
+
+export function readBehaviorApplyEntries(
+  value: string | undefined,
+): BehaviorApplyEntry[] {
+  return readBehaviorApplyDraft(value).filter(
+    (entry) => entry.targetId && (entry.kind === "text" || entry.key),
+  );
+}
+
+export function readBehaviorApplyDraft(
+  value: string | undefined,
+): BehaviorApplyEntry[] {
+  if (!value?.trim()) return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.flatMap((item) => {
+      if (!item || typeof item !== "object") return [];
+      const record = item as Record<string, unknown>;
+      const kind =
+        record.kind === "style" || record.kind === "text"
+          ? record.kind
+          : "data";
+      return [
+        {
+          targetId:
+            typeof record.targetId === "string" ? record.targetId : "",
+          kind,
+          key: typeof record.key === "string" ? record.key : "",
+          value: typeof record.value === "string" ? record.value : "",
+        },
+      ];
+    });
+  } catch {
+    return [];
+  }
+}
+
 export function behaviorActionLabelKey(type: CanvasBehaviorActionType) {
   return (
     BEHAVIOR_ACTION_DEFINITIONS.find((item) => item.type === type)
@@ -547,6 +597,7 @@ export function createBehaviorAction(
       ? { key: "", value: type === "toggleData" ? "" : "" }
       : {}),
     ...(type === "setControlState" ? { value: "" } : {}),
+    ...(type === "apply" ? { value: "[]" } : {}),
   };
 }
 

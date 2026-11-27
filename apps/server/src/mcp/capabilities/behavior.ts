@@ -47,7 +47,7 @@ const SHARED_BEHAVIOR_ID = "__project__";
 const BEHAVIOR_SCHEMA = {
   type: "string" as const,
   description:
-    'JSON behavior graph. Blocks are event, condition, action, switch, function, call, note, and reference. A function block uses its outgoing edges as the body. A call block sets key to that function block id and runs the body without copying the nodes. Condition edges use label "else" for the failing branch; unlabeled edges are the succeeding branch. Switch blocks read a camelCase property id in "key" and branch through edge labels "case:0" and "default". Example: {"version":2,"triggers":[],"states":[{"id":"default","name":"Default","initial":true}],"blocks":[{"id":"e1","type":"event","x":40,"y":40,"event":"click","nodeId":"button"},{"id":"a1","type":"action","x":280,"y":40,"action":{"id":"a1","type":"setStyle","targetId":"button","key":"text-align","value":"center"}}],"edges":[{"id":"edge","from":"e1","to":"a1"}]}. Every event, judgment, modification, and switch needs an explicit node id. Use "null" to clear. Legacy triggers are still accepted.',
+    'JSON behavior graph. Blocks are event, condition, action, switch, function, call, note, and reference. Graph nodes are one line, 220px wide: space them at least 280px apart horizontally and 120px vertically. A function block stays on the main graph and has no scopeId. Its body blocks set scopeId to that function id, so they leave the main graph; outgoing edges from the function still run the body. A call block sets key to that function block id. One apply action replaces a chain of setText, setStyle, and setData: action.value is a JSON array of objects with targetId, kind, key, and value. kind is data, style, or text. Condition edges use label "else" for the failing branch; unlabeled edges are the succeeding branch. Switch blocks read a camelCase property id in key and branch through edge labels case:0 and default. Example: {"version":2,"triggers":[],"states":[{"id":"default","name":"Default","initial":true}],"blocks":[{"id":"fn","type":"function","x":40,"y":40,"text":"Darken"},{"id":"set","type":"action","scopeId":"fn","x":40,"y":160,"action":{"id":"set","type":"apply","value":"[]"}},{"id":"e1","type":"event","x":40,"y":320,"event":"click","nodeId":"button"},{"id":"use","type":"call","x":320,"y":320,"key":"fn"}],"edges":[{"id":"body","from":"fn","to":"set"},{"id":"go","from":"e1","to":"use"}]}. Every event, judgment, modification, and switch needs an explicit node id. Use null to clear. Legacy triggers are still accepted.',
   maxLength: 500000,
 };
 
@@ -490,6 +490,19 @@ function validateBehavior(
         }
       }
     }
+    if (block.scopeId) {
+      const owner = behavior.blocks?.find(
+        (item) => item.id === block.scopeId && item.type === "function",
+      );
+      if (!owner || owner.id === block.id) {
+        issues.push({
+          severity: "error",
+          code: "SCOPE_MISSING",
+          message: "函数体必须指向一个函数",
+          pageId: page.id,
+        });
+      }
+    }
     if (block.type === "call") {
       const target = block.key
         ? behavior.blocks?.find((item) => item.id === block.key)
@@ -587,6 +600,45 @@ function validateAction(
       code: "ACTION_TYPE_UNKNOWN",
       message: `未知动作类型 ${action.type}`,
     });
+    return issues;
+  }
+
+  if (action.type === "apply") {
+    let entries: unknown;
+    try {
+      entries = JSON.parse(action.value || "[]");
+    } catch {
+      issues.push({
+        ...base,
+        severity: "error",
+        code: "APPLY_INVALID",
+        message: "一次改多项的值必须是 JSON 数组",
+      });
+      return issues;
+    }
+    if (!Array.isArray(entries)) {
+      issues.push({
+        ...base,
+        severity: "error",
+        code: "APPLY_INVALID",
+        message: "一次改多项的值必须是 JSON 数组",
+      });
+      return issues;
+    }
+    for (const entry of entries) {
+      if (!entry || typeof entry !== "object") continue;
+      const record = entry as Record<string, unknown>;
+      const targetId =
+        typeof record.targetId === "string" ? record.targetId : "";
+      if (targetId && !pagesById.has(targetId)) {
+        issues.push({
+          ...base,
+          severity: "error",
+          code: "TARGET_MISSING",
+          message: "一次改多项指向了不存在的节点",
+        });
+      }
+    }
     return issues;
   }
 
@@ -1027,9 +1079,9 @@ export function behaviorCapabilities(): McpCapability[] {
       },
       usage: {
         "zh-CN":
-          '不传 pageId 或传 __project__ 写入项目共享图。传具体 pageId 只改该页。behavior 是 JSON 字符串，传 "null" 清除。事件块要有 nodeId，判断和修改要有 targetId。建议带 expectedUpdatedAt。',
+          '不传 pageId 或传 __project__ 写入项目共享图。传具体 pageId 只改该页。behavior 是 JSON 字符串，传 "null" 清除。事件块要有 nodeId。函数体块写 scopeId。一次改多项用 apply，不要连一串 setText 和 setStyle。建议带 expectedUpdatedAt。',
         "en-US":
-          'Omit pageId or pass __project__ to write the shared project graph. A real pageId changes only that page. behavior is a JSON string; pass "null" to clear it. Event blocks need nodeId, and judgments and modifications need targetId. Send expectedUpdatedAt.',
+          'Omit pageId or pass __project__ to write the shared project graph. A real pageId changes only that page. behavior is a JSON string; pass "null" to clear it. Event blocks need nodeId. Function body blocks set scopeId. Use one apply action instead of a chain of setText and setStyle. Send expectedUpdatedAt.',
       },
       returns: {
         "zh-CN": "更新后的行为图、updatedAt 与校验问题。",
@@ -1371,6 +1423,14 @@ export function behaviorCapabilities(): McpCapability[] {
             { type: "setData", needsTarget: true, needsValue: true, config: ["targetId", "key", "value"] },
             { type: "incrementData", needsTarget: true, needsValue: true, config: ["targetId", "key", "value"] },
             { type: "toggleData", needsTarget: true, needsValue: false, config: ["targetId", "key"] },
+            {
+              type: "apply",
+              needsTarget: false,
+              needsValue: true,
+              config: ["value"],
+              valueShape:
+                'JSON array. Each item is {"targetId","kind":"data"|"style"|"text","key","value"}. Text items may omit key.',
+            },
           ],
           styleKeys: [...CANVAS_BEHAVIOR_STYLE_KEYS],
           actionTypes: [...CURRENT_ACTION_TYPES],

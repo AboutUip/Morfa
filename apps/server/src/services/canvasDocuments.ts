@@ -38,7 +38,7 @@ const MAX_BEHAVIOR_ID_LENGTH = 80;
 const MAX_BEHAVIOR_EVENT_LENGTH = 80;
 const MAX_BEHAVIOR_STATE_NAME_LENGTH = 120;
 const MAX_BEHAVIOR_VARIABLE_KEY_LENGTH = 64;
-const MAX_BEHAVIOR_ACTION_VALUE_LENGTH = 2000;
+const MAX_BEHAVIOR_ACTION_VALUE_LENGTH = 8000;
 const MAX_CANVAS_JSON_LENGTH = 4_000_000;
 
 export type CanvasFrame = "iphone" | "android" | "watch";
@@ -106,6 +106,7 @@ export type CanvasBehaviorActionType =
   | "setData"
   | "incrementData"
   | "toggleData"
+  | "apply"
   | "setVariable"
   | "incrementVariable"
   | "toggleVariable";
@@ -194,6 +195,8 @@ export interface CanvasBehaviorBlockDto {
   key?: string;
   /** Switch case values. Output port `case:n` follows `cases[n]`. */
   cases?: string[];
+  /** Function id that owns this block. Absent means the main graph. */
+  scopeId?: string;
 }
 
 export interface CanvasBehaviorEdgeDto {
@@ -537,6 +540,7 @@ const BEHAVIOR_ACTION_TYPES = new Set<CanvasBehaviorActionType>([
   "setData",
   "incrementData",
   "toggleData",
+  "apply",
   "setVariable",
   "incrementVariable",
   "toggleVariable",
@@ -921,7 +925,18 @@ function normalizeBehavior(
     ) {
       invalidDocument();
     }
-    blocks = behavior.blocks.map(normalizeBehaviorBlock);
+    blocks = behavior.blocks.map((raw) => {
+      const block = normalizeBehaviorBlock(raw);
+      const record =
+        raw && typeof raw === "object"
+          ? (raw as Record<string, unknown>)
+          : {};
+      const scopeId =
+        typeof record.scopeId === "string" ? record.scopeId.trim() : "";
+      if (!scopeId) return block;
+      if (scopeId.length > MAX_BEHAVIOR_ID_LENGTH) invalidDocument();
+      return { ...block, scopeId };
+    });
     const ids = new Set(stateIds);
     for (const block of blocks) {
       if (ids.has(block.id)) invalidDocument();

@@ -29,16 +29,19 @@ data 是这个节点自己的数据，形如 [{key, type, value}]。type 用 tex
 
 同一段行为要在多个事件里用时，用函数，不要把同一串节点复制多份。用 update_behavior，不传 pageId，写入整份项目行为图。
 
-- function 节点：type 为 function，text 是名字。从它的出口接上要复用的步骤，这些边就是函数体。
-- call 节点：type 为 call，key 填那个 function 的 block id。执行时先跑函数体，再顺着 call 自己的出口继续。
-- 每个事件只连到 call。两个按钮要做同一件事时，两个 call 的 key 都指向同一个 function。
+行为节点在画布上只有一行标题，宽 220。横着至少隔 280，竖着至少隔 120。完整句子在右侧编辑，不要为了塞下长句子把节点排得很密。
+
+- function 节点留在主图，不要写 scopeId，text 是名字。
+- 函数体里的块写 scopeId，值是这个 function 的 id。它们不会出现在主图上。从 function 连到函数体的边仍然会执行。
+- call 节点留在主图，key 填 function 的 id。每个事件只连到 call。
+- 同一组数据、样式、文本改动合成一个 apply 动作，不要连成 setData、setStyle、setText 的长链。apply 的 value 是 JSON 数组，每项有 targetId、kind、key、value。kind 用 data、style 或 text。text 的 key 可以是空字符串。
 
 ```json
 {"version":2,"triggers":[],"states":[],"blocks":[
-  {"id":"fn","type":"function","x":40,"y":240,"text":"换成深色"},
-  {"id":"set","type":"action","x":300,"y":240,"action":{"id":"set","type":"setData","targetId":"画面id","key":"bg","value":"#161411"}},
-  {"id":"click","type":"event","x":40,"y":40,"event":"click","nodeId":"按钮id"},
-  {"id":"use","type":"call","x":300,"y":40,"key":"fn"}
+  {"id":"fn","type":"function","x":40,"y":40,"text":"换成深色"},
+  {"id":"set","type":"action","scopeId":"fn","x":40,"y":160,"action":{"id":"set","type":"apply","value":"[{\"targetId\":\"画面id\",\"kind\":\"data\",\"key\":\"bg\",\"value\":\"#161411\"},{\"targetId\":\"标题id\",\"kind\":\"text\",\"key\":\"\",\"value\":\"深色\"}]"}},
+  {"id":"click","type":"event","x":40,"y":200,"event":"click","nodeId":"按钮id"},
+  {"id":"use","type":"call","x":320,"y":200,"key":"fn"}
 ],"edges":[
   {"id":"body","from":"fn","to":"set"},
   {"id":"go","from":"click","to":"use"}

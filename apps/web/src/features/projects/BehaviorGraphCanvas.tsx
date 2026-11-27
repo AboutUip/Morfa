@@ -8,7 +8,6 @@ import {
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
-  type ReactNode,
 } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -21,24 +20,25 @@ import {
   behaviorActionLabelKey,
   behaviorEventLabelKey,
   behaviorOutputPorts,
+  readBehaviorApplyEntries,
 } from "./canvasBehavior";
 import styles from "./BehaviorGraphCanvas.module.css";
 import type { CanvasTool } from "./canvasTools";
 
-export const BEHAVIOR_GRAPH_NODE_WIDTH = 252;
+export const BEHAVIOR_GRAPH_NODE_WIDTH = 220;
 
 export const BEHAVIOR_GRAPH_NODE_HEIGHT: Record<
   CanvasBehaviorBlock["type"],
   number
 > = {
-  event: 112,
-  condition: 300,
-  action: 220,
-  switch: 180,
-  note: 160,
-  reference: 88,
-  function: 120,
-  call: 140,
+  event: 72,
+  condition: 72,
+  action: 72,
+  switch: 88,
+  note: 72,
+  reference: 64,
+  function: 96,
+  call: 72,
 };
 
 const MIN_ZOOM = 0.25;
@@ -281,7 +281,7 @@ export function BehaviorGraphCanvas({
   onCreateReference,
   onCreatePhrase,
   onAssignReference,
-  renderBlockEditor,
+  onOpenFunction,
 }: {
   blocks: CanvasBehaviorBlock[];
   edges: CanvasBehaviorEdge[];
@@ -306,7 +306,7 @@ export function BehaviorGraphCanvas({
     referenceBlockId: string,
     target: BehaviorTargetDrop,
   ) => void;
-  renderBlockEditor: (block: CanvasBehaviorBlock) => ReactNode;
+  onOpenFunction?: (functionId: string) => void;
 }) {
   const { t } = useTranslation();
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -1285,6 +1285,10 @@ export function BehaviorGraphCanvas({
         : t("projects.workspace.behavior.blockTypes.switch");
     }
     if (block.type === "action") {
+      if (block.action?.type === "apply") {
+        const count = readBehaviorApplyEntries(block.action.value).length;
+        return t("projects.workspace.behavior.applyCount", { count });
+      }
       return block.action
         ? t(behaviorActionLabelKey(block.action.type))
         : t("projects.workspace.behavior.actions.custom");
@@ -1299,7 +1303,13 @@ export function BehaviorGraphCanvas({
       );
     }
     if (block.type === "call") {
-      return t("projects.workspace.behavior.blockTypes.call");
+      const target = blocks.find(
+        (item) => item.id === block.key && item.type === "function",
+      );
+      const name = target?.text?.trim();
+      return name
+        ? t("projects.workspace.behavior.callNamed", { name })
+        : t("projects.workspace.behavior.blockTypes.call");
     }
     const text = block.text?.trim();
     return text || t("projects.workspace.behavior.noteEmpty");
@@ -1567,6 +1577,11 @@ export function BehaviorGraphCanvas({
               onPointerDown={(event) =>
                 handleNodePointerDown(event, node)
               }
+              onDoubleClick={(event) => {
+                if (block.type !== "function") return;
+                event.stopPropagation();
+                onOpenFunction?.(block.id);
+              }}
               onPointerMove={handleNodePointerMove}
               onPointerUp={handleNodePointerUp}
               onPointerCancel={handleNodePointerUp}
@@ -1614,8 +1629,21 @@ export function BehaviorGraphCanvas({
                   )}
                 </span>
               </div>
-              <div className={styles.nodeBody} data-node-editor="true">
-                {renderBlockEditor(block)}
+              <div className={styles.nodeBody}>
+                <p className={styles.nodeSummary}>{getBlockTitle(block)}</p>
+                {block.type === "function" ? (
+                  <button
+                    className={styles.openScope}
+                    type="button"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onOpenFunction?.(block.id);
+                    }}
+                  >
+                    {t("projects.workspace.behavior.openFunction")}
+                  </button>
+                ) : null}
               </div>
               {hasPorts
                 ? behaviorOutputPorts(block).map((port, index, ports) => {

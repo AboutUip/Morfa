@@ -505,6 +505,70 @@
   gap: 6px;
 }
 
+.inspectorPane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--mf-border);
+}
+
+.scopeBar {
+  position: absolute;
+  z-index: 6;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  max-width: calc(100% - 24px);
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--mf-border);
+  border-radius: 8px;
+  background: var(--mf-bg-surface);
+  color: var(--mf-text-primary);
+  font-size: 12px;
+}
+
+.scopeBack {
+  padding: 2px 6px;
+  border-radius: 6px;
+  color: var(--mf-text-secondary);
+}
+
+.scopeBack:hover {
+  color: var(--mf-accent);
+}
+
+.applyList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.applyRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--mf-border);
+}
+
+.applyRemove {
+  align-self: flex-start;
+  padding: 0;
+  color: var(--mf-text-tertiary);
+  font-size: 11px;
+}
+
+.applyRemove:hover {
+  color: var(--mf-accent);
+}
+
+.phraseButton[data-kind="apply"] {
+  border-left-color: var(--mf-warning, #d39120);
+}
+
 .phraseButton {
   width: max-content;
   min-width: 100%;

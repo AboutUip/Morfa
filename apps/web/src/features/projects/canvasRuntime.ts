@@ -19,6 +19,7 @@ import {
 import {
   behaviorEdgeMatches,
   getInitialBehaviorState,
+  readBehaviorApplyEntries,
 } from "./canvasBehavior";
 import {
   isAttributeId,
@@ -386,6 +387,39 @@ function applyAction(
         action.value,
       );
       state.controlStates[stateKey] = action.value;
+      return;
+    }
+    case "apply": {
+      for (const entry of readBehaviorApplyEntries(action.value)) {
+        const entryKey = resolveRuntimeTargetKey(
+          snapshot,
+          scope,
+          entry.targetId,
+        );
+        if (entry.kind === "text") {
+          if (!entryKey) continue;
+          setOverride(state, entryKey, { text: entry.value });
+          continue;
+        }
+        if (entry.kind === "style") {
+          if (!entryKey || !entry.key) continue;
+          const overrides = getOverrides(state, entryKey);
+          setOverride(state, entryKey, {
+            styles: {
+              ...overrides.styles,
+              [entry.key]: entry.value,
+            },
+          });
+          continue;
+        }
+        setNodeDataValue(
+          state,
+          entry.targetId,
+          entry.key,
+          entry.value,
+          scope,
+        );
+      }
       return;
     }
     case "setData": {
