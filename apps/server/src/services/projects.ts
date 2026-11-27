@@ -4,12 +4,14 @@ import type { UserRow } from "../db/users.js";
 import {
   addProjectMember,
   countOwnedProjects,
+  deleteProjectRecord,
   findProjectCardByRequestId,
   findProjectCardByShareCode,
   findProjectCardForUser,
   findPublicProjectCard,
   insertProjectRecord,
   listProjectCardsForUser,
+  updateProjectRecord,
   type ProjectCardRow,
   type ProjectType,
   type ProjectVisibility,
@@ -205,6 +207,10 @@ export function listProjects(userId: string): ProjectDto[] {
   );
 }
 
+export function getProject(userId: string, projectId: string): ProjectDto {
+  return getProjectDtoOrThrow(userId, projectId);
+}
+
 export async function createProject(
   user: UserRow,
   input: CreateProjectInput,
@@ -281,6 +287,104 @@ export async function createProject(
     }
     throw error;
   }
+}
+
+export interface UpdateProjectInput {
+  name?: string;
+  description?: string;
+  type?: string;
+  visibility?: string;
+}
+
+export function updateProject(
+  userId: string,
+  projectId: string,
+  input: UpdateProjectInput,
+): ProjectDto {
+  const row = findProjectCardForUser(userId, projectId);
+  if (!row) {
+    throw new ApiError(404, "PROJECT_NOT_FOUND", "项目不存在");
+  }
+  if (row.user_id !== userId) {
+    throw new ApiError(403, "PROJECT_FORBIDDEN", "只有项目所有者可以修改项目");
+  }
+
+  const name =
+    input.name === undefined ? row.name : normalizeName(input.name);
+  const description =
+    input.description === undefined
+      ? row.description
+      : normalizeDescription(input.description);
+  const type =
+    input.type === undefined ? row.project_type : normalizeType(input.type);
+  const visibility =
+    input.visibility === undefined
+      ? row.visibility
+      : normalizeVisibility(input.visibility);
+
+  let shareCode = row.share_code;
+  if (visibility === "private") {
+    shareCode = null;
+  } else if (!shareCode) {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      shareCode = createShareCode();
+      try {
+        updateProjectRecord(projectId, userId, {
+          name,
+          description,
+          projectType: type,
+          visibility,
+          shareCode,
+          updatedAt: Date.now(),
+        });
+        return getProjectDtoOrThrow(userId, projectId);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "";
+        if (message.includes("projects.share_code") && attempt < 4) {
+          shareCode = null;
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw new ApiError(500, "PROJECT_UPDATE_FAILED", "项目更新失败");
+  }
+
+  const changes = updateProjectRecord(projectId, userId, {
+    name,
+    description,
+    projectType: type,
+    visibility,
+    shareCode,
+    updatedAt: Date.now(),
+  });
+  if (!changes) {
+    throw new ApiError(404, "PROJECT_NOT_FOUND", "项目不存在");
+  }
+  return getProjectDtoOrThrow(userId, projectId);
+}
+
+export async function deleteProject(
+  userId: string,
+  projectId: string,
+): Promise<{ id: string; deleted: boolean }> {
+  const row = findProjectCardForUser(userId, projectId);
+  if (!row) {
+    throw new ApiError(404, "PROJECT_NOT_FOUND", "项目不存在");
+  }
+  if (row.user_id !== userId) {
+    throw new ApiError(403, "PROJECT_FORBIDDEN", "只有项目所有者可以删除项目");
+  }
+  const result = deleteProjectRecord(projectId, userId);
+  if (!result.deleted) {
+    throw new ApiError(404, "PROJECT_NOT_FOUND", "项目不存在");
+  }
+  if (result.iconPath) {
+    await deleteProjectIcon(result.iconPath).catch(() => {
+      // 项目删除后图标清理失败不阻塞结果
+    });
+  }
+  return { id: projectId, deleted: true };
 }
 
 export function joinProject(

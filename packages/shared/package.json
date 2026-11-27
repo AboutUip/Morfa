@@ -6,7 +6,9 @@
   "description": "Cross-runtime contracts for Morfa",
   "exports": {
     ".": "./src/index.ts",
-    "./realtime": "./src/realtime.ts"
+    "./realtime": "./src/realtime.ts",
+    "./canvas-layout": "./src/canvasLayout.ts",
+    "./canvas-behavior": "./src/canvasBehavior.ts"
   },
   "types": "./src/index.ts"
 }

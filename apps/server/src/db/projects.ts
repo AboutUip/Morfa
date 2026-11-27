@@ -183,6 +183,53 @@ export function updateProjectData(
   ).run(data, updatedAt, projectId);
 }
 
+export function updateProjectRecord(
+  projectId: string,
+  userId: string,
+  input: {
+    name: string;
+    description: string;
+    projectType: ProjectType;
+    visibility: ProjectVisibility;
+    shareCode: string | null;
+    updatedAt: number;
+  },
+): number {
+  const result = db
+    .prepare(
+      `UPDATE projects
+       SET name = ?, description = ?, project_type = ?, visibility = ?,
+           share_code = ?, updated_at = ?
+       WHERE id = ? AND user_id = ?`,
+    )
+    .run(
+      input.name,
+      input.description,
+      input.projectType,
+      input.visibility,
+      input.shareCode,
+      input.updatedAt,
+      projectId,
+      userId,
+    ) as unknown as { changes: number };
+  return result.changes;
+}
+
+export function deleteProjectRecord(
+  projectId: string,
+  userId: string,
+): { deleted: boolean; iconPath: string | null } {
+  const row = db
+    .prepare("SELECT icon_path FROM projects WHERE id = ? AND user_id = ?")
+    .get(projectId, userId) as { icon_path: string | null } | undefined;
+  if (!row) return { deleted: false, iconPath: null };
+  db.prepare("DELETE FROM projects WHERE id = ? AND user_id = ?").run(
+    projectId,
+    userId,
+  );
+  return { deleted: true, iconPath: row.icon_path };
+}
+
 export function countOwnedProjects(userId: string): number {
   const row = db
     .prepare(

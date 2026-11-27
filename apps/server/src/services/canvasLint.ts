@@ -1,0 +1,421 @@
+import type { CanvasLayoutIssue } from "@morfa/shared/canvas-layout";
+
+import type {
+  CanvasBehaviorActionDto,
+  CanvasBehaviorActionType,
+  CanvasDocumentDto,
+  CanvasPageDto,
+} from "./canvasDocuments.js";
+import {
+  collectLayoutIssues,
+  resolvePageFrames,
+} from "./canvasFrames.js";
+
+export type CanvasLintSeverity = "error" | "warning";
+
+export interface CanvasLintItem {
+  severity: CanvasLintSeverity;
+  code: string;
+  pageId: string | null;
+  pageName?: string | null;
+  message: string;
+  linkId?: string;
+  triggerId?: string;
+  actionId?: string;
+  pageIds?: string[];
+}
+
+export interface CanvasLintSummary {
+  errors: number;
+  warnings: number;
+  total: number;
+  byCode: Record<string, number>;
+}
+
+export interface CanvasLintResult {
+  items: CanvasLintItem[];
+  errors: CanvasLintItem[];
+  warnings: CanvasLintItem[];
+  summary: CanvasLintSummary;
+}
+
+export interface CanvasLintOptions {
+  /** Restrict the returned items to these page ids (subtree filter). */
+  pageIds?: Set<string>;
+}
+
+const BEHAVIOR_ACTION_TYPES = new Set<CanvasBehaviorActionType>([
+  "navigate",
+  "setStyle",
+  "setText",
+  "setVisible",
+  "setValue",
+  "setChecked",
+  "setState",
+  "setVariable",
+  "incrementVariable",
+  "toggleVariable",
+]);
+
+const TARGET_ACTION_TYPES = new Set<string>([
+  "setStyle",
+  "setText",
+  "setVisible",
+  "setValue",
+  "setChecked",
+]);
+
+const VARIABLE_ACTION_TYPES = new Set<string>([
+  "setVariable",
+  "incrementVariable",
+  "toggleVariable",
+]);
+
+function layoutIssueCode(issue: CanvasLayoutIssue) {
+  switch (issue.code) {
+    case "parent-missing":
+      return "PARENT_MISSING";
+    case "parent-cycle":
+      return "PARENT_CYCLE";
+    case "negative-size":
+      return "LAYOUT_NEGATIVE_SIZE";
+    case "percent-without-reference":
+      return "LAYOUT_PERCENT_WITHOUT_REFERENCE";
+    default:
+      return "LAYOUT_INVALID_LENGTH";
+  }
+}
+
+export function summarizeLintItems(
+  items: CanvasLintItem[],
+): CanvasLintSummary {
+  const byCode: Record<string, number> = {};
+  let errors = 0;
+  let warnings = 0;
+
+  for (const item of items) {
+    byCode[item.code] = (byCode[item.code] ?? 0) + 1;
+    if (item.severity === "error") errors += 1;
+    else warnings += 1;
+  }
+
+  return {
+    errors,
+    warnings,
+    total: items.length,
+    byCode,
+  };
+}
+
+export function lintCanvas(
+  document: CanvasDocumentDto,
+  options: CanvasLintOptions = {},
+): CanvasLintResult {
+  const items: CanvasLintItem[] = [];
+  const seen = new Set<string>();
+  const pagesById = new Map(
+    document.pages.map((page) => [page.id, page]),
+  );
+  const frames = resolvePageFrames(document.pages, document.links);
+
+  const push = (item: CanvasLintItem) => {
+    const key = [
+      item.severity,
+      item.code,
+      item.pageId ?? "",
+      item.message,
+    ].join(":");
+    if (seen.has(key)) return;
+    seen.add(key);
+    items.push(item);
+  };
+
+  const pageName = (pageId: string | null | undefined) =>
+    pageId ? pagesById.get(pageId)?.name ?? null : null;
+
+  // 1. Layout resolver issues. parent-missing / parent-cycle are reported
+  // explicitly below so the rest of the resolver issues are mapped here.
+  for (const issue of collectLayoutIssues(frames)) {
+    if (issue.code === "parent-missing" || issue.code === "parent-cycle") {
+      continue;
+    }
+    push({
+      severity: issue.severity,
+      code: layoutIssueCode(issue),
+      pageId: issue.nodeId,
+      pageName: pageName(issue.nodeId),
+      message: issue.message,
+    });
+  }
+
+  // 2. Hierarchy + link integrity.
+  for (const page of document.pages) {
+    if (page.parentId && !pagesById.has(page.parentId)) {
+      push({
+        severity: "error",
+        code: "PARENT_MISSING",
+        pageId: page.id,
+        pageName: page.name,
+        message: `页面「${page.name}」的父页面 ${page.parentId} 不存在`,
+      });
+    }
+  }
+  for (const frame of frames.values()) {
+    if (frame.issues.some((issue) => issue.code === "parent-cycle")) {
+      push({
+        severity: "error",
+        code: "PARENT_CYCLE",
+        pageId: frame.nodeId,
+        pageName: pageName(frame.nodeId),
+        message: `页面「${pageName(frame.nodeId) ?? frame.nodeId}」的父级形成了循环引用`,
+      });
+    }
+  }
+
+  const parentedPageIds = new Set(
+    document.pages
+      .filter((page) => page.parentId)
+      .map((page) => page.id),
+  );
+
+  for (const link of document.links) {
+    const fromMissing = !pagesById.has(link.fromId);
+    const toMissing = !pagesById.has(link.toId);
+    if (fromMissing || toMissing) {
+      const missingId = fromMissing ? link.fromId : link.toId;
+      const existingId = fromMissing ? link.toId : link.fromId;
+      push({
+        severity: "error",
+        code: "LINK_ENDPOINT_MISSING",
+        pageId: pagesById.has(existingId) ? existingId : null,
+        pageName: pageName(
+          pagesById.has(existingId) ? existingId : null,
+        ),
+        message: `关联线 ${link.id} 的端点 ${missingId} 不存在`,
+        linkId: link.id,
+      });
+    }
+
+    if (
+      parentedPageIds.has(link.fromId) ||
+      parentedPageIds.has(link.toId)
+    ) {
+      const childId = parentedPageIds.has(link.fromId)
+        ? link.fromId
+        : link.toId;
+      push({
+        severity: "error",
+        code: "LINK_ON_CHILD_PAGE",
+        pageId: childId,
+        pageName: pageName(childId),
+        message: `关联线 ${link.id} 连接了子页面「${
+          pageName(childId) ?? childId
+        }」，子页面不能建立关联线`,
+        linkId: link.id,
+      });
+    }
+  }
+
+  // 3. Behavior graph validation.
+  const variablePages = new Map<string, Set<string>>();
+
+  for (const page of document.pages) {
+    const behavior = page.behavior;
+    if (!behavior) continue;
+
+    const states = new Set(behavior.states.map((state) => state.id));
+    const variables = new Set(
+      behavior.variables.map((variable) => variable.key),
+    );
+    const initialStates = behavior.states.filter(
+      (state) => state.initial,
+    );
+
+    if (initialStates.length > 1) {
+      push({
+        severity: "error",
+        code: "BEHAVIOR_INITIAL_STATE_DUPLICATE",
+        pageId: page.id,
+        pageName: page.name,
+        message: `页面「${page.name}」存在 ${initialStates.length} 个初始状态`,
+      });
+    }
+
+    const localVariableKeys = new Set<string>();
+    for (const variable of behavior.variables) {
+      if (localVariableKeys.has(variable.key)) {
+        push({
+          severity: "error",
+          code: "BEHAVIOR_VARIABLE_DUPLICATE",
+          pageId: page.id,
+          pageName: page.name,
+          message: `页面「${page.name}」存在重复的变量 ${variable.key}`,
+        });
+      }
+      localVariableKeys.add(variable.key);
+
+      const owners = variablePages.get(variable.key) ?? new Set<string>();
+      owners.add(page.id);
+      variablePages.set(variable.key, owners);
+    }
+
+    for (const trigger of behavior.triggers) {
+      if (trigger.stateId && !states.has(trigger.stateId)) {
+        push({
+          severity: "error",
+          code: "BEHAVIOR_STATE_MISSING",
+          pageId: page.id,
+          pageName: page.name,
+          message: `页面「${page.name}」的触发器 ${trigger.id} 引用了不存在的状态 ${trigger.stateId}`,
+          triggerId: trigger.id,
+        });
+      }
+
+      if (trigger.actions.length === 0) {
+        push({
+          severity: "warning",
+          code: "BEHAVIOR_TRIGGER_EMPTY",
+          pageId: page.id,
+          pageName: page.name,
+          message: `页面「${page.name}」的触发器 ${trigger.id} 没有动作`,
+          triggerId: trigger.id,
+        });
+      }
+
+      for (const action of trigger.actions) {
+        validateAction({
+          action,
+          page,
+          pagesById,
+          states,
+          variables,
+          push,
+        });
+      }
+    }
+  }
+
+  // Variables are global at runtime; the same key on multiple pages causes a
+  // silent last-wins conflict, so surface it as a project-level warning.
+  for (const [key, ownerIds] of variablePages) {
+    if (ownerIds.size <= 1) continue;
+    const ownerPages = [...ownerIds]
+      .map((id) => pagesById.get(id)?.name ?? id)
+      .sort((left, right) => left.localeCompare(right));
+    push({
+      severity: "warning",
+      code: "BEHAVIOR_VARIABLE_SHARED",
+      pageId: null,
+      pageName: null,
+      pageIds: [...ownerIds].sort(),
+      message: `变量 ${key} 在多个页面中重复定义：${ownerPages.join("、")}`,
+    });
+  }
+
+  const scoped = options.pageIds
+    ? items.filter((item) => {
+        if (item.pageIds?.length) {
+          return item.pageIds.some((id) => options.pageIds?.has(id));
+        }
+        if (!item.pageId) return true;
+        return options.pageIds?.has(item.pageId) ?? false;
+      })
+    : items;
+
+  const errors = scoped.filter((item) => item.severity === "error");
+  const warnings = scoped.filter((item) => item.severity === "warning");
+
+  return {
+    items: scoped,
+    errors,
+    warnings,
+    summary: summarizeLintItems(scoped),
+  };
+}
+
+function validateAction(input: {
+  action: CanvasBehaviorActionDto;
+  page: CanvasPageDto;
+  pagesById: Map<string, CanvasPageDto>;
+  states: Set<string>;
+  variables: Set<string>;
+  push: (item: CanvasLintItem) => void;
+}) {
+  const { action, page, pagesById, states, variables, push } = input;
+  const actionType = (action as { type: string }).type;
+
+  if (!BEHAVIOR_ACTION_TYPES.has(actionType as CanvasBehaviorActionType)) {
+    push({
+      severity: "error",
+      code: "BEHAVIOR_ACTION_UNKNOWN",
+      pageId: page.id,
+      pageName: page.name,
+      message: `页面「${page.name}」的动作 ${action.id} 使用了未知类型 ${actionType || "(空)"}`,
+      actionId: action.id,
+    });
+    return;
+  }
+
+  if (actionType === "navigate") {
+    if (!action.pageId || !pagesById.has(action.pageId)) {
+      push({
+        severity: "error",
+        code: "BEHAVIOR_PAGE_MISSING",
+        pageId: page.id,
+        pageName: page.name,
+        message: `页面「${page.name}」的动作 ${action.id} 跳转的目标页面 ${
+          action.pageId || "(空)"
+        } 不存在`,
+        actionId: action.id,
+      });
+    }
+    return;
+  }
+
+  if (actionType === "setState") {
+    if (!action.value || !states.has(action.value)) {
+      push({
+        severity: "error",
+        code: "BEHAVIOR_STATE_MISSING",
+        pageId: page.id,
+        pageName: page.name,
+        message: `页面「${page.name}」的动作 ${action.id} 设置了不存在的状态 ${
+          action.value || "(空)"
+        }`,
+        actionId: action.id,
+      });
+    }
+    return;
+  }
+
+  if (VARIABLE_ACTION_TYPES.has(actionType)) {
+    if (!action.key || !variables.has(action.key)) {
+      push({
+        severity: "error",
+        code: "BEHAVIOR_VARIABLE_MISSING",
+        pageId: page.id,
+        pageName: page.name,
+        message: `页面「${page.name}」的动作 ${action.id} 引用了不存在的变量 ${
+          action.key || "(空)"
+        }`,
+        actionId: action.id,
+      });
+    }
+    return;
+  }
+
+  if (TARGET_ACTION_TYPES.has(actionType)) {
+    if (!action.targetId || !pagesById.has(action.targetId)) {
+      push({
+        severity: "error",
+        code: "BEHAVIOR_TARGET_MISSING",
+        pageId: page.id,
+        pageName: page.name,
+        message: `页面「${page.name}」的动作 ${action.id} 引用了不存在的目标节点 ${
+          action.targetId || "(空)"
+        }`,
+        actionId: action.id,
+      });
+    }
+  }
+}

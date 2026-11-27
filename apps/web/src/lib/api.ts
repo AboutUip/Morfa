@@ -113,6 +113,82 @@ export interface CanvasWidgetDto {
   disabled?: boolean;
 }
 
+export type CanvasBehaviorActionType =
+  | "navigate"
+  | "setStyle"
+  | "setText"
+  | "setVisible"
+  | "setValue"
+  | "setChecked"
+  | "setState"
+  | "setVariable"
+  | "incrementVariable"
+  | "toggleVariable";
+
+export interface CanvasBehaviorActionDto {
+  id: string;
+  type: CanvasBehaviorActionType;
+  targetId?: string;
+  key?: string;
+  value?: string;
+  pageId?: string;
+}
+
+export type CanvasBehaviorConditionSource =
+  | "variable"
+  | "state"
+  | "nodeVisible"
+  | "nodeText"
+  | "nodeValue"
+  | "nodeStyle";
+
+export type CanvasBehaviorConditionOperator =
+  | "eq"
+  | "neq"
+  | "contains"
+  | "notContains"
+  | "gt"
+  | "gte"
+  | "lt"
+  | "lte";
+
+export interface CanvasBehaviorConditionDto {
+  id: string;
+  source: CanvasBehaviorConditionSource;
+  key?: string;
+  targetId?: string;
+  operator: CanvasBehaviorConditionOperator;
+  value: string;
+  negate?: boolean;
+}
+
+export interface CanvasBehaviorTriggerDto {
+  id: string;
+  event: string;
+  stateId?: string;
+  conditionMode?: "all" | "any";
+  conditions?: CanvasBehaviorConditionDto[];
+  actions: CanvasBehaviorActionDto[];
+}
+
+export interface CanvasBehaviorStateDto {
+  id: string;
+  name: string;
+  initial?: boolean;
+}
+
+export interface CanvasBehaviorVariableDto {
+  key: string;
+  type: "text" | "number" | "boolean" | "color";
+  initialValue: string;
+}
+
+export interface CanvasBehaviorDto {
+  triggers: CanvasBehaviorTriggerDto[];
+  states: CanvasBehaviorStateDto[];
+  variables: CanvasBehaviorVariableDto[];
+}
+
 export interface CanvasPageDto {
   id: string;
   name: string;
@@ -124,6 +200,7 @@ export interface CanvasPageDto {
   parentId?: string;
   data?: CanvasDataEntryDto[];
   widget?: CanvasWidgetDto;
+  behavior?: CanvasBehaviorDto;
 }
 
 export type CanvasLinkDirection = "one-way" | "two-way";
@@ -208,7 +285,15 @@ export type McpCategory =
   | "profile"
   | "security"
   | "data"
-  | "models";
+  | "models"
+  | "projects"
+  | "canvas"
+  | "layout"
+  | "behavior"
+  | "runtime"
+  | "screenshot"
+  | "assets"
+  | "lint";
 
 export interface McpLocalizedText {
   "zh-CN": string;

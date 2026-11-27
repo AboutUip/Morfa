@@ -27,6 +27,7 @@ import {
   createDefaultDataValue,
   getInheritedPageData,
   getPageData,
+  getPageFrame,
   isPageSeeThrough,
   withPageSeeThrough,
   type CanvasDataEntry,
@@ -49,7 +50,7 @@ import {
   WIDGET_TEXT_KINDS,
   WIDGET_VALUE_KINDS,
   WIDGET_VARIANT_OPTIONS,
-} from "./CanvasWidgetView";
+} from "./canvasWidgetCatalog";
 import {
   getPageChildren,
   getRootPages,
@@ -111,8 +112,10 @@ interface CanvasRightSidebarProps {
     pageId: string,
     styles: Record<string, string>,
   ) => void;
+  onUpdatePosition: (pageId: string, x: number, y: number) => void;
   onUpdateWidget: (pageId: string, widget: CanvasWidget | null) => void;
   onUpdateData: (pageId: string, data: CanvasDataEntry[]) => void;
+  onOpenBehaviorEditor: (pageId: string) => void;
   onReorder: (
     dragId: string,
     targetId: string,
@@ -370,11 +373,13 @@ function TextControl({
   value,
   onChange,
   placeholder,
+  disabled = false,
 }: {
   label: string;
   value: string | undefined;
   onChange: (value: string) => void;
   placeholder: string;
+  disabled?: boolean;
 }) {
   const draft = useDraftValue(value ?? "", onChange);
 
@@ -385,6 +390,7 @@ function TextControl({
         className={styles.controlInput}
         value={draft.value}
         placeholder={placeholder}
+        disabled={disabled}
         onChange={(event) => draft.setValue(event.target.value)}
         onFocus={draft.onFocus}
         onBlur={draft.onBlur}
@@ -1119,13 +1125,17 @@ function WidgetAttributes({
 
 function PropertiesPanel({
   pages,
+  links,
   page,
   onRename,
   onRenameId,
   onUpdateStyles,
+  onUpdatePosition,
   onUpdateWidget,
+  onOpenBehaviorEditor,
 }: {
   pages: CanvasPage[];
+  links: CanvasLink[];
   page: CanvasPage | null;
   onRename: (pageId: string, name: string) => void;
   onRenameId: (pageId: string, nextId: string) => void;
@@ -1133,7 +1143,9 @@ function PropertiesPanel({
     pageId: string,
     styles: Record<string, string>,
   ) => void;
+  onUpdatePosition: (pageId: string, x: number, y: number) => void;
   onUpdateWidget: (pageId: string, widget: CanvasWidget | null) => void;
+  onOpenBehaviorEditor: (pageId: string) => void;
 }) {
   const { t } = useTranslation();
   const [tab, setTab] = useState<PropertyTab>("attributes");
@@ -1204,6 +1216,17 @@ function PropertiesPanel({
   const inherit = t("projects.workspace.propertiesPanel.inherit");
   const seeThrough = page ? isPageSeeThrough(page) : false;
   const widget = page?.widget ?? null;
+  const pageFrame = page ? getPageFrame(page, pages, links) : null;
+  const pageWorldX = pageFrame
+    ? Math.round(pageFrame.worldX)
+    : page
+      ? Math.round(page.x)
+      : 0;
+  const pageWorldY = pageFrame
+    ? Math.round(pageFrame.worldY)
+    : page
+      ? Math.round(page.y)
+      : 0;
 
   const toggleSeeThrough = () => {
     if (!page) return;
@@ -1435,20 +1458,149 @@ function PropertiesPanel({
                   >
                     <NumberControl
                       label={t(
+                        "projects.workspace.propertiesPanel.fields.x",
+                      )}
+                      value={String(pageWorldX)}
+                      unit=""
+                      onChange={(value) => {
+                        const parsed = Number.parseFloat(value);
+                        if (Number.isFinite(parsed)) {
+                          onUpdatePosition(page.id, parsed, pageWorldY);
+                        }
+                      }}
+                    />
+                    <NumberControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.y",
+                      )}
+                      value={String(pageWorldY)}
+                      unit=""
+                      onChange={(value) => {
+                        const parsed = Number.parseFloat(value);
+                        if (Number.isFinite(parsed)) {
+                          onUpdatePosition(page.id, pageWorldX, parsed);
+                        }
+                      }}
+                    />
+                    <TextControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.left",
+                      )}
+                      value={page.styles.left}
+                      placeholder={t(
+                        "projects.workspace.propertiesPanel.lengthPlaceholder",
+                      )}
+                      onChange={(value) => updateStyle("left", value)}
+                    />
+                    <TextControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.top",
+                      )}
+                      value={page.styles.top}
+                      placeholder={t(
+                        "projects.workspace.propertiesPanel.lengthPlaceholder",
+                      )}
+                      onChange={(value) => updateStyle("top", value)}
+                    />
+                    <TextControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.right",
+                      )}
+                      value={page.styles.right}
+                      placeholder={t(
+                        "projects.workspace.propertiesPanel.lengthPlaceholder",
+                      )}
+                      onChange={(value) => updateStyle("right", value)}
+                    />
+                    <TextControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.bottom",
+                      )}
+                      value={page.styles.bottom}
+                      placeholder={t(
+                        "projects.workspace.propertiesPanel.lengthPlaceholder",
+                      )}
+                      onChange={(value) => updateStyle("bottom", value)}
+                    />
+                    <TextControl
+                      label={t(
                         "projects.workspace.propertiesPanel.fields.width",
                       )}
                       value={page.styles.width}
+                      placeholder={t(
+                        "projects.workspace.propertiesPanel.lengthPlaceholder",
+                      )}
                       disabled={page.lockedSize}
                       onChange={(value) => updateStyle("width", value)}
                     />
-                    <NumberControl
+                    <TextControl
                       label={t(
                         "projects.workspace.propertiesPanel.fields.height",
                       )}
                       value={page.styles.height}
+                      placeholder={t(
+                        "projects.workspace.propertiesPanel.lengthPlaceholder",
+                      )}
                       disabled={page.lockedSize}
                       onChange={(value) => updateStyle("height", value)}
                     />
+                    <TextControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.minWidth",
+                      )}
+                      value={page.styles["min-width"]}
+                      placeholder={t(
+                        "projects.workspace.propertiesPanel.lengthPlaceholder",
+                      )}
+                      disabled={page.lockedSize}
+                      onChange={(value) =>
+                        updateStyle("min-width", value)
+                      }
+                    />
+                    <TextControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.maxWidth",
+                      )}
+                      value={page.styles["max-width"]}
+                      placeholder={t(
+                        "projects.workspace.propertiesPanel.lengthPlaceholder",
+                      )}
+                      disabled={page.lockedSize}
+                      onChange={(value) =>
+                        updateStyle("max-width", value)
+                      }
+                    />
+                    <TextControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.minHeight",
+                      )}
+                      value={page.styles["min-height"]}
+                      placeholder={t(
+                        "projects.workspace.propertiesPanel.lengthPlaceholder",
+                      )}
+                      disabled={page.lockedSize}
+                      onChange={(value) =>
+                        updateStyle("min-height", value)
+                      }
+                    />
+                    <TextControl
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.maxHeight",
+                      )}
+                      value={page.styles["max-height"]}
+                      placeholder={t(
+                        "projects.workspace.propertiesPanel.lengthPlaceholder",
+                      )}
+                      disabled={page.lockedSize}
+                      onChange={(value) =>
+                        updateStyle("max-height", value)
+                      }
+                    />
+                    <p className={styles.styleHint}>
+                      {t(
+                        "projects.workspace.propertiesPanel.positionHint",
+                      )}
+                    </p>
                     {page.lockedSize ? (
                       <p className={styles.lockHint}>
                         {t(
@@ -1664,9 +1816,26 @@ function PropertiesPanel({
         <div className={styles.propertyBody}>
           {page ? (
             <div className={styles.controlSections}>
-              <p className={styles.styleHint}>
-                {t("projects.workspace.propertiesPanel.behaviorEmpty")}
-              </p>
+              {page.behavior ? (
+                <p className={styles.styleHint}>
+                  {t("projects.workspace.behavior.summary", {
+                    triggers: page.behavior.triggers.length,
+                    states: page.behavior.states.length,
+                    variables: page.behavior.variables.length,
+                  })}
+                </p>
+              ) : (
+                <p className={styles.styleHint}>
+                  {t("projects.workspace.propertiesPanel.behaviorEmpty")}
+                </p>
+              )}
+              <button
+                className={styles.behaviorEditorButton}
+                type="button"
+                onClick={() => onOpenBehaviorEditor(page.id)}
+              >
+                {t("projects.workspace.behavior.openEditor")}
+              </button>
             </div>
           ) : null}
         </div>
@@ -2484,8 +2653,10 @@ export function CanvasRightSidebar({
   onRenameId,
   onDelete,
   onUpdateStyles,
+  onUpdatePosition,
   onUpdateWidget,
   onUpdateData,
+  onOpenBehaviorEditor,
   onReorder,
 }: CanvasRightSidebarProps) {
   const { t } = useTranslation();
@@ -2697,11 +2868,14 @@ export function CanvasRightSidebar({
             ) : (
               <PropertiesPanel
                 pages={pages}
+                links={links}
                 page={selectedPage}
                 onRename={onRename}
                 onRenameId={onRenameId}
                 onUpdateStyles={onUpdateStyles}
+                onUpdatePosition={onUpdatePosition}
                 onUpdateWidget={onUpdateWidget}
+                onOpenBehaviorEditor={onOpenBehaviorEditor}
               />
             )}
 

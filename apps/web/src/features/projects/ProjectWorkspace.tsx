@@ -18,6 +18,12 @@ import {
 import { CanvasLeftSidebar } from "./CanvasLeftSidebar";
 import { CanvasRightSidebar } from "./CanvasRightSidebar";
 import { CanvasViewport } from "./CanvasViewport";
+import { CanvasBehaviorEditor } from "./CanvasBehaviorEditor";
+import { CanvasSimulator } from "./CanvasSimulator";
+import {
+  createRuntimeSnapshot,
+  type RuntimeSnapshot,
+} from "./canvasRuntime";
 import {
   CANVAS_TOOL_SHORTCUTS,
   type CanvasTool,
@@ -26,7 +32,8 @@ import {
   clearStyleVariableFallbackCache,
   collectCanvasLint,
   createLinkId,
-  getPageSize,
+  getCanvasLayout,
+  getPageFrame,
   renameLinkReferences,
   renameStyleReferences,
   type CanvasDataEntry,
@@ -35,6 +42,7 @@ import {
   type CanvasLintItem,
   type CanvasPage,
   type CanvasWidget,
+  type CanvasBehavior,
 } from "./canvasDocument";
 import {
   getSubtreeIds,
@@ -59,6 +67,22 @@ function isEditableTarget(target: EventTarget | null) {
     target.tagName === "TEXTAREA" ||
     target.tagName === "SELECT"
   );
+}
+
+function hasPositionAnchor(styles: Record<string, string>) {
+  return ["left", "right", "top", "bottom"].some((key) => {
+    const value = styles[key]?.trim().toLowerCase();
+    return Boolean(value && value !== "auto");
+  });
+}
+
+function clearPositionAnchors(styles: Record<string, string>) {
+  const next = { ...styles };
+  delete next.left;
+  delete next.right;
+  delete next.top;
+  delete next.bottom;
+  return next;
 }
 
 function LintMessage({ item }: { item: CanvasLintItem }) {
@@ -97,6 +121,16 @@ function LintMessage({ item }: { item: CanvasLintItem }) {
           {t("projects.workspace.lint.codes.missingNodeKey", {
             name: item.targetName ?? item.targetId ?? "",
             key: item.key ?? "",
+          })}
+        </>
+      );
+    case "layout-invalid":
+      return (
+        <>
+          {t("projects.workspace.lint.codes.layoutInvalid", {
+            page: item.pageName,
+            property: item.styleKey,
+            value: item.expression,
           })}
         </>
       );
@@ -253,13 +287,33 @@ export function ProjectWorkspace({
     null,
   );
   const [lintOpen, setLintOpen] = useState(false);
+  const [behaviorEditorOpen, setBehaviorEditorOpen] = useState(false);
   const [lintHeight, setLintHeight] = useState(220);
+  const [simulator, setSimulator] = useState<{
+    snapshot: RuntimeSnapshot;
+    sourceSignature: string;
+    compiling: boolean;
+    progress: number;
+  } | null>(null);
+  const [runChoice, setRunChoice] = useState<{
+    containerId: string;
+    candidates: string[];
+  } | null>(null);
+  const compileTimerRef = useRef<number | null>(null);
+  const compileDoneTimerRef = useRef<number | null>(null);
   const selectedPageId =
     selectedPageIds[selectedPageIds.length - 1] ?? null;
   const lintItems = useMemo(
     () => collectCanvasLint(pages, links),
     [pages, links],
   );
+  const documentSignature = useMemo(
+    () => JSON.stringify({ pages, links }),
+    [pages, links],
+  );
+  const simulatorDirty = simulator
+    ? simulator.sourceSignature !== documentSignature
+    : false;
 
   useEffect(() => {
     clearStyleVariableFallbackCache();
@@ -422,6 +476,45 @@ export function ProjectWorkspace({
     );
   };
 
+  const handleUpdatePagePosition = (
+    pageId: string,
+    x: number,
+    y: number,
+  ) => {
+    commitPages((current) => {
+      const target = current.find((page) => page.id === pageId);
+      if (!target) return current;
+
+      const targetFrame = getPageFrame(target, current, links);
+      const dx = x - targetFrame.worldX;
+      const dy = y - targetFrame.worldY;
+      if (dx === 0 && dy === 0 && !hasPositionAnchor(target.styles)) {
+        return current;
+      }
+
+      const descendants = getSubtreeIds(current, pageId);
+      descendants.delete(pageId);
+
+      return current.map((page) => {
+        if (page.id === pageId) {
+          return {
+            ...page,
+            x,
+            y,
+            styles: clearPositionAnchors(page.styles),
+          };
+        }
+        if (
+          descendants.has(page.id) &&
+          !hasPositionAnchor(page.styles)
+        ) {
+          return { ...page, x: page.x + dx, y: page.y + dy };
+        }
+        return page;
+      });
+    });
+  };
+
   const handleUpdatePageWidget = (
     pageId: string,
     widget: CanvasWidget | null,
@@ -435,21 +528,158 @@ export function ProjectWorkspace({
     );
   };
 
+  const handleUpdatePageBehavior = (
+    pageId: string,
+    behavior: CanvasBehavior,
+  ) => {
+    commitPages((current) =>
+      current.map((page) =>
+        page.id === pageId ? { ...page, behavior } : page,
+      ),
+    );
+  };
+
+  const getRunTargets = (containerId: string) => {
+    const targets = new Set<string>();
+    for (const link of links) {
+      if (link.fromId === containerId) targets.add(link.toId);
+      if (link.direction === "two-way" && link.toId === containerId) {
+        targets.add(link.fromId);
+      }
+    }
+    targets.delete(containerId);
+    return [...targets].filter((id) => {
+      const page = pages.find((item) => item.id === id);
+      return Boolean(page && !page.parentId);
+    });
+  };
+
+  const openSimulator = (containerId: string, entryPageId: string) => {
+    setSimulator({
+      snapshot: createRuntimeSnapshot(
+        pages,
+        links,
+        containerId,
+        entryPageId,
+      ),
+      sourceSignature: documentSignature,
+      compiling: false,
+      progress: 0,
+    });
+    setRunChoice(null);
+  };
+
+  const handleRunPage = (containerId: string) => {
+    const targets = getRunTargets(containerId);
+    if (targets.length === 0) {
+      openSimulator(containerId, containerId);
+      return;
+    }
+    if (targets.length === 1) {
+      openSimulator(containerId, targets[0]);
+      return;
+    }
+    setRunChoice({ containerId, candidates: targets });
+  };
+
+  const clearCompileTimers = () => {
+    if (compileTimerRef.current !== null) {
+      window.clearTimeout(compileTimerRef.current);
+      compileTimerRef.current = null;
+    }
+    if (compileDoneTimerRef.current !== null) {
+      window.clearTimeout(compileDoneTimerRef.current);
+      compileDoneTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => clearCompileTimers();
+  }, []);
+
+  const handleCompileSimulator = () => {
+    if (!simulator || simulator.compiling) return;
+    clearCompileTimers();
+    setSimulator((current) =>
+      current ? { ...current, compiling: true, progress: 3 } : current,
+    );
+
+    let progress = 3;
+    const tick = () => {
+      progress = Math.min(
+        100,
+        progress + 7 + Math.round(Math.random() * 9),
+      );
+      setSimulator((current) => {
+        if (!current) return current;
+        if (progress >= 100) {
+          const entryPageId = pages.some(
+            (page) => page.id === current.snapshot.entryPageId,
+          )
+            ? current.snapshot.entryPageId
+            : current.snapshot.containerId;
+          return {
+            ...current,
+            snapshot: createRuntimeSnapshot(
+              pages,
+              links,
+              current.snapshot.containerId,
+              entryPageId,
+            ),
+            sourceSignature: documentSignature,
+            compiling: false,
+            progress: 100,
+          };
+        }
+        return { ...current, progress };
+      });
+
+      if (progress < 100) {
+        compileTimerRef.current = window.setTimeout(tick, 80);
+      } else {
+        compileDoneTimerRef.current = window.setTimeout(() => {
+          setSimulator((current) =>
+            current ? { ...current, progress: 0 } : current,
+          );
+        }, 900);
+      }
+    };
+
+    compileTimerRef.current = window.setTimeout(tick, 80);
+  };
+
   const handleMovePage = (pageId: string, x: number, y: number) => {
     transientPages((current) => {
       const target = current.find((page) => page.id === pageId);
       if (!target) return current;
 
-      const dx = x - target.x;
-      const dy = y - target.y;
-      if (dx === 0 && dy === 0) return current;
+      const targetFrame = getPageFrame(target, current, links);
+      const dx = x - targetFrame.worldX;
+      const dy = y - targetFrame.worldY;
+      const targetChanged =
+        target.x !== x ||
+        target.y !== y ||
+        hasPositionAnchor(target.styles);
+      const shiftDescendants = dx !== 0 || dy !== 0;
+      if (!targetChanged && !shiftDescendants) return current;
 
       const descendants = getSubtreeIds(current, pageId);
       descendants.delete(pageId);
 
       return current.map((page) => {
-        if (page.id === pageId) return { ...page, x, y };
-        if (descendants.has(page.id)) {
+        if (page.id === pageId) {
+          return {
+            ...page,
+            x,
+            y,
+            styles: clearPositionAnchors(page.styles),
+          };
+        }
+        if (
+          shiftDescendants &&
+          descendants.has(page.id) &&
+          !hasPositionAnchor(page.styles)
+        ) {
           return { ...page, x: page.x + dx, y: page.y + dy };
         }
         return page;
@@ -479,28 +709,28 @@ export function ProjectWorkspace({
         if (!page) return current;
 
         const subtreeIds = getSubtreeIds(current.pages, pageId);
-        const { width, height } = getPageSize(
+        const pageFrame = getPageFrame(
           page,
           current.pages,
           current.links,
         );
-        const centerX = page.x + width / 2;
-        const centerY = page.y + height / 2;
+        const centerX = pageFrame.worldX + pageFrame.width / 2;
+        const centerY = pageFrame.worldY + pageFrame.height / 2;
 
         let parentPage: CanvasPage | null = null;
         for (let index = current.pages.length - 1; index >= 0; index -= 1) {
           const candidate = current.pages[index];
           if (subtreeIds.has(candidate.id)) continue;
-          const size = getPageSize(
+          const frame = getPageFrame(
             candidate,
             current.pages,
             current.links,
           );
           if (
-            centerX >= candidate.x &&
-            centerX <= candidate.x + size.width &&
-            centerY >= candidate.y &&
-            centerY <= candidate.y + size.height
+            centerX >= frame.worldX &&
+            centerX <= frame.worldX + frame.width &&
+            centerY >= frame.worldY &&
+            centerY <= frame.worldY + frame.height
           ) {
             parentPage = candidate;
             break;
@@ -555,13 +785,42 @@ export function ProjectWorkspace({
 
     const nextX = Math.round(x);
     const nextY = Math.round(y);
-    const nextWidth = `${Math.max(1, Math.round(width))}px`;
-    const nextHeight = `${Math.max(1, Math.round(height))}px`;
+    const layout = getCanvasLayout(pages, links);
+    const parent = target.parentId
+      ? pages.find((page) => page.id === target.parentId)
+      : undefined;
+    const parentFrame = parent ? layout.get(parent.id) : null;
+    const formatLength = (
+      currentValue: string | undefined,
+      nextValue: number,
+      reference: number | undefined,
+    ) => {
+      if (
+        currentValue?.trim().endsWith("%") &&
+        reference !== undefined &&
+        reference > 0
+      ) {
+        const percent = (Math.max(1, nextValue) / reference) * 100;
+        return `${Number(percent.toFixed(2))}%`;
+      }
+      return `${Math.max(1, Math.round(nextValue))}px`;
+    };
+    const nextWidth = formatLength(
+      target.styles.width,
+      width,
+      parentFrame?.width,
+    );
+    const nextHeight = formatLength(
+      target.styles.height,
+      height,
+      parentFrame?.height,
+    );
     if (
       target.x === nextX &&
       target.y === nextY &&
       target.styles.width === nextWidth &&
-      target.styles.height === nextHeight
+      target.styles.height === nextHeight &&
+      !hasPositionAnchor(target.styles)
     ) {
       return;
     }
@@ -575,7 +834,7 @@ export function ProjectWorkspace({
           x: nextX,
           y: nextY,
           styles: {
-            ...page.styles,
+            ...clearPositionAnchors(page.styles),
             width: nextWidth,
             height: nextHeight,
           },
@@ -600,6 +859,15 @@ export function ProjectWorkspace({
     if (dragId === targetId) return;
 
     commit((current) => {
+      const dragPage = current.pages.find((page) => page.id === dragId);
+      if (!dragPage) return current;
+      const frame = getPageFrame(
+        dragPage,
+        current.pages,
+        current.links,
+      );
+      const previousParentId = dragPage.parentId ?? null;
+
       const nextPages = movePageInHierarchy(
         current.pages,
         dragId,
@@ -607,6 +875,18 @@ export function ProjectWorkspace({
         position,
       );
       if (!nextPages) return current;
+
+      const movedPage = nextPages.find((page) => page.id === dragId);
+      if (
+        movedPage &&
+        (movedPage.parentId ?? null) !== previousParentId
+      ) {
+        // Reparenting changes the coordinate space. Keep the node visually
+        // stable by switching it to world coordinates in the new parent.
+        movedPage.x = frame.worldX;
+        movedPage.y = frame.worldY;
+        movedPage.styles = clearPositionAnchors(movedPage.styles);
+      }
 
       const parentedIds = new Set(
         nextPages
@@ -642,6 +922,19 @@ export function ProjectWorkspace({
     handleDeletePage(pageId);
   };
 
+  const normalizePastPosition = (
+    page: CanvasPage,
+    fallback: { x: number; y: number },
+  ): CanvasPage => {
+    if (!hasPositionAnchor(page.styles)) return page;
+    return {
+      ...page,
+      x: fallback.x,
+      y: fallback.y,
+      styles: clearPositionAnchors(page.styles),
+    };
+  };
+
   const handlePastePage = (position?: { x: number; y: number }) => {
     const pasted = pastePageFromClipboard(
       pages,
@@ -650,9 +943,14 @@ export function ProjectWorkspace({
     );
     if (!pasted) return;
 
-    commitPages((current) => [...current, pasted]);
+    const pastedFrame = getPageFrame(pasted, pages, links);
+    const normalized = normalizePastPosition(pasted, {
+      x: position?.x ?? pastedFrame.worldX + 24,
+      y: position?.y ?? pastedFrame.worldY + 24,
+    });
+    commitPages((current) => [...current, normalized]);
     setSelectedLinkId(null);
-    setSelectedPageIds([pasted.id]);
+    setSelectedPageIds([normalized.id]);
   };
 
   const handleDuplicatePage = (pageId: string) => {
@@ -664,9 +962,14 @@ export function ProjectWorkspace({
       pages,
       t("projects.workspace.canvas.copySuffix"),
     );
-    commitPages((current) => [...current, duplicate]);
+    const sourceFrame = getPageFrame(page, pages, links);
+    const normalized = normalizePastPosition(duplicate, {
+      x: sourceFrame.worldX + 24,
+      y: sourceFrame.worldY + 24,
+    });
+    commitPages((current) => [...current, normalized]);
     setSelectedLinkId(null);
-    setSelectedPageIds([duplicate.id]);
+    setSelectedPageIds([normalized.id]);
   };
 
   const handleCreateLink = (
@@ -858,6 +1161,7 @@ export function ProjectWorkspace({
           onCutPage={handleCutPage}
           onDuplicatePage={handleDuplicatePage}
           onPastePage={handlePastePage}
+          onRunPage={handleRunPage}
         />
 
         <CanvasRightSidebar
@@ -873,13 +1177,29 @@ export function ProjectWorkspace({
           onRenameId={handleRenamePageId}
           onDelete={handleDeletePage}
           onUpdateStyles={handleUpdatePageStyles}
+          onUpdatePosition={handleUpdatePagePosition}
           onUpdateWidget={handleUpdatePageWidget}
           onUpdateData={handleUpdatePageData}
+          onOpenBehaviorEditor={(pageId) => {
+            setSelectedPageIds([pageId]);
+            setSelectedLinkId(null);
+            setBehaviorEditorOpen(true);
+            setLintOpen(false);
+          }}
           onReorder={handleReorderPage}
         />
       </div>
 
-      {lintOpen ? (
+      {behaviorEditorOpen ? (
+        <CanvasBehaviorEditor
+          pages={pages}
+          pageId={selectedPageId}
+          height={lintHeight}
+          onHeightChange={setLintHeight}
+          onClose={() => setBehaviorEditorOpen(false)}
+          onUpdateBehavior={handleUpdatePageBehavior}
+        />
+      ) : lintOpen ? (
         <CanvasLintPanel
           items={lintItems}
           height={lintHeight}
@@ -888,13 +1208,110 @@ export function ProjectWorkspace({
         />
       ) : null}
 
+      {runChoice ? (
+        <div
+          className={styles.runChoiceOverlay}
+          role="presentation"
+          onClick={() => setRunChoice(null)}
+        >
+          <div
+            className={styles.runChoiceDialog}
+            role="dialog"
+            aria-modal="true"
+            aria-label={t("projects.workspace.simulator.chooseEntry")}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <header className={styles.runChoiceHeader}>
+              <div>
+                <h2>{t("projects.workspace.simulator.chooseEntry")}</h2>
+                <p>{t("projects.workspace.simulator.chooseEntryHint")}</p>
+              </div>
+              <button
+                className={styles.runChoiceClose}
+                type="button"
+                aria-label={t("projects.workspace.simulator.cancel")}
+                onClick={() => setRunChoice(null)}
+              >
+                ×
+              </button>
+            </header>
+            <div className={styles.runChoiceList}>
+              {runChoice.candidates.map((candidateId) => {
+                const candidate = pages.find(
+                  (page) => page.id === candidateId,
+                );
+                if (!candidate) return null;
+                return (
+                  <button
+                    className={styles.runChoiceItem}
+                    type="button"
+                    key={candidateId}
+                    onClick={() =>
+                      openSimulator(runChoice.containerId, candidateId)
+                    }
+                  >
+                    <span className={styles.runChoicePreview}>
+                      {candidate.name.slice(0, 1)}
+                    </span>
+                    <span className={styles.runChoiceInfo}>
+                      <strong>{candidate.name}</strong>
+                      <span>
+                        {candidate.styles.width ?? "800px"} ×{" "}
+                        {candidate.styles.height ?? "800px"}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {simulator ? (
+        <CanvasSimulator
+          snapshot={simulator.snapshot}
+          dirty={simulatorDirty}
+          compiling={simulator.compiling}
+          compileProgress={simulator.progress}
+          onCompile={handleCompileSimulator}
+          onClose={() => {
+            clearCompileTimers();
+            setSimulator(null);
+          }}
+        />
+      ) : null}
+
       <footer className={styles.statusBar}>
+        {simulator && (simulator.compiling || simulator.progress > 0) ? (
+          <div className={styles.compileStatus}>
+            <span className={styles.compileStatusLabel}>
+              {simulator.compiling
+                ? t("projects.workspace.simulator.compiling", {
+                    progress: simulator.progress,
+                  })
+                : t("projects.workspace.simulator.compileComplete")}
+            </span>
+            <span className={styles.compileTrack}>
+              <span
+                className={styles.compileFill}
+                style={{ width: `${simulator.progress}%` }}
+              />
+            </span>
+            <span className={styles.compilePercent}>
+              {simulator.progress}%
+            </span>
+          </div>
+        ) : null}
         <button
           className={styles.lintStatusButton}
           type="button"
           data-active={lintOpen}
           data-clean={lintItems.length === 0}
-          onClick={() => setLintOpen((current) => !current)}
+          onClick={() => {
+            setBehaviorEditorOpen(false);
+            setLintOpen((current) => !current);
+          }}
           aria-expanded={lintOpen}
           aria-label={
             lintItems.length

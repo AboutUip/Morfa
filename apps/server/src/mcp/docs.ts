@@ -8,6 +8,14 @@ const CATEGORY_ORDER: McpCategory[] = [
   "security",
   "data",
   "models",
+  "projects",
+  "canvas",
+  "layout",
+  "behavior",
+  "runtime",
+  "screenshot",
+  "assets",
+  "lint",
 ];
 
 const CATEGORY_TITLES: Record<McpCategory, string> = {
@@ -17,6 +25,14 @@ const CATEGORY_TITLES: Record<McpCategory, string> = {
   security: "Security",
   data: "Data & export",
   models: "Model providers",
+  projects: "Projects",
+  canvas: "Canvas pages & links",
+  layout: "Layout",
+  behavior: "Behavior",
+  runtime: "Runtime & preview",
+  screenshot: "Screenshots",
+  assets: "Assets",
+  lint: "Lint & validation",
 };
 
 function permissionsLabel(capability: McpCapabilityDetail): string {

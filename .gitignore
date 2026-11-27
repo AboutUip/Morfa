@@ -56,3 +56,6 @@ Thumbs.db
 .cache/
 tmp/
 temp/
+
+# 本地开发计划与审计稿（不提交）
+dev/

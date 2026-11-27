@@ -25,7 +25,17 @@ const MAX_WIDGET_DESCRIPTION_LENGTH = 1000;
 const MAX_WIDGET_OPTIONS = 20;
 const MAX_WIDGET_OPTION_LENGTH = 100;
 const MAX_WIDGET_DATA_POINTS = 24;
-const MAX_CANVAS_JSON_LENGTH = 2_000_000;
+const MAX_BEHAVIOR_TRIGGERS = 100;
+const MAX_BEHAVIOR_ACTIONS = 50;
+const MAX_BEHAVIOR_CONDITIONS = 20;
+const MAX_BEHAVIOR_STATES = 50;
+const MAX_BEHAVIOR_VARIABLES = 50;
+const MAX_BEHAVIOR_ID_LENGTH = 80;
+const MAX_BEHAVIOR_EVENT_LENGTH = 80;
+const MAX_BEHAVIOR_STATE_NAME_LENGTH = 120;
+const MAX_BEHAVIOR_VARIABLE_KEY_LENGTH = 64;
+const MAX_BEHAVIOR_ACTION_VALUE_LENGTH = 2000;
+const MAX_CANVAS_JSON_LENGTH = 4_000_000;
 
 export type CanvasFrame = "iphone" | "android" | "watch";
 export type CanvasDataType =
@@ -80,6 +90,82 @@ export interface CanvasDataEntryDto {
   commit?: string;
 }
 
+export type CanvasBehaviorActionType =
+  | "navigate"
+  | "setStyle"
+  | "setText"
+  | "setVisible"
+  | "setValue"
+  | "setChecked"
+  | "setState"
+  | "setVariable"
+  | "incrementVariable"
+  | "toggleVariable";
+
+export interface CanvasBehaviorActionDto {
+  id: string;
+  type: CanvasBehaviorActionType;
+  targetId?: string;
+  key?: string;
+  value?: string;
+  pageId?: string;
+}
+
+export type CanvasBehaviorConditionSource =
+  | "variable"
+  | "state"
+  | "nodeVisible"
+  | "nodeText"
+  | "nodeValue"
+  | "nodeStyle";
+
+export type CanvasBehaviorConditionOperator =
+  | "eq"
+  | "neq"
+  | "contains"
+  | "notContains"
+  | "gt"
+  | "gte"
+  | "lt"
+  | "lte";
+
+export interface CanvasBehaviorConditionDto {
+  id: string;
+  source: CanvasBehaviorConditionSource;
+  key?: string;
+  targetId?: string;
+  operator: CanvasBehaviorConditionOperator;
+  value: string;
+  negate?: boolean;
+}
+
+export interface CanvasBehaviorTriggerDto {
+  id: string;
+  event: string;
+  stateId?: string;
+  conditionMode?: "all" | "any";
+  conditions?: CanvasBehaviorConditionDto[];
+  actions: CanvasBehaviorActionDto[];
+}
+
+export interface CanvasBehaviorStateDto {
+  id: string;
+  name: string;
+  initial?: boolean;
+}
+
+export interface CanvasBehaviorVariableDto {
+  key: string;
+  type: "text" | "number" | "boolean" | "color";
+  initialValue: string;
+}
+
+export interface CanvasBehaviorDto {
+  triggers: CanvasBehaviorTriggerDto[];
+  states: CanvasBehaviorStateDto[];
+  variables: CanvasBehaviorVariableDto[];
+}
+
 export interface CanvasPageDto {
   id: string;
   name: string;
@@ -91,6 +177,7 @@ export interface CanvasPageDto {
   parentId?: string;
   data?: CanvasDataEntryDto[];
   widget?: CanvasWidgetDto;
+  behavior?: CanvasBehaviorDto;
 }
 
 export type CanvasLinkDirection = "one-way" | "two-way";
@@ -364,6 +451,247 @@ function normalizeWidget(value: unknown): CanvasWidgetDto | undefined {
   };
 }
 
+const BEHAVIOR_ACTION_TYPES = new Set<CanvasBehaviorActionType>([
+  "navigate",
+  "setStyle",
+  "setText",
+  "setVisible",
+  "setValue",
+  "setChecked",
+  "setState",
+  "setVariable",
+  "incrementVariable",
+  "toggleVariable",
+]);
+
+const BEHAVIOR_CONDITION_SOURCES = new Set<CanvasBehaviorConditionSource>([
+  "variable",
+  "state",
+  "nodeVisible",
+  "nodeText",
+  "nodeValue",
+  "nodeStyle",
+]);
+
+const BEHAVIOR_CONDITION_OPERATORS =
+  new Set<CanvasBehaviorConditionOperator>([
+    "eq",
+    "neq",
+    "contains",
+    "notContains",
+    "gt",
+    "gte",
+    "lt",
+    "lte",
+  ]);
+
+function normalizeBehavior(
+  value: unknown,
+): CanvasBehaviorDto | undefined {
+  if (value === undefined) return undefined;
+  const behavior = readObject(value);
+  if (
+    !Array.isArray(behavior.triggers) ||
+    behavior.triggers.length > MAX_BEHAVIOR_TRIGGERS ||
+    !Array.isArray(behavior.states) ||
+    behavior.states.length > MAX_BEHAVIOR_STATES ||
+    !Array.isArray(behavior.variables) ||
+    behavior.variables.length > MAX_BEHAVIOR_VARIABLES
+  ) {
+    invalidDocument();
+  }
+
+  const triggers = behavior.triggers.map((rawTrigger) => {
+    const trigger = readObject(rawTrigger);
+    const id = readString(trigger.id, MAX_BEHAVIOR_ID_LENGTH, true);
+    const event = readString(
+      trigger.event,
+      MAX_BEHAVIOR_EVENT_LENGTH,
+      true,
+    );
+    const stateIdValue =
+      typeof trigger.stateId === "string"
+        ? trigger.stateId.trim()
+        : "";
+    const stateId = stateIdValue
+      ? readString(stateIdValue, MAX_BEHAVIOR_ID_LENGTH, true)
+      : "";
+    if (
+      !Array.isArray(trigger.actions) ||
+      trigger.actions.length > MAX_BEHAVIOR_ACTIONS
+    ) {
+      invalidDocument();
+    }
+
+    const actions: CanvasBehaviorActionDto[] = trigger.actions.map(
+      (rawAction) => {
+        const action = readObject(rawAction);
+        const actionId = readString(
+          action.id,
+          MAX_BEHAVIOR_ID_LENGTH,
+          true,
+        );
+        const type = action.type;
+        if (
+          typeof type !== "string" ||
+          !BEHAVIOR_ACTION_TYPES.has(type as CanvasBehaviorActionType)
+        ) {
+          invalidDocument();
+        }
+
+        const targetIdValue =
+          typeof action.targetId === "string"
+            ? action.targetId.trim()
+            : "";
+        const targetId = targetIdValue
+          ? readPageId(targetIdValue)
+          : undefined;
+        const pageIdValue =
+          typeof action.pageId === "string"
+            ? action.pageId.trim()
+            : "";
+        const pageId = pageIdValue ? readPageId(pageIdValue) : undefined;
+        const key =
+          typeof action.key === "string"
+            ? readString(action.key, MAX_STYLE_KEY_LENGTH)
+            : "";
+        const actionValue =
+          typeof action.value === "string" ? action.value : "";
+        if (actionValue.length > MAX_BEHAVIOR_ACTION_VALUE_LENGTH) {
+          invalidDocument();
+        }
+
+        return {
+          id: actionId,
+          type: type as CanvasBehaviorActionType,
+          ...(targetId ? { targetId } : {}),
+          ...(key ? { key } : {}),
+          ...(actionValue ? { value: actionValue } : {}),
+          ...(pageId ? { pageId } : {}),
+        };
+      },
+    );
+
+    let conditions: CanvasBehaviorConditionDto[] | undefined;
+    if (trigger.conditions !== undefined) {
+      if (
+        !Array.isArray(trigger.conditions) ||
+        trigger.conditions.length > MAX_BEHAVIOR_CONDITIONS
+      ) {
+        invalidDocument();
+      }
+      conditions = trigger.conditions.map((rawCondition) => {
+        const condition = readObject(rawCondition);
+        const conditionId = readString(
+          condition.id,
+          MAX_BEHAVIOR_ID_LENGTH,
+          true,
+        );
+        const source = condition.source;
+        if (
+          typeof source !== "string" ||
+          !BEHAVIOR_CONDITION_SOURCES.has(
+            source as CanvasBehaviorConditionSource,
+          )
+        ) {
+          invalidDocument();
+        }
+        const operator = condition.operator;
+        if (
+          typeof operator !== "string" ||
+          !BEHAVIOR_CONDITION_OPERATORS.has(
+            operator as CanvasBehaviorConditionOperator,
+          )
+        ) {
+          invalidDocument();
+        }
+        const key =
+          typeof condition.key === "string"
+            ? readString(
+                condition.key,
+                MAX_BEHAVIOR_VARIABLE_KEY_LENGTH,
+              )
+            : "";
+        const targetIdValue =
+          typeof condition.targetId === "string"
+            ? condition.targetId.trim()
+            : "";
+        const targetId = targetIdValue
+          ? readPageId(targetIdValue)
+          : undefined;
+        const conditionValue =
+          typeof condition.value === "string" ? condition.value : "";
+        if (conditionValue.length > MAX_BEHAVIOR_ACTION_VALUE_LENGTH) {
+          invalidDocument();
+        }
+        return {
+          id: conditionId,
+          source: source as CanvasBehaviorConditionSource,
+          ...(key ? { key } : {}),
+          ...(targetId ? { targetId } : {}),
+          operator: operator as CanvasBehaviorConditionOperator,
+          value: conditionValue,
+          ...(condition.negate === true ? { negate: true } : {}),
+        };
+      });
+    }
+
+    const conditionMode: CanvasBehaviorTriggerDto["conditionMode"] =
+      trigger.conditionMode === "any" ? "any" : "all";
+
+    return {
+      id,
+      event,
+      ...(stateId ? { stateId } : {}),
+      ...(conditions?.length
+        ? { conditionMode, conditions }
+        : {}),
+      actions,
+    };
+  });
+
+  const states = behavior.states.map((rawState) => {
+    const state = readObject(rawState);
+    return {
+      id: readString(state.id, MAX_BEHAVIOR_ID_LENGTH, true),
+      name: readString(state.name, MAX_BEHAVIOR_STATE_NAME_LENGTH) ||
+        "State",
+      ...(state.initial === true ? { initial: true } : {}),
+    };
+  });
+
+  const variables = behavior.variables.map((rawVariable) => {
+    const variable = readObject(rawVariable);
+    const type = variable.type;
+    if (
+      type !== "text" &&
+      type !== "number" &&
+      type !== "boolean" &&
+      type !== "color"
+    ) {
+      invalidDocument();
+    }
+    const initialValue =
+      typeof variable.initialValue === "string"
+        ? variable.initialValue
+        : "";
+    if (initialValue.length > MAX_BEHAVIOR_ACTION_VALUE_LENGTH) {
+      invalidDocument();
+    }
+    return {
+      key: readString(
+        variable.key,
+        MAX_BEHAVIOR_VARIABLE_KEY_LENGTH,
+        true,
+      ),
+      type: type as CanvasBehaviorVariableDto["type"],
+      initialValue,
+    };
+  });
+
+  return { triggers, states, variables };
+}
+
 function normalizePage(value: unknown): CanvasPageDto {
   const page = readObject(value);
   const frame =
@@ -383,6 +711,7 @@ function normalizePage(value: unknown): CanvasPageDto {
   if (parentId === id) invalidDocument();
   const data = normalizeData(page.data);
   const widget = normalizeWidget(page.widget);
+  const behavior = normalizeBehavior(page.behavior);
 
   return {
     id,
@@ -395,6 +724,7 @@ function normalizePage(value: unknown): CanvasPageDto {
     ...(parentId ? { parentId } : {}),
     ...(data.length ? { data } : {}),
     ...(widget ? { widget } : {}),
+    ...(behavior ? { behavior } : {}),
   };
 }
 
@@ -564,7 +894,7 @@ export function saveProjectCanvas(
 
   const pages = normalizePages(rawPages);
   const links = normalizeLinks(rawLinks, pages);
-  const data = JSON.stringify({ version: 3, pages, links });
+  const data = JSON.stringify({ version: 4, pages, links });
   if (data.length > MAX_CANVAS_JSON_LENGTH) {
     throw new ApiError(
       413,

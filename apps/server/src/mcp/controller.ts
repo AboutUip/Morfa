@@ -10,8 +10,23 @@ import type {
   McpInvocation,
   McpKeyPermissions,
   McpSearchOptions,
+  McpStructuredResult,
   McpToolDefinition,
 } from "./types.js";
+
+function isStructuredResult(
+  value: unknown,
+): value is McpStructuredResult {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+  const result = value as Record<string, unknown>;
+  return (
+    Boolean(result.structuredContent) &&
+    typeof result.structuredContent === "object" &&
+    !Array.isArray(result.structuredContent)
+  );
+}
 
 const CATEGORY_ORDER: Record<McpCategory, number> = {
   system: 0,
@@ -20,6 +35,14 @@ const CATEGORY_ORDER: Record<McpCategory, number> = {
   security: 3,
   data: 4,
   models: 5,
+  projects: 6,
+  canvas: 7,
+  layout: 8,
+  behavior: 9,
+  runtime: 10,
+  screenshot: 11,
+  assets: 12,
+  lint: 13,
 };
 
 function compareSummaries(
@@ -235,11 +258,21 @@ export class McpController {
       );
     }
 
-    const data = await capability.execute(
+    const result = await capability.execute(
       { user, apiKey, origin },
       args,
     );
 
-    return { name, data };
+    if (isStructuredResult(result)) {
+      return {
+        name,
+        data: result.structuredContent,
+        ...(result.imageContent?.length
+          ? { imageContent: result.imageContent }
+          : {}),
+      };
+    }
+
+    return { name, data: result };
   }
 }

@@ -1,4 +1,19 @@
+import {
+  resolveCanvasLayout,
+  resolveCanvasLengthValue,
+  type CanvasResolvedFrame,
+} from "@morfa/shared/canvas-layout";
+
 import type {
+  CanvasBehaviorActionDto,
+  CanvasBehaviorActionType,
+  CanvasBehaviorConditionDto,
+  CanvasBehaviorConditionOperator,
+  CanvasBehaviorConditionSource,
+  CanvasBehaviorDto,
+  CanvasBehaviorStateDto,
+  CanvasBehaviorTriggerDto,
+  CanvasBehaviorVariableDto,
   CanvasDataEntryDto,
   CanvasDataType,
   CanvasLinkAnchorDto,
@@ -15,7 +30,16 @@ export type CanvasDataEntry = CanvasDataEntryDto;
 export type CanvasLink = CanvasLinkDto;
 export type CanvasLinkAnchor = CanvasLinkAnchorDto;
 export type CanvasWidget = CanvasWidgetDto;
+export type CanvasBehavior = CanvasBehaviorDto;
+export type CanvasBehaviorAction = CanvasBehaviorActionDto;
+export type CanvasBehaviorCondition = CanvasBehaviorConditionDto;
+export type CanvasBehaviorTrigger = CanvasBehaviorTriggerDto;
+export type CanvasBehaviorState = CanvasBehaviorStateDto;
+export type CanvasBehaviorVariable = CanvasBehaviorVariableDto;
 export type {
+  CanvasBehaviorActionType,
+  CanvasBehaviorConditionOperator,
+  CanvasBehaviorConditionSource,
   CanvasDataType,
   CanvasLinkAnchorDto,
   CanvasLinkDirection,
@@ -309,11 +333,12 @@ export type CanvasLintCode =
   | "missing-node"
   | "no-access"
   | "missing-self-key"
-  | "missing-node-key";
+  | "missing-node-key"
+  | "layout-invalid";
 
 export interface CanvasLintItem {
   id: string;
-  severity: "error";
+  severity: "error" | "warning";
   pageId: string;
   pageName: string;
   styleKey: string;
@@ -447,6 +472,23 @@ export function collectCanvasLint(
     }
   }
 
+  const layout = getCanvasLayout(pages, links);
+  for (const frame of layout.values()) {
+    for (const issue of frame.issues) {
+      const page = pages.find((item) => item.id === issue.nodeId);
+      result.push({
+        id: `layout:${issue.nodeId}:${issue.styleKey}:${issue.value}`,
+        severity: issue.severity,
+        pageId: issue.nodeId,
+        pageName: page?.name ?? issue.nodeId,
+        styleKey: issue.styleKey,
+        expression: issue.value,
+        code: "layout-invalid",
+        key: issue.code,
+      });
+    }
+  }
+
   return result;
 }
 
@@ -558,6 +600,62 @@ export function resolveStyleVariables(
   return resolved;
 }
 
+interface CanvasLayoutCacheEntry {
+  links: CanvasLink[];
+  frames: Map<string, CanvasResolvedFrame>;
+}
+
+const canvasLayoutCache = new WeakMap<CanvasPage[], CanvasLayoutCacheEntry>();
+
+/**
+ * 解析整份文档的页面布局。样式变量会先解析，因此 ${data.key} 形式的
+ * 宽高和定位值会参与布局；结果按 pages / links 数组引用缓存。
+ */
+export function getCanvasLayout(
+  pages: CanvasPage[],
+  links: CanvasLink[],
+): Map<string, CanvasResolvedFrame> {
+  const cached = canvasLayoutCache.get(pages);
+  if (cached && cached.links === links) return cached.frames;
+
+  const nodes = pages.map((page) => ({
+    id: page.id,
+    x: page.x,
+    y: page.y,
+    parentId: page.parentId,
+    styles: resolveStyleVariables(page.styles, page, pages, links),
+  }));
+  const frames = resolveCanvasLayout(nodes);
+  canvasLayoutCache.set(pages, { links, frames });
+  return frames;
+}
+
+export function getPageFrame(
+  page: CanvasPage,
+  pages: CanvasPage[] = [],
+  links: CanvasLink[] = [],
+): CanvasResolvedFrame {
+  if (pages.length > 0) {
+    const frame = getCanvasLayout(pages, links).get(page.id);
+    if (frame) return frame;
+  }
+
+  // 页面不在当前文档里时退回旧的尺寸推导，保证离屏计算仍可用。
+  const { width, height } = getPageSize(page, pages, links);
+  return {
+    nodeId: page.id,
+    parentId: page.parentId ?? null,
+    localX: page.x,
+    localY: page.y,
+    width,
+    height,
+    worldX: page.x,
+    worldY: page.y,
+    valid: true,
+    issues: [],
+  };
+}
+
 export function renameStyleReferences(
   styles: Record<string, string>,
   fromId: string,
@@ -599,10 +697,10 @@ export function getLinkAnchorPoint(
   pages: CanvasPage[],
   links: CanvasLink[],
 ): { x: number; y: number } {
-  const { width, height } = getPageSize(page, pages, links);
+  const frame = getPageFrame(page, pages, links);
   return {
-    x: page.x + anchor.x * width,
-    y: page.y + anchor.y * height,
+    x: frame.worldX + anchor.x * frame.width,
+    y: frame.worldY + anchor.y * frame.height,
   };
 }
 
@@ -616,44 +714,46 @@ export function projectPointToPageEdge(
   pages: CanvasPage[],
   links: CanvasLink[] = [],
 ): CanvasLinkAnchor {
-  const { width, height } = getPageSize(page, pages, links);
+  const frame = getPageFrame(page, pages, links);
+  const width = Math.max(1, frame.width);
+  const height = Math.max(1, frame.height);
   const clampedX = Math.min(
-    page.x + width,
-    Math.max(page.x, worldX),
+    frame.worldX + width,
+    Math.max(frame.worldX, worldX),
   );
   const clampedY = Math.min(
-    page.y + height,
-    Math.max(page.y, worldY),
+    frame.worldY + height,
+    Math.max(frame.worldY, worldY),
   );
-  const left = clampedX - page.x;
-  const right = page.x + width - clampedX;
-  const top = clampedY - page.y;
-  const bottom = page.y + height - clampedY;
+  const left = clampedX - frame.worldX;
+  const right = frame.worldX + width - clampedX;
+  const top = clampedY - frame.worldY;
+  const bottom = frame.worldY + height - clampedY;
   const min = Math.min(left, right, top, bottom);
 
   if (min === left) {
     return {
       x: 0,
-      y: (clampedY - page.y) / height,
+      y: (clampedY - frame.worldY) / height,
       edge: "left",
     };
   }
   if (min === right) {
     return {
       x: 1,
-      y: (clampedY - page.y) / height,
+      y: (clampedY - frame.worldY) / height,
       edge: "right",
     };
   }
   if (min === top) {
     return {
-      x: (clampedX - page.x) / width,
+      x: (clampedX - frame.worldX) / width,
       y: 0,
       edge: "top",
     };
   }
   return {
-    x: (clampedX - page.x) / width,
+    x: (clampedX - frame.worldX) / width,
     y: 1,
     edge: "bottom",
   };
@@ -735,15 +835,31 @@ export function getPageSize(
   pages: CanvasPage[] = [],
   links: CanvasLink[] = [],
 ) {
+  if (pages.length > 0) {
+    const frame = getCanvasLayout(pages, links).get(page.id);
+    if (frame) return { width: frame.width, height: frame.height };
+  }
+
   const styles =
     pages.length > 0
       ? resolveStyleVariables(page.styles, page, pages, links)
       : page.styles;
-  const width = Number.parseFloat(styles.width ?? "");
-  const height = Number.parseFloat(styles.height ?? "");
+  const parent = page.parentId
+    ? pages.find((item) => item.id === page.parentId)
+    : undefined;
+  const parentSize = parent
+    ? getPageSize(parent, pages, links)
+    : undefined;
+  const width = resolveCanvasLengthValue(
+    styles.width,
+    parentSize?.width,
+    800,
+  );
+  const height = resolveCanvasLengthValue(
+    styles.height,
+    parentSize?.height,
+    800,
+  );
 
-  return {
-    width: Number.isFinite(width) && width > 0 ? width : 800,
-    height: Number.isFinite(height) && height > 0 ? height : 800,
-  };
+  return { width, height };
 }

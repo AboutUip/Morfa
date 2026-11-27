@@ -10,14 +10,15 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+import type { CanvasResolvedFrame } from "@morfa/shared/canvas-layout";
 
 import { hasPageClipboard } from "./canvasClipboard";
 import type { CanvasTool } from "./canvasTools";
 import {
   createPageId,
   createPageStyles,
+  getCanvasLayout,
   getLinkAnchorPoint,
-  getPageSize,
   isPageSeeThrough,
   projectPointToPageEdge,
   resolveStyleVariables,
@@ -195,6 +196,7 @@ interface CanvasViewportProps {
   onCutPage: (pageId: string) => void;
   onDuplicatePage: (pageId: string) => void;
   onPastePage: (position?: { x: number; y: number }) => void;
+  onRunPage: (pageId: string) => void;
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -237,19 +239,20 @@ function blurActiveEditableElement() {
 
 function findPageAt(
   pages: CanvasPage[],
+  layout: Map<string, CanvasResolvedFrame>,
   worldX: number,
   worldY: number,
-  links: CanvasLink[],
 ) {
   for (let index = pages.length - 1; index >= 0; index -= 1) {
     const page = pages[index];
-    const { width, height } = getPageSize(page, pages, links);
+    const frame = layout.get(page.id);
+    if (!frame) continue;
 
     if (
-      worldX >= page.x &&
-      worldX <= page.x + width &&
-      worldY >= page.y &&
-      worldY <= page.y + height
+      worldX >= frame.worldX &&
+      worldX <= frame.worldX + frame.width &&
+      worldY >= frame.worldY &&
+      worldY <= frame.worldY + frame.height
     ) {
       return page;
     }
@@ -260,7 +263,7 @@ function findPageAt(
 
 function findPageIdsInMarquee(
   pages: CanvasPage[],
-  links: CanvasLink[],
+  layout: Map<string, CanvasResolvedFrame>,
   startX: number,
   startY: number,
   endX: number,
@@ -280,12 +283,13 @@ function findPageIdsInMarquee(
 
   return pages
     .filter((page) => {
-      const { width, height } = getPageSize(page, pages, links);
+      const frame = layout.get(page.id);
+      if (!frame) return false;
       return (
-        page.x < worldRight &&
-        page.x + width > worldLeft &&
-        page.y < worldBottom &&
-        page.y + height > worldTop
+        frame.worldX < worldRight &&
+        frame.worldX + frame.width > worldLeft &&
+        frame.worldY < worldBottom &&
+        frame.worldY + frame.height > worldTop
       );
     })
     .map((page) => page.id);
@@ -293,7 +297,7 @@ function findPageIdsInMarquee(
 
 function findLinkSourcePageAt(
   pages: CanvasPage[],
-  links: CanvasLink[],
+  layout: Map<string, CanvasResolvedFrame>,
   worldX: number,
   worldY: number,
   view: CanvasView,
@@ -304,30 +308,31 @@ function findLinkSourcePageAt(
   for (let index = pages.length - 1; index >= 0; index -= 1) {
     const page = pages[index];
     if (page.parentId) continue;
-    const { width, height } = getPageSize(page, pages, links);
+    const frame = layout.get(page.id);
+    if (!frame) continue;
     if (
-      worldX < page.x - band ||
-      worldX > page.x + width + band ||
-      worldY < page.y - band ||
-      worldY > page.y + height + band
+      worldX < frame.worldX - band ||
+      worldX > frame.worldX + frame.width + band ||
+      worldY < frame.worldY - band ||
+      worldY > frame.worldY + frame.height + band
     ) {
       continue;
     }
 
     // 加号只允许从组件外侧边缘触发，鼠标在组件内部时跳过该组件。
     if (
-      worldX > page.x &&
-      worldX < page.x + width &&
-      worldY > page.y &&
-      worldY < page.y + height
+      worldX > frame.worldX &&
+      worldX < frame.worldX + frame.width &&
+      worldY > frame.worldY &&
+      worldY < frame.worldY + frame.height
     ) {
       continue;
     }
 
-    const left = Math.abs(worldX - page.x);
-    const right = Math.abs(worldX - (page.x + width));
-    const top = Math.abs(worldY - page.y);
-    const bottom = Math.abs(worldY - (page.y + height));
+    const left = Math.abs(worldX - frame.worldX);
+    const right = Math.abs(worldX - (frame.worldX + frame.width));
+    const top = Math.abs(worldY - frame.worldY);
+    const bottom = Math.abs(worldY - (frame.worldY + frame.height));
     const nearVertical = Math.min(left, right) <= band;
     const nearHorizontal = Math.min(top, bottom) <= band;
     if (!nearVertical && !nearHorizontal) continue;
@@ -347,7 +352,7 @@ function findLinkSourcePageAt(
 
 function findLinkTargetPageAt(
   pages: CanvasPage[],
-  links: CanvasLink[],
+  layout: Map<string, CanvasResolvedFrame>,
   worldX: number,
   worldY: number,
   excludeId: string,
@@ -358,12 +363,13 @@ function findLinkTargetPageAt(
   for (let index = pages.length - 1; index >= 0; index -= 1) {
     const page = pages[index];
     if (page.id === excludeId || page.parentId) continue;
-    const { width, height } = getPageSize(page, pages, links);
+    const frame = layout.get(page.id);
+    if (!frame) continue;
     if (
-      worldX >= page.x - margin &&
-      worldX <= page.x + width + margin &&
-      worldY >= page.y - margin &&
-      worldY <= page.y + height + margin
+      worldX >= frame.worldX - margin &&
+      worldX <= frame.worldX + frame.width + margin &&
+      worldY >= frame.worldY - margin &&
+      worldY <= frame.worldY + frame.height + margin
     ) {
       return page;
     }
@@ -447,7 +453,7 @@ function nearestSnap(
 
 function collectSnapLines(input: {
   pages: CanvasPage[];
-  links: CanvasLink[];
+  layout: Map<string, CanvasResolvedFrame>;
   excludeId: string;
   view: CanvasView;
   viewportWidth: number;
@@ -456,7 +462,7 @@ function collectSnapLines(input: {
 }) {
   const {
     pages,
-    links,
+    layout,
     excludeId,
     view,
     viewportWidth,
@@ -490,13 +496,14 @@ function collectSnapLines(input: {
   if (settings.componentBounds) {
     for (const page of pages) {
       if (page.id === excludeId) continue;
-      const size = getPageSize(page, pages, links);
-      addLine(xLines, page.x);
-      addLine(xLines, page.x + size.width / 2);
-      addLine(xLines, page.x + size.width);
-      addLine(yLines, page.y);
-      addLine(yLines, page.y + size.height / 2);
-      addLine(yLines, page.y + size.height);
+      const frame = layout.get(page.id);
+      if (!frame) continue;
+      addLine(xLines, frame.worldX);
+      addLine(xLines, frame.worldX + frame.width / 2);
+      addLine(xLines, frame.worldX + frame.width);
+      addLine(yLines, frame.worldY);
+      addLine(yLines, frame.worldY + frame.height / 2);
+      addLine(yLines, frame.worldY + frame.height);
     }
   }
 
@@ -509,7 +516,7 @@ function resolvePageSnap(input: {
   width: number;
   height: number;
   pages: CanvasPage[];
-  links: CanvasLink[];
+  layout: Map<string, CanvasResolvedFrame>;
   movingId: string;
   view: CanvasView;
   viewportWidth: number;
@@ -522,7 +529,7 @@ function resolvePageSnap(input: {
     width,
     height,
     pages,
-    links,
+    layout,
     movingId,
     view,
     viewportWidth,
@@ -536,7 +543,7 @@ function resolvePageSnap(input: {
 
   const { xLines, yLines } = collectSnapLines({
     pages,
-    links,
+    layout,
     excludeId: movingId,
     view,
     viewportWidth,
@@ -586,7 +593,7 @@ function resolvePageResizeSnap(input: {
   width: number;
   height: number;
   pages: CanvasPage[];
-  links: CanvasLink[];
+  layout: Map<string, CanvasResolvedFrame>;
   resizingId: string;
   view: CanvasView;
   viewportWidth: number;
@@ -600,7 +607,7 @@ function resolvePageResizeSnap(input: {
     width,
     height,
     pages,
-    links,
+    layout,
     resizingId,
     view,
     viewportWidth,
@@ -619,7 +626,7 @@ function resolvePageResizeSnap(input: {
 
   const { xLines, yLines } = collectSnapLines({
     pages,
-    links,
+    layout,
     excludeId: resizingId,
     view,
     viewportWidth,
@@ -750,8 +757,10 @@ export function CanvasViewport({
   onCutPage,
   onDuplicatePage,
   onPastePage,
+  onRunPage,
 }: CanvasViewportProps) {
   const { t } = useTranslation();
+  const layout = getCanvasLayout(pages, links);
   const viewportRef = useRef<HTMLElement>(null);
   const [view, setView] = useState<CanvasView>({
     x: 0,
@@ -1063,7 +1072,7 @@ export function CanvasViewport({
       const worldY = (y - currentView.y) / currentView.zoom;
       const source = findLinkSourcePageAt(
         pages,
-        links,
+        layout,
         worldX,
         worldY,
         currentView,
@@ -1119,7 +1128,7 @@ export function CanvasViewport({
       const currentView = viewRef.current;
       const worldX = (x - currentView.x) / currentView.zoom;
       const worldY = (y - currentView.y) / currentView.zoom;
-      const hit = findPageAt(pages, worldX, worldY, links);
+      const hit = findPageAt(pages, layout, worldX, worldY);
 
       if (!hit) {
         setMoveTargetId(null);
@@ -1128,6 +1137,7 @@ export function CanvasViewport({
         return;
       }
 
+      const frame = layout.get(hit.id);
       event.currentTarget.setPointerCapture(event.pointerId);
       onSelectPage(hit.id);
       setMoveTargetId(hit.id);
@@ -1138,8 +1148,8 @@ export function CanvasViewport({
         pageId: hit.id,
         startWorldX: worldX,
         startWorldY: worldY,
-        startX: hit.x,
-        startY: hit.y,
+        startX: frame?.worldX ?? hit.x,
+        startY: frame?.worldY ?? hit.y,
         startClientX: event.clientX,
         startClientY: event.clientY,
         started: false,
@@ -1157,7 +1167,7 @@ export function CanvasViewport({
     const currentView = viewRef.current;
     const worldX = (x - currentView.x) / currentView.zoom;
     const worldY = (y - currentView.y) / currentView.zoom;
-    const hit = findPageAt(pages, worldX, worldY, links);
+    const hit = findPageAt(pages, layout, worldX, worldY);
 
     onSelectPage(hit?.id ?? null);
     if (hit) return;
@@ -1189,7 +1199,7 @@ export function CanvasViewport({
       const worldY = (y - currentView.y) / currentView.zoom;
       const target = findLinkTargetPageAt(
         pages,
-        links,
+        layout,
         worldX,
         worldY,
         linkSession.fromId,
@@ -1255,22 +1265,21 @@ export function CanvasViewport({
         (event.clientY - rect.top - currentView.y) / currentView.zoom;
       const rawX = move.startX + (worldX - move.startWorldX);
       const rawY = move.startY + (worldY - move.startWorldY);
-      const movingPage = pages.find((page) => page.id === move.pageId);
+      const movingFrame = layout.get(move.pageId);
 
-      if (!movingPage) {
+      if (!movingFrame) {
         onMovePage(move.pageId, rawX, rawY);
         setSnapGuides(null);
         return;
       }
 
-      const size = getPageSize(movingPage, pages, links);
       const resolution = resolvePageSnap({
         x: rawX,
         y: rawY,
-        width: size.width,
-        height: size.height,
+        width: movingFrame.width,
+        height: movingFrame.height,
         pages,
-        links,
+        layout,
         movingId: move.pageId,
         view: currentView,
         viewportWidth: event.currentTarget.clientWidth,
@@ -1307,14 +1316,14 @@ export function CanvasViewport({
       const currentView = viewRef.current;
       const worldX = (x - currentView.x) / currentView.zoom;
       const worldY = (y - currentView.y) / currentView.zoom;
-      const hit = findPageAt(pages, worldX, worldY, links);
+      const hit = findPageAt(pages, layout, worldX, worldY);
       setHoveringPage(Boolean(hit));
 
       if (activeTool === "select") {
         setMoveTargetId(null);
         const source = findLinkSourcePageAt(
           pages,
-          links,
+          layout,
           worldX,
           worldY,
           currentView,
@@ -1364,7 +1373,7 @@ export function CanvasViewport({
     onSelectPages(
       findPageIdsInMarquee(
         pages,
-        links,
+        layout,
         selection.startX,
         selection.startY,
         selection.currentX,
@@ -1404,7 +1413,7 @@ export function CanvasViewport({
       const worldY = (y - currentView.y) / currentView.zoom;
       const target = findLinkTargetPageAt(
         pages,
-        links,
+        layout,
         worldX,
         worldY,
         linkSession.fromId,
@@ -1486,7 +1495,9 @@ export function CanvasViewport({
     event.preventDefault();
     event.stopPropagation();
 
-    const size = getPageSize(page, pages, links);
+    const frame = layout.get(page.id);
+    if (!frame) return;
+
     event.currentTarget.setPointerCapture(event.pointerId);
     resizeRef.current = {
       pointerId: event.pointerId,
@@ -1494,10 +1505,10 @@ export function CanvasViewport({
       corner,
       startX: event.clientX,
       startY: event.clientY,
-      startPageX: page.x,
-      startPageY: page.y,
-      startWidth: size.width,
-      startHeight: size.height,
+      startPageX: frame.worldX,
+      startPageY: frame.worldY,
+      startWidth: frame.width,
+      startHeight: frame.height,
       zoom: viewRef.current.zoom,
     };
     onResizePageStart();
@@ -1541,7 +1552,7 @@ export function CanvasViewport({
       width: rawWidth,
       height: rawHeight,
       pages,
-      links,
+      layout,
       resizingId: resize.pageId,
       view: viewRef.current,
       viewportWidth: viewport?.clientWidth ?? 0,
@@ -1614,7 +1625,7 @@ export function CanvasViewport({
       (event.clientX - rect.left - currentView.x) / currentView.zoom;
     const worldY =
       (event.clientY - rect.top - currentView.y) / currentView.zoom;
-    const hit = findPageAt(pages, worldX, worldY, links);
+    const hit = findPageAt(pages, layout, worldX, worldY);
     const menuHeight = hit ? 196 : 48;
 
     if (hit) onSelectPage(hit.id);
@@ -1709,7 +1720,7 @@ export function CanvasViewport({
       (event.clientX - rect.left - currentView.x) / currentView.zoom;
     const worldY =
       (event.clientY - rect.top - currentView.y) / currentView.zoom;
-    const parentPage = findPageAt(pages, worldX, worldY, links);
+    const parentPage = findPageAt(pages, layout, worldX, worldY);
     const widget =
       item.type === "widget"
         ? {
@@ -1776,6 +1787,16 @@ export function CanvasViewport({
     contextMenu?.pageId
       ? pages.find((page) => page.id === contextMenu.pageId) ?? null
       : null;
+  const canRunContextPage = Boolean(
+    contextMenuPage &&
+      (contextMenuPage.frame ||
+        links.some(
+          (link) =>
+            link.fromId === contextMenuPage.id ||
+            (link.direction === "two-way" &&
+              link.toId === contextMenuPage.id),
+        )),
+  );
 
   const toScreenPoint = (point: { x: number; y: number }) => ({
     x: point.x * view.zoom + view.x,
@@ -1914,11 +1935,23 @@ export function CanvasViewport({
             pages,
             links,
           );
-          const {
-            width = "800px",
-            height = "800px",
-            ...surfaceStyles
-          } = resolvedStyles;
+          const frame = layout.get(page.id);
+          if (!frame) return null;
+          const surfaceStyles = { ...resolvedStyles };
+          for (const key of [
+            "width",
+            "height",
+            "min-width",
+            "max-width",
+            "min-height",
+            "max-height",
+            "left",
+            "right",
+            "top",
+            "bottom",
+          ]) {
+            delete surfaceStyles[key];
+          }
           const seeThrough = isPageSeeThrough(page);
           const surface = (
             <div
@@ -1938,10 +1971,10 @@ export function CanvasViewport({
                 activeTool === "move" && moveTargetId === page.id
               }
               style={{
-                left: page.x,
-                top: page.y,
-                width,
-                height,
+                left: frame.worldX,
+                top: frame.worldY,
+                width: frame.width,
+                height: frame.height,
               }}
             >
               {renamingId === page.id ? (
@@ -2169,11 +2202,31 @@ export function CanvasViewport({
             >
               {contextMenu.kind === "page" && contextMenuPage ? (
                 <>
+                  {canRunContextPage ? (
+                    <>
+                      <button
+                        className={styles.contextMenuItem}
+                        type="button"
+                        role="menuitem"
+                        autoFocus
+                        onClick={() => {
+                          onRunPage(contextMenuPage.id);
+                          setContextMenu(null);
+                        }}
+                      >
+                        {t("projects.workspace.canvas.contextMenu.run")}
+                      </button>
+                      <div
+                        className={styles.contextMenuSeparator}
+                        role="separator"
+                      />
+                    </>
+                  ) : null}
                   <button
                     className={styles.contextMenuItem}
                     type="button"
                     role="menuitem"
-                    autoFocus
+                    autoFocus={!canRunContextPage}
                     onClick={() => startPageRename(contextMenuPage)}
                   >
                     {t("projects.workspace.canvas.contextMenu.rename")}

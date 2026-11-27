@@ -15,6 +15,14 @@ const CATEGORIES: McpCategory[] = [
   "security",
   "data",
   "models",
+  "projects",
+  "canvas",
+  "layout",
+  "behavior",
+  "runtime",
+  "screenshot",
+  "assets",
+  "lint",
 ];
 
 export function registerMetaCapabilities(controller: McpController) {

@@ -11,7 +11,15 @@ export type McpCategory =
   | "profile"
   | "security"
   | "data"
-  | "models";
+  | "models"
+  | "projects"
+  | "canvas"
+  | "layout"
+  | "behavior"
+  | "runtime"
+  | "screenshot"
+  | "assets"
+  | "lint";
 
 export interface McpPermissionRequirements {
   vcode: boolean;
@@ -73,7 +81,7 @@ export interface McpCapability {
   execute(
     context: McpContext,
     args: Record<string, unknown>,
-  ): Promise<Record<string, unknown>>;
+  ): Promise<McpExecuteResult>;
 }
 
 export interface McpCapabilitySummary {
@@ -110,7 +118,23 @@ export interface McpToolDefinition {
 export interface McpInvocation {
   name: string;
   data: Record<string, unknown>;
+  imageContent?: McpImageContent[];
 }
+
+export interface McpImageContent {
+  type: "image";
+  data: string;
+  mimeType: string;
+}
+
+export interface McpStructuredResult {
+  structuredContent: Record<string, unknown>;
+  imageContent?: McpImageContent[];
+}
+
+export type McpExecuteResult =
+  | Record<string, unknown>
+  | McpStructuredResult;
 
 export interface McpSearchOptions {
   query?: string;

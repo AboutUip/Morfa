@@ -162,6 +162,7 @@ async function handleRpc(
             type: "text",
             text: JSON.stringify(invocation.data, null, 2),
           },
+          ...(invocation.imageContent ?? []),
         ],
         structuredContent: invocation.data,
         isError: false,
@@ -299,7 +300,14 @@ export function registerMcpRoutes(
         args,
       );
 
-      return { ok: true, name: invocation.name, data: invocation.data };
+      return {
+        ok: true,
+        name: invocation.name,
+        data: invocation.data,
+        ...(invocation.imageContent?.length
+          ? { images: invocation.imageContent }
+          : {}),
+      };
     },
   );
 

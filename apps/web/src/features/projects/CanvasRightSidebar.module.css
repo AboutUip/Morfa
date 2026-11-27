@@ -742,6 +742,27 @@
   line-height: 1.4;
 }
 
+.behaviorEditorButton {
+  display: flex;
+  width: 100%;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--mf-accent);
+  border-radius: 6px;
+  background: var(--mf-accent-soft);
+  color: var(--mf-accent);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.behaviorEditorButton:hover {
+  background: var(--mf-accent);
+  color: #ffffff;
+}
+
 .styleAdd {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 26px;
