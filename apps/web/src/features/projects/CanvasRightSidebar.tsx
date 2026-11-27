@@ -1883,6 +1883,17 @@ function PropertiesPanel({
                       }
                     />
                     <SelectControl
+                      fieldId="textVerticalAlign"
+                      label={t(
+                        "projects.workspace.propertiesPanel.fields.textVerticalAlign",
+                      )}
+                      value={page.styles["align-items"]}
+                      options={["flex-start", "center", "flex-end"]}
+                      onChange={(value) =>
+                        updateStyle("align-items", value)
+                      }
+                    />
+                    <SelectControl
                       fieldId="fontStyle"
                       label={t(
                         "projects.workspace.propertiesPanel.fields.fontStyle",
@@ -1931,7 +1942,7 @@ function PropertiesPanel({
                         "projects.workspace.propertiesPanel.fields.whiteSpace",
                       )}
                       value={page.styles["white-space"]}
-                      options={["normal", "nowrap", "pre-wrap", "pre"]}
+                      options={["normal", "nowrap", "pre-wrap", "pre-line", "pre"]}
                       onChange={(value) =>
                         updateStyle("white-space", value)
                       }

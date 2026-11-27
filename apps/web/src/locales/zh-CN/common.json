@@ -273,6 +273,7 @@
           "lineHeight": "行高",
           "letterSpacing": "字间距",
           "textAlign": "文字对齐",
+          "textVerticalAlign": "垂直对齐",
           "textDecoration": "文字装饰",
           "textTransform": "大小写",
           "whiteSpace": "换行方式",

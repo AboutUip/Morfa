@@ -273,6 +273,7 @@
           "lineHeight": "Line height",
           "letterSpacing": "Letter spacing",
           "textAlign": "Text align",
+          "textVerticalAlign": "Vertical align",
           "textDecoration": "Text decoration",
           "textTransform": "Text transform",
           "whiteSpace": "White space",

@@ -1002,6 +1002,7 @@ const STYLE_VARIABLE_MAP: Record<string, string> = {
   "white-space": "--mf-runtime-white-space",
   "word-break": "--mf-runtime-word-break",
   "text-overflow": "--mf-runtime-text-overflow",
+  overflow: "--mf-runtime-overflow",
   "object-fit": "--mf-runtime-object-fit",
   "object-position": "--mf-runtime-object-position",
 };
