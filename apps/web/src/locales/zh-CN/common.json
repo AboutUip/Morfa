@@ -869,6 +869,7 @@
     "sourceProject": "来自 {{name}}",
     "accountLevel": "账号级组件",
     "openSource": "打开来源项目",
+    "openSourceShort": "打开",
     "delete": "删除",
     "cancel": "取消",
     "deleteConfirm": "删除此组件？已导入项目中的副本不受影响。",

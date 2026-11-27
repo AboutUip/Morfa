@@ -5,6 +5,7 @@ import { ApiError } from "../lib/errors.js";
 import {
   deleteAccountComponent,
   getAccountComponent,
+  getAccountComponentPreview,
   importAccountComponent,
   listAccountComponents,
   publishAccountComponent,
@@ -40,6 +41,17 @@ export function registerAccountComponentRoutes(app: FastifyInstance) {
           request.params.id,
         ),
       };
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/api/me/components/:id/preview",
+    async (request) => {
+      const session = requireActiveUser(readSessionToken(request));
+      return getAccountComponentPreview(
+        session.row.id,
+        request.params.id,
+      );
     },
   );
 

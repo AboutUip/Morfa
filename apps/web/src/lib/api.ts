@@ -791,6 +791,16 @@ export const accountComponentApi = {
       },
     ),
 
+  preview: (componentId: string) =>
+    request<{
+      component: AccountComponent;
+      pages: CanvasPageDto[];
+      rootControlId: string;
+      defaultStateId: string | null;
+    }>(
+      `/api/me/components/${encodeURIComponent(componentId)}/preview`,
+    ),
+
   remove: (componentId: string) =>
     request<{ componentId: string; deleted: boolean }>(
       `/api/me/components/${encodeURIComponent(componentId)}`,

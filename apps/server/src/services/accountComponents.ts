@@ -134,6 +134,26 @@ export function getAccountComponent(userId: string, componentId: string) {
   return toSummary(row);
 }
 
+export function getAccountComponentPreview(
+  userId: string,
+  componentId: string,
+) {
+  const row = findAccountComponentRow(userId, componentId);
+  if (!row) {
+    throw new ApiError(404, "ACCOUNT_COMPONENT_NOT_FOUND", "组件不存在");
+  }
+  const pages = parsePages(row);
+  const rootControl = pages.find(
+    (page) => page.id === row.root_control_id,
+  );
+  return {
+    component: toSummary(row),
+    pages,
+    rootControlId: row.root_control_id,
+    defaultStateId: rootControl?.control?.defaultStateId ?? null,
+  };
+}
+
 export function publishAccountComponent(input: {
   userId: string;
   projectId: string;

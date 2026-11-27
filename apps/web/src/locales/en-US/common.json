@@ -869,6 +869,7 @@
     "sourceProject": "From {{name}}",
     "accountLevel": "Account level",
     "openSource": "Open source project",
+    "openSourceShort": "Open",
     "delete": "Delete",
     "cancel": "Cancel",
     "deleteConfirm": "Delete this component? Imported copies stay in their projects.",

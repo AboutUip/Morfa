@@ -286,7 +286,6 @@ export function ProjectsPage() {
               projects={projects}
               onLogin={openAuth}
               onOpenProject={openProject}
-              onGoToProjects={() => setActiveTab("projects")}
             />
           ) : (
             <section
